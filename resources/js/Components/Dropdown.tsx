@@ -8,6 +8,7 @@ import {
     useContext,
     useState,
 } from 'react';
+import { useTheme } from '@/Contexts/ThemeContext';
 
 const DropDownContext = createContext<{
     open: boolean;
@@ -21,11 +22,7 @@ const DropDownContext = createContext<{
 
 const Dropdown = ({ children }: PropsWithChildren) => {
     const [open, setOpen] = useState(false);
-
-    const toggleOpen = () => {
-        setOpen((previousState) => !previousState);
-    };
-
+    const toggleOpen = () => setOpen(p => !p);
     return (
         <DropDownContext.Provider value={{ open, setOpen, toggleOpen }}>
             <div className="relative">{children}</div>
@@ -35,17 +32,10 @@ const Dropdown = ({ children }: PropsWithChildren) => {
 
 const Trigger = ({ children }: PropsWithChildren) => {
     const { open, setOpen, toggleOpen } = useContext(DropDownContext);
-
     return (
         <>
             <div onClick={toggleOpen}>{children}</div>
-
-            {open && (
-                <div
-                    className="fixed inset-0 z-40"
-                    onClick={() => setOpen(false)}
-                ></div>
-            )}
+            {open && <div className="fixed inset-0 z-40" onClick={() => setOpen(false)} />}
         </>
     );
 };
@@ -53,7 +43,7 @@ const Trigger = ({ children }: PropsWithChildren) => {
 const Content = ({
     align = 'right',
     width = '48',
-    contentClasses = 'py-1 bg-white',
+    contentClasses,
     children,
 }: PropsWithChildren<{
     align?: 'left' | 'right';
@@ -61,61 +51,49 @@ const Content = ({
     contentClasses?: string;
 }>) => {
     const { open, setOpen } = useContext(DropDownContext);
+    const { isDark } = useTheme();
 
-    let alignmentClasses = 'origin-top';
+    const defaultContent = isDark ? 'py-1 bg-[#161b22]' : 'py-1 bg-white';
+    const resolvedContent = contentClasses ?? defaultContent;
 
-    if (align === 'left') {
-        alignmentClasses = 'ltr:origin-top-left rtl:origin-top-right start-0';
-    } else if (align === 'right') {
-        alignmentClasses = 'ltr:origin-top-right rtl:origin-top-left end-0';
-    }
-
-    let widthClasses = '';
-
-    if (width === '48') {
-        widthClasses = 'w-48';
-    }
+    const alignmentClasses =
+        align === 'left'
+            ? 'ltr:origin-top-left rtl:origin-top-right start-0'
+            : 'ltr:origin-top-right rtl:origin-top-left end-0';
 
     return (
-        <>
-            <Transition
-                show={open}
-                enter="transition ease-out duration-200"
-                enterFrom="opacity-0 scale-95"
-                enterTo="opacity-100 scale-100"
-                leave="transition ease-in duration-75"
-                leaveFrom="opacity-100 scale-100"
-                leaveTo="opacity-0 scale-95"
+        <Transition
+            show={open}
+            enter="transition ease-out duration-200"
+            enterFrom="opacity-0 scale-95"
+            enterTo="opacity-100 scale-100"
+            leave="transition ease-in duration-75"
+            leaveFrom="opacity-100 scale-100"
+            leaveTo="opacity-0 scale-95"
+        >
+            <div
+                className={`absolute z-50 mt-2 rounded-md shadow-lg w-${width} ${alignmentClasses}`}
+                onClick={() => setOpen(false)}
             >
-                <div
-                    className={`absolute z-50 mt-2 rounded-md shadow-lg ${alignmentClasses} ${widthClasses}`}
-                    onClick={() => setOpen(false)}
-                >
-                    <div
-                        className={
-                            `rounded-md ring-1 ring-black ring-opacity-5 ` +
-                            contentClasses
-                        }
-                    >
-                        {children}
-                    </div>
+                <div className={`rounded-md ring-1 ${isDark ? 'ring-[#30363d]' : 'ring-black ring-opacity-5'} ${resolvedContent}`}>
+                    {children}
                 </div>
-            </Transition>
-        </>
+            </div>
+        </Transition>
     );
 };
 
-const DropdownLink = ({
-    className = '',
-    children,
-    ...props
-}: InertiaLinkProps) => {
+const DropdownLink = ({ className = '', children, ...props }: InertiaLinkProps) => {
+    const { isDark } = useTheme();
     return (
         <Link
             {...props}
             className={
-                'block w-full px-4 py-2 text-start text-sm leading-5 text-gray-700 transition duration-150 ease-in-out hover:bg-gray-100 focus:bg-gray-100 focus:outline-none ' +
-                className
+                `block w-full px-4 py-2 text-start text-sm leading-5 transition duration-150 ease-in-out focus:outline-none ` +
+                (isDark
+                    ? 'text-[#e6edf3] hover:bg-[#21262d] focus:bg-[#21262d]'
+                    : 'text-gray-700 hover:bg-gray-100 focus:bg-gray-100') +
+                ' ' + className
             }
         >
             {children}
