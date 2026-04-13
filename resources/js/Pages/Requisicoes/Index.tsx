@@ -35,18 +35,18 @@ const LIGHT: Palette = {
 };
 
 const MOTIVO_COR_DARK: Record<string, { bg: string; text: string; border: string }> = {
-    Cadastro:   { bg: 'rgba(47,129,247,0.15)',  text: '#79c0ff', border: 'rgba(47,129,247,0.3)'  },
-    Preço:      { bg: 'rgba(210,153,34,0.15)',  text: '#e3b341', border: 'rgba(210,153,34,0.3)'  },
-    Regra:      { bg: 'rgba(248,81,73,0.15)',   text: '#ff7b72', border: 'rgba(248,81,73,0.3)'   },
+    Cadastro: { bg: 'rgba(47,129,247,0.15)', text: '#79c0ff', border: 'rgba(47,129,247,0.3)' },
+    Preço: { bg: 'rgba(210,153,34,0.15)', text: '#e3b341', border: 'rgba(210,153,34,0.3)' },
+    Regra: { bg: 'rgba(248,81,73,0.15)', text: '#ff7b72', border: 'rgba(248,81,73,0.3)' },
     Quantidade: { bg: 'rgba(163,113,247,0.15)', text: '#d2a8ff', border: 'rgba(163,113,247,0.3)' },
-    Pedido:     { bg: 'rgba(63,185,80,0.15)',   text: '#56d364', border: 'rgba(63,185,80,0.3)'   },
+    Pedido: { bg: 'rgba(63,185,80,0.15)', text: '#56d364', border: 'rgba(63,185,80,0.3)' },
 };
 const MOTIVO_COR_LIGHT: Record<string, { bg: string; text: string; border: string }> = {
-    Cadastro:   { bg: '#dbeafe', text: '#1d4ed8', border: '#bfdbfe' },
-    Preço:      { bg: '#fef9c3', text: '#854d0e', border: '#fde68a' },
-    Regra:      { bg: '#fee2e2', text: '#b91c1c', border: '#fecaca' },
+    Cadastro: { bg: '#dbeafe', text: '#1d4ed8', border: '#bfdbfe' },
+    Preço: { bg: '#fef9c3', text: '#854d0e', border: '#fde68a' },
+    Regra: { bg: '#fee2e2', text: '#b91c1c', border: '#fecaca' },
     Quantidade: { bg: '#f3e8ff', text: '#7e22ce', border: '#e9d5ff' },
-    Pedido:     { bg: '#dcfce7', text: '#15803d', border: '#bbf7d0' },
+    Pedido: { bg: '#dcfce7', text: '#15803d', border: '#bbf7d0' },
 };
 
 const lojaNome = (n: number) => `Loja ${String(n).padStart(2, '0')}`;
@@ -300,13 +300,13 @@ function LinhaPendente({ req, onEditar, onAtender, onExcluir, carregando, p }: {
                     <span className="ml-2 text-xs font-medium" style={{ color: p.AMBER }}>⚠ {req.data_origem}</span>
                 )}
             </td>
-            <td className="px-4 py-3 text-sm max-w-[180px] truncate" style={{ color: p.MUTED }}>{req.fornecedor.nome}</td>
+            <td className="px-4 py-3 text-sm max-w-[180px] truncate" style={{ color: p.TEXT }}>{req.fornecedor.nome}</td>
             <td className="px-4 py-3"><Badge label={req.motivo} isDark={p === DARK} /></td>
-            <td className="px-4 py-3 text-sm whitespace-nowrap" style={{ color: p.MUTED }}>{lojaNome(req.loja)}</td>
-            <td className="px-4 py-3 text-sm max-w-[200px] truncate" style={{ color: p.MUTED }} title={req.observacao ?? ''}>
-                {req.observacao || <span style={{ color: p.BORDER }}>—</span>}
+            <td className="px-4 py-3 text-sm whitespace-nowrap" style={{ color: p.TEXT }}>{lojaNome(req.loja)}</td>
+            <td className="px-4 py-3 text-sm max-w-[200px] truncate" style={{ color: p.TEXT }} title={req.observacao ?? ''}>
+                {req.observacao || <span style={{ color: p.MUTED }}>—</span>}
             </td>
-            <td className="px-4 py-3 text-sm whitespace-nowrap" style={{ color: p.MUTED }}>{req.user.name.split(' ')[0]}</td>
+            <td className="px-4 py-3 text-sm whitespace-nowrap" style={{ color: p.TEXT }}>{req.user.name.split(' ')[0]}</td>
             <td className="px-4 py-3 text-right">
                 <div className="flex items-center justify-end gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
                     <button onClick={() => onAtender(req.id)} disabled={carregando} title="Atender"
@@ -349,14 +349,14 @@ export default function Index({ pendentes, atendidas, fornecedores, dataFiltro, 
         return () => { window.Echo.leave('requisicoes'); };
     }, []);
 
-    const [modalNova, setModalNova]     = useState(false);
+    const [modalNova, setModalNova] = useState(false);
     const [modalEditar, setModalEditar] = useState<Requisicao | null>(null);
-    const [erros, setErros]             = useState<Record<string, string>>({});
-    const [submetendo, setSubmetendo]   = useState(false);
+    const [erros, setErros] = useState<Record<string, string>>({});
+    const [submetendo, setSubmetendo] = useState(false);
     const [atendendoId, setAtendendoId] = useState<number | null>(null);
-    const [buscaLocal, setBuscaLocal]   = useState(filtros.busca ?? '');
+    const [buscaLocal, setBuscaLocal] = useState(filtros.busca ?? '');
     const [motivoLocal, setMotivoLocal] = useState(filtros.motivo ?? '');
-    const [lojaLocal, setLojaLocal]     = useState(filtros.loja ? String(filtros.loja) : '');
+    const [lojaLocal, setLojaLocal] = useState(filtros.loja ? String(filtros.loja) : '');
 
     const isHoje = dataFiltro === hoje();
 
@@ -370,10 +370,10 @@ export default function Index({ pendentes, atendidas, fornecedores, dataFiltro, 
             { data: d, busca: buscaLocal || undefined, motivo: motivoLocal || undefined, loja: lojaLocal || undefined },
             { preserveState: true, replace: true });
 
-    const diaAnterior    = () => mudarData(format(subDays(parseISO(dataFiltro), 1), 'yyyy-MM-dd'));
-    const diaSeguinte    = () => mudarData(format(addDays(parseISO(dataFiltro), 1), 'yyyy-MM-dd'));
+    const diaAnterior = () => mudarData(format(subDays(parseISO(dataFiltro), 1), 'yyyy-MM-dd'));
+    const diaSeguinte = () => mudarData(format(addDays(parseISO(dataFiltro), 1), 'yyyy-MM-dd'));
     const aplicarFiltros = () => irPara();
-    const limparFiltros  = () => {
+    const limparFiltros = () => {
         setBuscaLocal(''); setMotivoLocal(''); setLojaLocal('');
         router.get(route('requisicoes.index'), { data: dataFiltro }, { preserveState: true, replace: true });
     };
@@ -585,20 +585,20 @@ export default function Index({ pendentes, atendidas, fornecedores, dataFiltro, 
                             <tbody>
                                 {atendidas.length === 0 ? (
                                     <tr>
-                                        <td colSpan={6} className="px-4 py-10 text-center text-sm" style={{ color: p.MUTED }}>
+                                        <td colSpan={6} className="px-4 py-10 text-center text-sm" style={{ color: p.TEXT }}>
                                             Nenhuma requisição atendida neste dia.
                                         </td>
                                     </tr>
                                 ) : (
                                     atendidas.map(req => (
-                                        <tr key={req.id} className="opacity-55"
+                                        <tr key={req.id} className="opacity-80"
                                             style={{ borderBottom: `1px solid ${p.BORDER}` }}>
-                                            <td className="px-4 py-3 text-sm line-through" style={{ color: p.MUTED }}>{req.numero_nota}</td>
-                                            <td className="px-4 py-3 text-sm max-w-[180px] truncate" style={{ color: p.MUTED }}>{req.fornecedor.nome}</td>
+                                            <td className="px-4 py-3 text-sm line-through" style={{ color: p.TEXT }}>{req.numero_nota}</td>
+                                            <td className="px-4 py-3 text-sm max-w-[180px] truncate" style={{ color: p.TEXT }}>{req.fornecedor.nome}</td>
                                             <td className="px-4 py-3"><Badge label={req.motivo} isDark={isDark} /></td>
-                                            <td className="px-4 py-3 text-sm whitespace-nowrap" style={{ color: p.MUTED }}>{lojaNome(req.loja)}</td>
-                                            <td className="px-4 py-3 text-sm max-w-[200px] truncate" style={{ color: p.MUTED }}>{req.observacao || '—'}</td>
-                                            <td className="px-4 py-3 text-sm" style={{ color: p.MUTED }}>{req.user.name.split(' ')[0]}</td>
+                                            <td className="px-4 py-3 text-sm whitespace-nowrap" style={{ color: p.TEXT }}>{lojaNome(req.loja)}</td>
+                                            <td className="px-4 py-3 text-sm max-w-[200px] truncate" style={{ color: p.TEXT }}>{req.observacao || '—'}</td>
+                                            <td className="px-4 py-3 text-sm" style={{ color: p.TEXT }}>{req.user.name.split(' ')[0]}</td>
                                         </tr>
                                     ))
                                 )}

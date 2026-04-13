@@ -35,11 +35,11 @@ const LIGHT: Palette = {
 };
 
 const MOTIVO_COR_DARK: Record<string, { bg: string; text: string; border: string }> = {
-    'Pré Lote':          { bg: 'rgba(47,129,247,0.15)',  text: '#79c0ff', border: 'rgba(47,129,247,0.3)'  },
-    'Caminhão na Porta': { bg: 'rgba(227,149,74,0.15)',  text: '#f0a868', border: 'rgba(227,149,74,0.3)'  },
+    'Pré Lote': { bg: 'rgba(47,129,247,0.15)', text: '#79c0ff', border: 'rgba(47,129,247,0.3)' },
+    'Caminhão na Porta': { bg: 'rgba(227,149,74,0.15)', text: '#f0a868', border: 'rgba(227,149,74,0.3)' },
 };
 const MOTIVO_COR_LIGHT: Record<string, { bg: string; text: string; border: string }> = {
-    'Pré Lote':          { bg: '#dbeafe', text: '#1d4ed8', border: '#bfdbfe' },
+    'Pré Lote': { bg: '#dbeafe', text: '#1d4ed8', border: '#bfdbfe' },
     'Caminhão na Porta': { bg: '#ffedd5', text: '#9a3412', border: '#fed7aa' },
 };
 
@@ -297,7 +297,7 @@ function LinhaPendente({ cad, onEditar, onAtender, onExcluir, carregando, p }: {
                     <span className="ml-2 text-xs font-medium" style={{ color: p.AMBER }}>⚠ {cad.data_origem}</span>
                 )}
             </td>
-            <td className="px-4 py-3 text-sm max-w-[180px] truncate" style={{ color: p.MUTED }}>{cad.fornecedor.nome}</td>
+            <td className="px-4 py-3 text-sm max-w-[180px] truncate" style={{ color: p.TEXT }}>{cad.fornecedor.nome}</td>
             <td className="px-4 py-3">
                 <div className="flex items-center gap-1.5">
                     <Badge label={cad.motivo} isDark={p === DARK} />
@@ -306,11 +306,11 @@ function LinhaPendente({ cad, onEditar, onAtender, onExcluir, carregando, p }: {
                     )}
                 </div>
             </td>
-            <td className="px-4 py-3 text-sm whitespace-nowrap" style={{ color: p.MUTED }}>{lojaNome(cad.loja)}</td>
-            <td className="px-4 py-3 text-sm max-w-[200px] truncate" style={{ color: p.MUTED }} title={cad.observacao ?? ''}>
+            <td className="px-4 py-3 text-sm whitespace-nowrap" style={{ color: p.TEXT }}>{lojaNome(cad.loja)}</td>
+            <td className="px-4 py-3 text-sm max-w-[200px] truncate" style={{ color: p.TEXT }} title={cad.observacao ?? ''}>
                 {cad.observacao || <span style={{ color: p.BORDER }}>—</span>}
             </td>
-            <td className="px-4 py-3 text-sm whitespace-nowrap" style={{ color: p.MUTED }}>{cad.user.name.split(' ')[0]}</td>
+            <td className="px-4 py-3 text-sm whitespace-nowrap" style={{ color: p.TEXT }}>{cad.user.name.split(' ')[0]}</td>
             <td className="px-4 py-3 text-right">
                 <div className="flex items-center justify-end gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
                     <button onClick={() => onAtender(cad.id)} disabled={carregando} title="Atender"
@@ -353,14 +353,14 @@ export default function Index({ pendentes, atendidas, fornecedores, dataFiltro, 
         return () => { window.Echo.leave('cadastros'); };
     }, []);
 
-    const [modalNova, setModalNova]     = useState(false);
+    const [modalNova, setModalNova] = useState(false);
     const [modalEditar, setModalEditar] = useState<Cadastro | null>(null);
-    const [erros, setErros]             = useState<Record<string, string>>({});
-    const [submetendo, setSubmetendo]   = useState(false);
+    const [erros, setErros] = useState<Record<string, string>>({});
+    const [submetendo, setSubmetendo] = useState(false);
     const [atendendoId, setAtendendoId] = useState<number | null>(null);
-    const [buscaLocal, setBuscaLocal]   = useState(filtros.busca ?? '');
+    const [buscaLocal, setBuscaLocal] = useState(filtros.busca ?? '');
     const [motivoLocal, setMotivoLocal] = useState(filtros.motivo ?? '');
-    const [lojaLocal, setLojaLocal]     = useState(filtros.loja ? String(filtros.loja) : '');
+    const [lojaLocal, setLojaLocal] = useState(filtros.loja ? String(filtros.loja) : '');
 
     const isHoje = dataFiltro === hoje();
 
@@ -374,10 +374,10 @@ export default function Index({ pendentes, atendidas, fornecedores, dataFiltro, 
             { data: d, busca: buscaLocal || undefined, motivo: motivoLocal || undefined, loja: lojaLocal || undefined },
             { preserveState: true, replace: true });
 
-    const diaAnterior    = () => mudarData(format(subDays(parseISO(dataFiltro), 1), 'yyyy-MM-dd'));
-    const diaSeguinte    = () => mudarData(format(addDays(parseISO(dataFiltro), 1), 'yyyy-MM-dd'));
+    const diaAnterior = () => mudarData(format(subDays(parseISO(dataFiltro), 1), 'yyyy-MM-dd'));
+    const diaSeguinte = () => mudarData(format(addDays(parseISO(dataFiltro), 1), 'yyyy-MM-dd'));
     const aplicarFiltros = () => irPara();
-    const limparFiltros  = () => {
+    const limparFiltros = () => {
         setBuscaLocal(''); setMotivoLocal(''); setLojaLocal('');
         router.get(route('cadastros.index'), { data: dataFiltro }, { preserveState: true, replace: true });
     };
@@ -597,20 +597,20 @@ export default function Index({ pendentes, atendidas, fornecedores, dataFiltro, 
                             <tbody>
                                 {atendidas.length === 0 ? (
                                     <tr>
-                                        <td colSpan={6} className="px-4 py-10 text-center text-sm" style={{ color: p.MUTED }}>
+                                        <td colSpan={6} className="px-4 py-10 text-center text-sm" style={{ color: p.TEXT }}>
                                             Nenhum cadastro atendido neste dia.
                                         </td>
                                     </tr>
                                 ) : (
                                     atendidas.map(cad => (
-                                        <tr key={cad.id} className="opacity-55"
+                                        <tr key={cad.id} className="opacity-80"
                                             style={{ borderBottom: `1px solid ${p.BORDER}` }}>
-                                            <td className="px-4 py-3 text-sm line-through" style={{ color: p.MUTED }}>{cad.numero_nota}</td>
-                                            <td className="px-4 py-3 text-sm max-w-[180px] truncate" style={{ color: p.MUTED }}>{cad.fornecedor.nome}</td>
+                                            <td className="px-4 py-3 text-sm line-through" style={{ color: p.TEXT }}>{cad.numero_nota}</td>
+                                            <td className="px-4 py-3 text-sm max-w-[180px] truncate" style={{ color: p.TEXT }}>{cad.fornecedor.nome}</td>
                                             <td className="px-4 py-3"><Badge label={cad.motivo} isDark={isDark} /></td>
-                                            <td className="px-4 py-3 text-sm whitespace-nowrap" style={{ color: p.MUTED }}>{lojaNome(cad.loja)}</td>
-                                            <td className="px-4 py-3 text-sm max-w-[200px] truncate" style={{ color: p.MUTED }}>{cad.observacao || '—'}</td>
-                                            <td className="px-4 py-3 text-sm" style={{ color: p.MUTED }}>{cad.user.name.split(' ')[0]}</td>
+                                            <td className="px-4 py-3 text-sm whitespace-nowrap" style={{ color: p.TEXT }}>{lojaNome(cad.loja)}</td>
+                                            <td className="px-4 py-3 text-sm max-w-[200px] truncate" style={{ color: p.TEXT }}>{cad.observacao || '—'}</td>
+                                            <td className="px-4 py-3 text-sm" style={{ color: p.TEXT }}>{cad.user.name.split(' ')[0]}</td>
                                         </tr>
                                     ))
                                 )}

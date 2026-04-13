@@ -61,45 +61,45 @@ interface Palette {
 }
 
 const DARK: Palette = {
-    BG:          '#0d1117',
-    SURFACE:     '#161b22',
-    BORDER:      '#21262d',
-    TEXT:        '#e6edf3',
-    MUTED:       '#7d8590',
-    ACCENT:      '#2f81f7',
-    GREEN:       '#3fb950',
-    RED:         '#f85149',
-    AMBER:       '#d29922',
-    PURPLE:      '#a371f7',
-    BAR_BG:      '#21262d',
-    HOVER_ROW:   '#21262d',
-    TOOLTIP_BG:  '#30363d',
+    BG: '#0d1117',
+    SURFACE: '#161b22',
+    BORDER: '#21262d',
+    TEXT: '#e6edf3',
+    MUTED: '#7d8590',
+    ACCENT: '#2f81f7',
+    GREEN: '#3fb950',
+    RED: '#f85149',
+    AMBER: '#d29922',
+    PURPLE: '#a371f7',
+    BAR_BG: '#21262d',
+    HOVER_ROW: '#21262d',
+    TOOLTIP_BG: '#30363d',
 };
 
 const LIGHT: Palette = {
-    BG:          '#f6f8fa',
-    SURFACE:     '#ffffff',
-    BORDER:      '#d0d7de',
-    TEXT:        '#1f2328',
-    MUTED:       '#656d76',
-    ACCENT:      '#0969da',
-    GREEN:       '#1a7f37',
-    RED:         '#d1242f',
-    AMBER:       '#9a6700',
-    PURPLE:      '#8250df',
-    BAR_BG:      '#eaeef2',
-    HOVER_ROW:   '#f6f8fa',
-    TOOLTIP_BG:  '#1f2328',
+    BG: '#f6f8fa',
+    SURFACE: '#ffffff',
+    BORDER: '#d0d7de',
+    TEXT: '#1f2328',
+    MUTED: '#656d76',
+    ACCENT: '#0969da',
+    GREEN: '#1a7f37',
+    RED: '#d1242f',
+    AMBER: '#9a6700',
+    PURPLE: '#8250df',
+    BAR_BG: '#eaeef2',
+    HOVER_ROW: '#f6f8fa',
+    TOOLTIP_BG: '#1f2328',
 };
 
-const LOJA_CORES_DARK  = ['#2f81f7', '#d29922', '#3fb950', '#f85149', '#a371f7', '#58a6ff', '#56d364'];
+const LOJA_CORES_DARK = ['#2f81f7', '#d29922', '#3fb950', '#f85149', '#a371f7', '#58a6ff', '#56d364'];
 const LOJA_CORES_LIGHT = ['#0969da', '#9a6700', '#1a7f37', '#d1242f', '#8250df', '#0550ae', '#116329'];
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 const lojaNome = (n: number) => `Loja ${String(n).padStart(2, '0')}`;
-const fmtDia   = (s: string) => s.slice(5).replace('-', '/');
-const pct      = (v: number, t: number) => (t > 0 ? Math.round((v / t) * 100) : 0);
+const fmtDia = (s: string) => s.slice(5).replace('-', '/');
+const pct = (v: number, t: number) => (t > 0 ? Math.round((v / t) * 100) : 0);
 
 // ─── Card ─────────────────────────────────────────────────────────────────────
 
@@ -198,7 +198,7 @@ function Linha({ dados, cor, altura = 200, p }: {
     return (
         <svg viewBox={`0 0 ${w} ${h}`} className="w-full" style={{ height: altura }}>
             <defs>
-                <linearGradient id={`grad-${cor.replace('#','')}`} x1="0" y1="0" x2="0" y2="1">
+                <linearGradient id={`grad-${cor.replace('#', '')}`} x1="0" y1="0" x2="0" y2="1">
                     <stop offset="0%" stopColor={cor} stopOpacity="0.25" />
                     <stop offset="100%" stopColor={cor} stopOpacity="0" />
                 </linearGradient>
@@ -211,7 +211,7 @@ function Linha({ dados, cor, altura = 200, p }: {
                         fontSize="9" fill={p.MUTED}>{t.val}</text>
                 </g>
             ))}
-            <polygon points={area} fill={`url(#grad-${cor.replace('#','')})`} />
+            <polygon points={area} fill={`url(#grad-${cor.replace('#', '')})`} />
             <polyline points={polyline} fill="none" stroke={cor}
                 strokeWidth="2.5" strokeLinejoin="round" strokeLinecap="round" />
             {pts.map((pt, i) => (
@@ -360,11 +360,11 @@ export default function Index({
     const LOJA_CORES = isDark ? LOJA_CORES_DARK : LOJA_CORES_LIGHT;
 
     const MOTIVO_COR: Record<string, string> = {
-        Cadastro:   p.ACCENT,
-        Preço:      p.AMBER,
-        Regra:      p.RED,
+        Cadastro: p.ACCENT,
+        Preço: p.AMBER,
+        Regra: p.RED,
         Quantidade: p.PURPLE,
-        Pedido:     p.GREEN,
+        Pedido: p.GREEN,
     };
 
     const [motivoForn, setMotivoForn] = useState(Object.keys(fornecedoresPorMotivo)[0] ?? '');
@@ -448,7 +448,7 @@ export default function Index({
 
                     {/* Top fornecedores */}
                     <div>
-                        <Card title="🏆 Fornecedores mais frequentes" p={p}>
+                        <Card title="⚠️ Fornecedores com mais requisições" p={p}>
                             <div className="space-y-3">
                                 {topFornecedores.slice(0, 6).map((f, i) => (
                                     <div key={i} className="flex items-center justify-between gap-2">
