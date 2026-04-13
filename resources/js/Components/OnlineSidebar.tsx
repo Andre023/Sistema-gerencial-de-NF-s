@@ -1,17 +1,4 @@
-/**
- * OnlineSidebar — Barra lateral de usuários online.
- *
- * Versão atual: estática (placeholder visual).
- * Versão futura: integrar com Laravel Reverb + Echo para presença em tempo real.
- *
- * Para ativar o realtime:
- *   1. Instalar: composer require laravel/reverb
- *   2. Instalar: npm install laravel-echo pusher-js
- *   3. Configurar BroadcastServiceProvider e canais de presença
- *   4. Substituir os dados estáticos abaixo pelo hook usePresenceChannel()
- */
-
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 
 interface UsuarioOnline {
     id: number;
@@ -22,7 +9,6 @@ interface Props {
     currentUserId: number;
 }
 
-// Gera uma cor de avatar consistente baseada no nome
 function corAvatar(nome: string): string {
     const cores = [
         'bg-blue-500', 'bg-purple-500', 'bg-green-500',
@@ -46,11 +32,31 @@ function Iniciais({ nome, cor }: { nome: string; cor: string }) {
 
 export default function OnlineSidebar({ currentUserId }: Props) {
     const [expandida, setExpandida] = useState(false);
+    const [usuariosOnline, setUsuariosOnline] = useState<UsuarioOnline[]>([]);
 
-    // ── Dados estáticos (substituir por usePresenceChannel quando Reverb ativo) ──
-    const usuariosOnline: UsuarioOnline[] = [
-        { id: currentUserId, name: 'Você' },
-    ];
+    useEffect(() => {
+        // Entra no canal de presença configurado no Laravel
+        const channel = window.Echo.join('presenca.sistema')
+            // Assim que eu entro, recebo a lista de quem já está lá
+            .here((users: UsuarioOnline[]) => {
+                setUsuariosOnline(users);
+            })
+            // Alguém acabou de entrar
+            .joining((user: UsuarioOnline) => {
+                setUsuariosOnline((prev) => [...prev, user]);
+            })
+            // Alguém fechou o navegador ou deslogou
+            .leaving((user: UsuarioOnline) => {
+                setUsuariosOnline((prev) => prev.filter((u) => u.id !== user.id));
+            })
+            .error((error: any) => {
+                console.error('Erro no Reverb:', error);
+            });
+
+        return () => {
+            window.Echo.leave('presenca.sistema');
+        };
+    }, []);
 
     return (
         <aside
@@ -60,10 +66,8 @@ export default function OnlineSidebar({ currentUserId }: Props) {
                 ${expandida ? 'w-44' : 'w-14'}
             `}
         >
-            {/* Botão de toggle */}
             <button
                 onClick={() => setExpandida(e => !e)}
-                title={expandida ? 'Recolher' : 'Expandir'}
                 className="flex items-center justify-center h-10 w-full border-b border-gray-100 text-gray-400 hover:text-gray-600 hover:bg-gray-50 transition"
             >
                 <svg
@@ -74,42 +78,31 @@ export default function OnlineSidebar({ currentUserId }: Props) {
                 </svg>
             </button>
 
-            {/* Lista de usuários */}
             <div className="flex-1 overflow-y-auto py-3 px-2 space-y-2">
-                {/* Indicador "Online" */}
                 {expandida && (
                     <p className="text-xs text-gray-400 font-semibold uppercase tracking-wider px-1 mb-2">
                         Online ({usuariosOnline.length})
                     </p>
                 )}
 
-                {usuariosOnline.map(u => {
+                {usuariosOnline.map((u: UsuarioOnline) => {
                     const cor = corAvatar(u.name);
+                    const isMe = u.id === currentUserId;
                     return (
                         <div key={u.id} className="flex items-center gap-2.5 relative">
                             <div className="relative shrink-0">
-                                <Iniciais nome={u.name} cor={cor} />
-                                {/* Indicador verde de online */}
+                                <Iniciais nome={isMe ? 'Você' : u.name} cor={cor} />
                                 <span className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 bg-green-400 border-2 border-white rounded-full" />
                             </div>
                             {expandida && (
                                 <span className="text-xs font-medium text-gray-700 truncate">
-                                    {u.name}
+                                    {isMe ? 'Você' : u.name}
                                 </span>
                             )}
                         </div>
                     );
                 })}
             </div>
-
-            {/* Rodapé quando expandido */}
-            {expandida && (
-                <div className="px-3 py-2 border-t border-gray-100">
-                    <p className="text-xs text-gray-300 italic text-center">
-                        Realtime em breve
-                    </p>
-                </div>
-            )}
         </aside>
     );
 }
