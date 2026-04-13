@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\CadastroController;
 use App\Http\Controllers\EstatisticaController;
 use App\Http\Controllers\FornecedorController;
 use App\Http\Controllers\ProfileController;
@@ -42,6 +43,14 @@ Route::middleware(['auth', 'verified'])->group(function () {
     // ── Fornecedores ───────────────────────────────────────────────────────────
     Route::post('/fornecedores/importar', [FornecedorController::class, 'importar'])
          ->name('fornecedores.importar');
+
+    // ── Cadastros ──────────────────────────────────────────────────────────────
+    Route::prefix('cadastros')->name('cadastros.')->group(function () {
+        Route::get('/',               [CadastroController::class, 'index'])->name('index');
+        Route::post('/',              [CadastroController::class, 'store'])->name('store');
+        Route::patch('/{cadastro}',   [CadastroController::class, 'update'])->name('update');
+        Route::delete('/{cadastro}',  [CadastroController::class, 'destroy'])->name('destroy');
+    });
 
     // ── Estatísticas ───────────────────────────────────────────────────────────
     Route::get('/estatisticas', [EstatisticaController::class, 'index'])->name('estatisticas.index');

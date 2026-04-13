@@ -2,15 +2,14 @@ import React, { useState, useMemo, useEffect, useRef } from 'react';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 import { Head, router } from '@inertiajs/react';
 import { format, parseISO, addDays, subDays } from 'date-fns';
-import { ptBR } from 'date-fns/locale';
-import { Requisicao, Fornecedor, FiltrosAtivos, OpcoesSistema } from '@/types';
+import { Cadastro, Fornecedor, FiltrosAtivos, OpcoesSistema } from '@/types';
 
 // ─── Tipos ────────────────────────────────────────────────────────────────────
 
 interface Props {
     auth: { user: { id: number; name: string; email: string } };
-    pendentes: Requisicao[];
-    atendidas: Requisicao[];
+    pendentes: Cadastro[];
+    atendidas: Cadastro[];
     fornecedores: Fornecedor[];
     dataFiltro: string;
     filtros: FiltrosAtivos;
@@ -20,10 +19,8 @@ interface Props {
 // ─── Helpers visuais ──────────────────────────────────────────────────────────
 
 const MOTIVO_COR: Record<string, string> = {
-    Cadastro: 'bg-blue-50 text-blue-700 ring-blue-600/20',
-    Preço: 'bg-yellow-50 text-yellow-700 ring-yellow-600/20',
-    Regra: 'bg-red-50 text-red-700 ring-red-600/20',
-    Quantidade: 'bg-purple-50 text-purple-700 ring-purple-600/20',
+    'Pré Lote':          'bg-blue-50 text-blue-700 ring-blue-600/20',
+    'Caminhão na Porta': 'bg-orange-50 text-orange-700 ring-orange-600/20',
 };
 
 const lojaNome = (n: number) => `Loja ${String(n).padStart(2, '0')}`;
@@ -55,7 +52,6 @@ function Modal({ aberto, onFechar, titulo, children }: {
     titulo: string;
     children: React.ReactNode;
 }) {
-    // Fechar com ESC
     useEffect(() => {
         if (!aberto) return;
         const fn = (e: KeyboardEvent) => { if (e.key === 'Escape') onFechar(); };
@@ -98,7 +94,6 @@ function CampoFornecedor({ fornecedores, valor, onChange, erro }: {
         [fornecedores, busca]
     );
 
-    // Fechar ao clicar fora
     useEffect(() => {
         const fn = (e: MouseEvent) => {
             if (ref.current && !ref.current.contains(e.target as Node)) setAberto(false);
@@ -126,8 +121,7 @@ function CampoFornecedor({ fornecedores, valor, onChange, erro }: {
                 onFocus={() => setAberto(true)}
                 placeholder="Buscar fornecedor..."
                 autoComplete="off"
-                className={`block w-full rounded-lg text-sm shadow-sm ${erro ? 'border-red-300 focus:border-red-500 focus:ring-red-500' : 'border-gray-200 focus:border-blue-400 focus:ring-blue-400'
-                    }`}
+                className={`block w-full rounded-lg text-sm shadow-sm ${erro ? 'border-red-300 focus:border-red-500 focus:ring-red-500' : 'border-gray-200 focus:border-blue-400 focus:ring-blue-400'}`}
             />
             {aberto && opcoes.length > 0 && (
                 <ul className="absolute z-20 mt-1 w-full bg-white border border-gray-100 rounded-xl shadow-lg max-h-52 overflow-y-auto">
@@ -149,7 +143,7 @@ function CampoFornecedor({ fornecedores, valor, onChange, erro }: {
     );
 }
 
-// ─── Formulário de Requisição ─────────────────────────────────────────────────
+// ─── Formulário de Cadastro ───────────────────────────────────────────────────
 
 interface DadosForm {
     numero_nota: string;
@@ -160,10 +154,10 @@ interface DadosForm {
     observacao: string;
 }
 
-function FormRequisicao({ fornecedores, opcoes, inicial, onSubmit, onCancelar, carregando, erros, labelSubmit }: {
+function FormCadastro({ fornecedores, opcoes, inicial, onSubmit, onCancelar, carregando, erros, labelSubmit }: {
     fornecedores: Fornecedor[];
     opcoes: OpcoesSistema;
-    inicial?: Requisicao;
+    inicial?: Cadastro;
     onSubmit: (d: Omit<DadosForm, 'fornecedor'>) => void;
     onCancelar: () => void;
     carregando: boolean;
@@ -171,12 +165,12 @@ function FormRequisicao({ fornecedores, opcoes, inicial, onSubmit, onCancelar, c
     labelSubmit: string;
 }) {
     const [form, setForm] = useState<DadosForm>({
-        numero_nota: inicial?.numero_nota ?? '',
+        numero_nota:   inicial?.numero_nota ?? '',
         fornecedor_id: inicial?.fornecedor?.id ?? '',
-        fornecedor: { id: inicial?.fornecedor?.id ?? '', nome: inicial?.fornecedor?.nome ?? '' },
-        loja: inicial?.loja ?? '',
-        motivo: inicial?.motivo ?? '',
-        observacao: inicial?.observacao ?? '',
+        fornecedor:    { id: inicial?.fornecedor?.id ?? '', nome: inicial?.fornecedor?.nome ?? '' },
+        loja:          inicial?.loja ?? '',
+        motivo:        inicial?.motivo ?? '',
+        observacao:    inicial?.observacao ?? '',
     });
 
     const set = <K extends keyof DadosForm>(k: K, v: DadosForm[K]) =>
@@ -185,11 +179,11 @@ function FormRequisicao({ fornecedores, opcoes, inicial, onSubmit, onCancelar, c
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
         onSubmit({
-            numero_nota: form.numero_nota,
+            numero_nota:   form.numero_nota,
             fornecedor_id: form.fornecedor.id,
-            loja: form.loja,
-            motivo: form.motivo,
-            observacao: form.observacao,
+            loja:          form.loja,
+            motivo:        form.motivo,
+            observacao:    form.observacao,
         });
     };
 
@@ -204,9 +198,12 @@ function FormRequisicao({ fornecedores, opcoes, inicial, onSubmit, onCancelar, c
     );
 
     const inputClass = (err?: string) =>
-        `block w-full rounded-lg text-sm shadow-sm ${err ? 'border-red-300 focus:border-red-500 focus:ring-red-500'
-            : 'border-gray-200 focus:border-blue-400 focus:ring-blue-400'
-        }`;
+        `block w-full rounded-lg text-sm shadow-sm ${err
+            ? 'border-red-300 focus:border-red-500 focus:ring-red-500'
+            : 'border-gray-200 focus:border-blue-400 focus:ring-blue-400'}`;
+
+    // Aviso visual quando "Caminhão na Porta" está selecionado
+    const isCaminhao = form.motivo === 'Caminhão na Porta';
 
     return (
         <form onSubmit={handleSubmit} className="space-y-4">
@@ -253,6 +250,19 @@ function FormRequisicao({ fornecedores, opcoes, inicial, onSubmit, onCancelar, c
                 )}
             </div>
 
+            {/* Aviso "Caminhão na Porta" */}
+            {isCaminhao && (
+                <div className="flex items-start gap-2 bg-orange-50 border border-orange-200 text-orange-700 text-xs px-3.5 py-2.5 rounded-lg">
+                    <svg className="w-4 h-4 mt-0.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.75} d="M13 16h-1v-4h-1m1-4h.01M12 2a10 10 0 100 20A10 10 0 0012 2z" />
+                    </svg>
+                    <span>
+                        Esta nota será lançada <strong>automaticamente nas Requisições</strong> com motivo <strong>Pedido</strong>.
+                        Se removida daqui, o motivo na requisição será alterado para <strong>Cadastro</strong>.
+                    </span>
+                </div>
+            )}
+
             {campo('Observação', false,
                 <textarea
                     value={form.observacao}
@@ -290,10 +300,7 @@ function THead({ colunas }: { colunas: string[] }) {
         <thead>
             <tr className="border-b border-gray-100">
                 {colunas.map(c => (
-                    <th
-                        key={c}
-                        className="px-4 py-2.5 text-left text-xs font-semibold text-gray-400 uppercase tracking-wide whitespace-nowrap"
-                    >
+                    <th key={c} className="px-4 py-2.5 text-left text-xs font-semibold text-gray-400 uppercase tracking-wide whitespace-nowrap">
                         {c}
                     </th>
                 ))}
@@ -304,49 +311,56 @@ function THead({ colunas }: { colunas: string[] }) {
 
 // ─── Linha da tabela de Pendentes ─────────────────────────────────────────────
 
-function LinhaPendente({ req, onEditar, onAtender, onExcluir, carregando }: {
-    req: Requisicao;
-    onEditar: (r: Requisicao) => void;
+function LinhaPendente({ cad, onEditar, onAtender, onExcluir, carregando }: {
+    cad: Cadastro;
+    onEditar: (c: Cadastro) => void;
     onAtender: (id: number) => void;
     onExcluir: (id: number) => void;
     carregando: boolean;
 }) {
+    const isCaminhao = cad.motivo === 'Caminhão na Porta';
+
     return (
-        <tr className={`group hover:bg-gray-50/70 transition-colors ${req.atrasada ? 'bg-amber-50/40' : ''}`}>
+        <tr className={`group hover:bg-gray-50/70 transition-colors ${cad.atrasada ? 'bg-amber-50/40' : ''}`}>
 
             {/* Nota */}
             <td className="px-4 py-3 text-sm">
-                <span className="font-medium text-gray-900">{req.numero_nota}</span>
-                {req.atrasada && (
+                <span className="font-medium text-gray-900">{cad.numero_nota}</span>
+                {cad.atrasada && (
                     <span className="ml-2 inline-flex items-center gap-0.5 text-xs font-medium text-amber-600">
-                        ⚠ {req.data_origem}
+                        ⚠ {cad.data_origem}
                     </span>
                 )}
             </td>
 
             {/* Fornecedor */}
             <td className="px-4 py-3 text-sm text-gray-700 max-w-[180px] truncate">
-                {req.fornecedor.nome}
+                {cad.fornecedor.nome}
             </td>
 
             {/* Motivo */}
             <td className="px-4 py-3">
-                <Badge label={req.motivo} className={MOTIVO_COR[req.motivo] ?? 'bg-gray-50 text-gray-600 ring-gray-500/20'} />
+                <div className="flex items-center gap-1.5">
+                    <Badge label={cad.motivo} className={MOTIVO_COR[cad.motivo] ?? 'bg-gray-50 text-gray-600 ring-gray-500/20'} />
+                    {isCaminhao && (
+                        <span title="Lançado em Requisições" className="text-orange-400 text-xs">↗ Req.</span>
+                    )}
+                </div>
             </td>
 
             {/* Loja */}
             <td className="px-4 py-3 text-sm text-gray-500 whitespace-nowrap">
-                {lojaNome(req.loja)}
+                {lojaNome(cad.loja)}
             </td>
 
             {/* Observação */}
-            <td className="px-4 py-3 text-sm text-gray-400 max-w-[200px] truncate" title={req.observacao ?? ''}>
-                {req.observacao || <span className="text-gray-200">—</span>}
+            <td className="px-4 py-3 text-sm text-gray-400 max-w-[200px] truncate" title={cad.observacao ?? ''}>
+                {cad.observacao || <span className="text-gray-200">—</span>}
             </td>
 
             {/* Solicitado por */}
             <td className="px-4 py-3 text-sm text-gray-500 whitespace-nowrap">
-                {req.user.name.split(' ')[0]}
+                {cad.user.name.split(' ')[0]}
             </td>
 
             {/* Ações */}
@@ -354,7 +368,7 @@ function LinhaPendente({ req, onEditar, onAtender, onExcluir, carregando }: {
                 <div className="flex items-center justify-end gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
                     {/* Atender */}
                     <button
-                        onClick={() => onAtender(req.id)}
+                        onClick={() => onAtender(cad.id)}
                         disabled={carregando}
                         title="Marcar como atendida"
                         className="p-1.5 rounded-lg text-green-600 hover:bg-green-50 disabled:opacity-40 transition"
@@ -363,7 +377,7 @@ function LinhaPendente({ req, onEditar, onAtender, onExcluir, carregando }: {
                     </button>
                     {/* Editar */}
                     <button
-                        onClick={() => onEditar(req)}
+                        onClick={() => onEditar(cad)}
                         title="Editar"
                         className="p-1.5 rounded-lg text-blue-500 hover:bg-blue-50 transition"
                     >
@@ -371,8 +385,8 @@ function LinhaPendente({ req, onEditar, onAtender, onExcluir, carregando }: {
                     </button>
                     {/* Excluir */}
                     <button
-                        onClick={() => onExcluir(req.id)}
-                        title="Excluir"
+                        onClick={() => onExcluir(cad.id)}
+                        title={isCaminhao ? 'Excluir (motivo da requisição voltará para Cadastro)' : 'Excluir'}
                         className="p-1.5 rounded-lg text-red-400 hover:bg-red-50 transition"
                     >
                         <Icone path="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
@@ -387,52 +401,47 @@ function LinhaPendente({ req, onEditar, onAtender, onExcluir, carregando }: {
 
 export default function Index({ pendentes, atendidas, fornecedores, dataFiltro, filtros, opcoes }: Props) {
 
+    // Tempo real via WebSocket
     useEffect(() => {
-        const channel = window.Echo.private('requisicoes')
-            // Atenção ao ponto (.) antes do nome!
-            .listen('.RequisicaoAtualizada', () => {
+        const channel = window.Echo.private('cadastros')
+            .listen('.CadastroAtualizado', () => {
                 router.reload({ only: ['pendentes', 'atendidas'] });
             });
-
-        return () => {
-            window.Echo.leave('requisicoes');
-        };
+        return () => { window.Echo.leave('cadastros'); };
     }, []);
 
     // ── Modais
-    const [modalNova, setModalNova] = useState(false);
-    const [modalEditar, setModalEditar] = useState<Requisicao | null>(null);
-    const [erros, setErros] = useState<Record<string, string>>({});
-    const [submetendo, setSubmetendo] = useState(false);
-    const [atendendoId, setAtendendoId] = useState<number | null>(null);
+    const [modalNova, setModalNova]         = useState(false);
+    const [modalEditar, setModalEditar]     = useState<Cadastro | null>(null);
+    const [erros, setErros]                 = useState<Record<string, string>>({});
+    const [submetendo, setSubmetendo]       = useState(false);
+    const [atendendoId, setAtendendoId]     = useState<number | null>(null);
 
-    // ── Filtros locais (evita reload a cada keystroke)
-    const [buscaLocal, setBuscaLocal] = useState(filtros.busca ?? '');
+    // ── Filtros locais
+    const [buscaLocal, setBuscaLocal]   = useState(filtros.busca ?? '');
     const [motivoLocal, setMotivoLocal] = useState(filtros.motivo ?? '');
-    const [lojaLocal, setLojaLocal] = useState(filtros.loja ? String(filtros.loja) : '');
+    const [lojaLocal, setLojaLocal]     = useState(filtros.loja ? String(filtros.loja) : '');
 
     const isHoje = dataFiltro === hoje();
 
-    // ── Navegação
     const irPara = (extras: Record<string, unknown> = {}) =>
-        router.get(route('requisicoes.index'),
+        router.get(route('cadastros.index'),
             { data: dataFiltro, busca: buscaLocal || undefined, motivo: motivoLocal || undefined, loja: lojaLocal || undefined, ...extras },
             { preserveState: true, replace: true }
         );
 
     const mudarData = (d: string) =>
-        router.get(route('requisicoes.index'),
+        router.get(route('cadastros.index'),
             { data: d, busca: buscaLocal || undefined, motivo: motivoLocal || undefined, loja: lojaLocal || undefined },
             { preserveState: true, replace: true }
         );
 
-    const diaAnterior = () => mudarData(format(subDays(parseISO(dataFiltro), 1), 'yyyy-MM-dd'));
-    const diaSeguinte = () => mudarData(format(addDays(parseISO(dataFiltro), 1), 'yyyy-MM-dd'));
-
+    const diaAnterior  = () => mudarData(format(subDays(parseISO(dataFiltro), 1), 'yyyy-MM-dd'));
+    const diaSeguinte  = () => mudarData(format(addDays(parseISO(dataFiltro), 1), 'yyyy-MM-dd'));
     const aplicarFiltros = () => irPara();
-    const limparFiltros = () => {
+    const limparFiltros  = () => {
         setBuscaLocal(''); setMotivoLocal(''); setLojaLocal('');
-        router.get(route('requisicoes.index'), { data: dataFiltro }, { preserveState: true, replace: true });
+        router.get(route('cadastros.index'), { data: dataFiltro }, { preserveState: true, replace: true });
     };
 
     const filtrosAtivos = !!(filtros.busca || filtros.motivo || filtros.loja);
@@ -440,7 +449,7 @@ export default function Index({ pendentes, atendidas, fornecedores, dataFiltro, 
     // ── CRUD
     const criar = (dados: any) => {
         setSubmetendo(true);
-        router.post(route('requisicoes.store'), dados, {
+        router.post(route('cadastros.store'), dados, {
             onSuccess: () => { setModalNova(false); setErros({}); },
             onError: e => setErros(e),
             onFinish: () => setSubmetendo(false),
@@ -450,7 +459,7 @@ export default function Index({ pendentes, atendidas, fornecedores, dataFiltro, 
     const salvarEdicao = (dados: any) => {
         if (!modalEditar) return;
         setSubmetendo(true);
-        router.patch(route('requisicoes.update', modalEditar.id), dados, {
+        router.patch(route('cadastros.update', modalEditar.id), dados, {
             onSuccess: () => { setModalEditar(null); setErros({}); },
             onError: e => setErros(e),
             onFinish: () => setSubmetendo(false),
@@ -459,42 +468,46 @@ export default function Index({ pendentes, atendidas, fornecedores, dataFiltro, 
 
     const atender = (id: number) => {
         setAtendendoId(id);
-        router.patch(route('requisicoes.update', id), { status: 'Atendida' }, {
+        router.patch(route('cadastros.update', id), { status: 'Atendida' }, {
             onFinish: () => setAtendendoId(null),
         });
     };
 
     const excluir = (id: number) => {
-        if (!confirm('Excluir esta requisição? Esta ação pode ser revertida pelo administrador.')) return;
-        router.delete(route('requisicoes.destroy', id));
+        const cad = pendentes.find(c => c.id === id);
+        const msg = cad?.motivo === 'Caminhão na Porta'
+            ? 'Excluir este cadastro? O motivo da requisição vinculada será alterado para "Cadastro".'
+            : 'Excluir este cadastro? Esta ação pode ser revertida pelo administrador.';
+        if (!confirm(msg)) return;
+        router.delete(route('cadastros.destroy', id));
     };
 
-    const qtdAtrasadas = pendentes.filter(r => r.atrasada).length;
+    const qtdAtrasadas = pendentes.filter(c => c.atrasada).length;
 
     const COLS_PENDENTES = ['Nota', 'Fornecedor', 'Motivo', 'Loja', 'Observação', 'Solicitado', ''];
     const COLS_ATENDIDAS = ['Nota', 'Fornecedor', 'Motivo', 'Loja', 'Observação', 'Atendida por'];
 
     return (
         <AuthenticatedLayout header={null}>
-            <Head title="Requisições" />
+            <Head title="Cadastro" />
 
-            {/* ─── Modal: Nova requisição ─────────────────────────────────────── */}
-            <Modal aberto={modalNova} onFechar={() => setModalNova(false)} titulo="Nova requisição">
-                <FormRequisicao
+            {/* ─── Modal: Novo cadastro ───────────────────────────────────────── */}
+            <Modal aberto={modalNova} onFechar={() => setModalNova(false)} titulo="Novo cadastro">
+                <FormCadastro
                     fornecedores={fornecedores}
                     opcoes={opcoes}
                     onSubmit={criar}
                     onCancelar={() => setModalNova(false)}
                     carregando={submetendo}
                     erros={erros}
-                    labelSubmit="Criar requisição"
+                    labelSubmit="Criar cadastro"
                 />
             </Modal>
 
-            {/* ─── Modal: Editar requisição ───────────────────────────────────── */}
-            <Modal aberto={!!modalEditar} onFechar={() => setModalEditar(null)} titulo="Editar requisição">
+            {/* ─── Modal: Editar cadastro ─────────────────────────────────────── */}
+            <Modal aberto={!!modalEditar} onFechar={() => setModalEditar(null)} titulo="Editar cadastro">
                 {modalEditar && (
-                    <FormRequisicao
+                    <FormCadastro
                         fornecedores={fornecedores}
                         opcoes={opcoes}
                         inicial={modalEditar}
@@ -509,16 +522,12 @@ export default function Index({ pendentes, atendidas, fornecedores, dataFiltro, 
 
             <div className="py-6 px-4 sm:px-6 lg:px-8 max-w-screen-2xl mx-auto space-y-4">
 
-                {/* ─── Barra de controles ─────────────────────────────────────── */}
+                {/* ─── Barra de controles ──────────────────────────────────────── */}
                 <div className="flex flex-wrap items-center gap-2.5">
 
                     {/* Navegação de data */}
                     <div className="flex items-center gap-1 bg-white rounded-lg border border-gray-200 shadow-sm px-1 py-1">
-                        <button
-                            onClick={diaAnterior}
-                            className="p-1.5 rounded hover:bg-gray-100 text-gray-500 transition"
-                            title="Dia anterior"
-                        >
+                        <button onClick={diaAnterior} className="p-1.5 rounded hover:bg-gray-100 text-gray-500 transition" title="Dia anterior">
                             <Icone path="M15 19l-7-7 7-7" />
                         </button>
                         <input
@@ -527,12 +536,7 @@ export default function Index({ pendentes, atendidas, fornecedores, dataFiltro, 
                             onChange={e => mudarData(e.target.value)}
                             className="border-none text-sm font-medium text-gray-800 focus:ring-0 p-0 bg-transparent cursor-pointer"
                         />
-                        <button
-                            onClick={diaSeguinte}
-                            disabled={isHoje}
-                            className="p-1.5 rounded hover:bg-gray-100 disabled:opacity-30 text-gray-500 transition"
-                            title="Próximo dia"
-                        >
+                        <button onClick={diaSeguinte} disabled={isHoje} className="p-1.5 rounded hover:bg-gray-100 disabled:opacity-30 text-gray-500 transition" title="Próximo dia">
                             <Icone path="M9 5l7 7-7 7" />
                         </button>
                     </div>
@@ -586,7 +590,6 @@ export default function Index({ pendentes, atendidas, fornecedores, dataFiltro, 
                         Filtrar
                     </button>
 
-                    {/* Limpar filtros */}
                     {filtrosAtivos && (
                         <button
                             onClick={limparFiltros}
@@ -597,27 +600,39 @@ export default function Index({ pendentes, atendidas, fornecedores, dataFiltro, 
                         </button>
                     )}
 
-                    {/* Nova requisição — empurrado para a direita */}
+                    {/* Novo cadastro */}
                     <button
                         onClick={() => setModalNova(true)}
                         className="ml-auto flex items-center gap-1.5 px-4 py-2 text-sm font-medium bg-blue-600 hover:bg-blue-700 text-white rounded-lg shadow-sm transition"
                     >
                         <Icone path="M12 4v16m8-8H4" />
-                        Nova requisição
+                        Novo cadastro
                     </button>
                 </div>
 
-                {/* ─── Aviso de atrasadas ─────────────────────────────────────── */}
+                {/* ─── Aviso de atrasadas ──────────────────────────────────────── */}
                 {qtdAtrasadas > 0 && (
                     <div className="flex items-center gap-2 bg-amber-50 border border-amber-200 text-amber-700 text-sm px-4 py-2.5 rounded-lg">
                         <Icone path="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" className="w-4 h-4 shrink-0" />
                         <span>
-                            <strong>{qtdAtrasadas}</strong> requisição{qtdAtrasadas !== 1 ? 'ões' : ''} pendente{qtdAtrasadas !== 1 ? 's' : ''} de dias anteriores.
+                            <strong>{qtdAtrasadas}</strong> cadastro{qtdAtrasadas !== 1 ? 's' : ''} pendente{qtdAtrasadas !== 1 ? 's' : ''} de dias anteriores.
                         </span>
                     </div>
                 )}
 
-                {/* ─── Tabela: Pendentes ──────────────────────────────────────── */}
+                {/* ─── Legenda dos motivos ─────────────────────────────────────── */}
+                <div className="flex items-center gap-3 text-xs text-gray-500">
+                    <span className="flex items-center gap-1.5">
+                        <Badge label="Pré Lote" className={MOTIVO_COR['Pré Lote']} />
+                        Aguardando chegada do lote
+                    </span>
+                    <span className="flex items-center gap-1.5">
+                        <Badge label="Caminhão na Porta" className={MOTIVO_COR['Caminhão na Porta']} />
+                        Lançado automaticamente nas Requisições como <strong className="text-gray-700">Pedido</strong>
+                    </span>
+                </div>
+
+                {/* ─── Tabela: Pendentes ───────────────────────────────────────── */}
                 <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
                     <div className="flex items-center justify-between px-5 py-3 border-b border-gray-100">
                         <h2 className="text-sm font-semibold text-gray-800 flex items-center gap-2">
@@ -634,18 +649,18 @@ export default function Index({ pendentes, atendidas, fornecedores, dataFiltro, 
                                 {pendentes.length === 0 ? (
                                     <tr>
                                         <td colSpan={7} className="px-4 py-12 text-center text-sm text-gray-400">
-                                            Nenhuma requisição pendente para esta data.
+                                            Nenhum cadastro pendente para esta data.
                                         </td>
                                     </tr>
                                 ) : (
-                                    pendentes.map(req => (
+                                    pendentes.map(cad => (
                                         <LinhaPendente
-                                            key={req.id}
-                                            req={req}
+                                            key={cad.id}
+                                            cad={cad}
                                             onEditar={setModalEditar}
                                             onAtender={atender}
                                             onExcluir={excluir}
-                                            carregando={atendendoId === req.id}
+                                            carregando={atendendoId === cad.id}
                                         />
                                     ))
                                 )}
@@ -654,11 +669,11 @@ export default function Index({ pendentes, atendidas, fornecedores, dataFiltro, 
                     </div>
                 </div>
 
-                {/* ─── Tabela: Atendidas ──────────────────────────────────────── */}
+                {/* ─── Tabela: Atendidas ───────────────────────────────────────── */}
                 <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
                     <div className="flex items-center justify-between px-5 py-3 border-b border-gray-100">
                         <h2 className="text-sm font-semibold text-gray-500 flex items-center gap-2">
-                            Atendidas neste dia
+                            Atendidos neste dia
                             <span className="bg-green-50 text-green-600 text-xs font-medium px-2 py-0.5 rounded-full">
                                 {atendidas.length}
                             </span>
@@ -671,20 +686,20 @@ export default function Index({ pendentes, atendidas, fornecedores, dataFiltro, 
                                 {atendidas.length === 0 ? (
                                     <tr>
                                         <td colSpan={6} className="px-4 py-10 text-center text-sm text-gray-400">
-                                            Nenhuma requisição atendida neste dia.
+                                            Nenhum cadastro atendido neste dia.
                                         </td>
                                     </tr>
                                 ) : (
-                                    atendidas.map(req => (
-                                        <tr key={req.id} className="opacity-60">
-                                            <td className="px-4 py-3 text-sm text-gray-400 line-through">{req.numero_nota}</td>
-                                            <td className="px-4 py-3 text-sm text-gray-500 max-w-[180px] truncate">{req.fornecedor.nome}</td>
+                                    atendidas.map(cad => (
+                                        <tr key={cad.id} className="opacity-60">
+                                            <td className="px-4 py-3 text-sm text-gray-400 line-through">{cad.numero_nota}</td>
+                                            <td className="px-4 py-3 text-sm text-gray-500 max-w-[180px] truncate">{cad.fornecedor.nome}</td>
                                             <td className="px-4 py-3">
-                                                <Badge label={req.motivo} className={MOTIVO_COR[req.motivo] ?? 'bg-gray-50 text-gray-400 ring-gray-500/20'} />
+                                                <Badge label={cad.motivo} className={MOTIVO_COR[cad.motivo] ?? 'bg-gray-50 text-gray-400 ring-gray-500/20'} />
                                             </td>
-                                            <td className="px-4 py-3 text-sm text-gray-400 whitespace-nowrap">{lojaNome(req.loja)}</td>
-                                            <td className="px-4 py-3 text-sm text-gray-400 max-w-[200px] truncate">{req.observacao || '—'}</td>
-                                            <td className="px-4 py-3 text-sm text-gray-400">{req.user.name.split(' ')[0]}</td>
+                                            <td className="px-4 py-3 text-sm text-gray-400 whitespace-nowrap">{lojaNome(cad.loja)}</td>
+                                            <td className="px-4 py-3 text-sm text-gray-400 max-w-[200px] truncate">{cad.observacao || '—'}</td>
+                                            <td className="px-4 py-3 text-sm text-gray-400">{cad.user.name.split(' ')[0]}</td>
                                         </tr>
                                     ))
                                 )}

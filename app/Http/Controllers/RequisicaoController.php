@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Fornecedor;
 use App\Models\Requisicao;
 use App\Models\RequisicaoAuditoria;
+use App\Events\RequisicaoAtualizada;
 use Carbon\Carbon;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -31,7 +32,7 @@ class RequisicaoController extends Controller
             ->when($fornecedor, fn($q) => $q->where('fornecedor_id', $fornecedor))
             ->when($busca, fn($q) => $q->where(function ($q) use ($busca) {
                 $q->where('numero_nota', 'like', "%{$busca}%")
-                  ->orWhereHas('fornecedor', fn($q2) => $q2->where('nome', 'like', "%{$busca}%"));
+                    ->orWhereHas('fornecedor', fn($q2) => $q2->where('nome', 'like', "%{$busca}%"));
             }));
 
         // PENDENTES: todas até a data filtrada (inclusive arrastadas de dias anteriores)
@@ -97,6 +98,9 @@ class RequisicaoController extends Controller
             'dados_novos'     => $req->toArray(),
         ]);
 
+        // AVISA TODOS OS COMPUTADORES ONLINE QUE HOUVE ATUALIZAÇÃO
+        event(new RequisicaoAtualizada());
+
         return back()->with('sucesso', 'Requisição criada com sucesso.');
     }
 
@@ -127,6 +131,9 @@ class RequisicaoController extends Controller
             'dados_novos'      => $requisicao->fresh()->toArray(),
         ]);
 
+        // AVISA TODOS OS COMPUTADORES ONLINE QUE HOUVE ATUALIZAÇÃO
+        event(new RequisicaoAtualizada());
+
         return back()->with('sucesso', 'Requisição atualizada.');
     }
 
@@ -143,6 +150,9 @@ class RequisicaoController extends Controller
         ]);
 
         $requisicao->delete(); // SoftDelete — não apaga do banco
+
+        // AVISA TODOS OS COMPUTADORES ONLINE QUE HOUVE ATUALIZAÇÃO
+        event(new RequisicaoAtualizada());
 
         return back()->with('sucesso', 'Requisição removida.');
     }

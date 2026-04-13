@@ -28,6 +28,22 @@ export interface Requisicao {
     data_origem: string;
 }
 
+export interface Cadastro {
+    id: number;
+    numero_nota: string;
+    fornecedor: Fornecedor;
+    user: User;
+    loja: number;
+    motivo: 'Pré Lote' | 'Caminhão na Porta';
+    observacao: string | null;
+    status: 'Pendente' | 'Atendida';
+    requisicao_id: number | null;
+    created_at: string;
+    updated_at: string;
+    atrasada: boolean;
+    data_origem: string;
+}
+
 export interface FiltrosAtivos {
     motivo?: string | null;
     fornecedor?: number | null;

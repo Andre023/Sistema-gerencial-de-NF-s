@@ -10,3 +10,11 @@ Broadcast::channel('presenca.sistema', function (User $user) {
         'name' => $user->name,
     ];
 });
+
+Broadcast::channel('requisicoes', function ($user) {
+    return true;
+});
+
+Broadcast::channel('cadastros', function ($user) {
+    return true;
+});
