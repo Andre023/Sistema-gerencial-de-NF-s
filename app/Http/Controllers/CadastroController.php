@@ -86,14 +86,15 @@ class CadastroController extends Controller
         $dados['user_id'] = $request->user()->id;
         $dados['status']  = 'Pendente';
 
-        // Se for "Caminhão na Porta", cria também uma requisição com motivo "Pedido"
+        // Se for "Caminhão na Porta", cria também uma requisição com motivo "Cadastro"
+        // (quando removido do cadastro, o motivo será alterado para "Pedido")
         if ($dados['motivo'] === 'Caminhão na Porta') {
             $requisicao = Requisicao::create([
                 'numero_nota'   => $dados['numero_nota'],
                 'fornecedor_id' => $dados['fornecedor_id'],
                 'user_id'       => $dados['user_id'],
                 'loja'          => $dados['loja'],
-                'motivo'        => 'Pedido',
+                'motivo'        => 'Cadastro',
                 'observacao'    => $dados['observacao'] ?? null,
                 'status'        => 'Pendente',
             ]);
@@ -145,7 +146,7 @@ class CadastroController extends Controller
                 'fornecedor_id' => $dados['fornecedor_id'] ?? $cadastro->fornecedor_id,
                 'user_id'       => $request->user()->id,
                 'loja'          => $dados['loja']          ?? $cadastro->loja,
-                'motivo'        => 'Pedido',
+                'motivo'        => 'Cadastro',
                 'observacao'    => $dados['observacao']    ?? $cadastro->observacao,
                 'status'        => 'Pendente',
             ]);
@@ -174,12 +175,12 @@ class CadastroController extends Controller
 
     public function destroy(Request $request, Cadastro $cadastro): RedirectResponse
     {
-        // Se tinha requisição vinculada (era "Caminhão na Porta"), muda o motivo para "Cadastro"
+        // Se tinha requisição vinculada (era "Caminhão na Porta"), muda o motivo para "Pedido"
         if ($cadastro->requisicao_id) {
             $req = Requisicao::find($cadastro->requisicao_id);
             if ($req && $req->status === 'Pendente') {
                 $anterior = $req->toArray();
-                $req->update(['motivo' => 'Cadastro']);
+                $req->update(['motivo' => 'Pedido']);
 
                 RequisicaoAuditoria::create([
                     'requisicao_id'    => $req->id,
