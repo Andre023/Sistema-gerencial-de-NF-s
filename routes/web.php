@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\CadastroController;
+use App\Http\Controllers\ComentarioController;
 use App\Http\Controllers\EstatisticaController;
 use App\Http\Controllers\FornecedorController;
 use App\Http\Controllers\ProfileController;
@@ -39,6 +40,14 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::post('/',          [RequisicaoController::class, 'store'])->name('store');
         Route::patch('/{requisicao}', [RequisicaoController::class, 'update'])->name('update');
         Route::delete('/{requisicao}', [RequisicaoController::class, 'destroy'])->name('destroy');
+
+        // Comentários (JSON — o modal busca a thread sob demanda). Liberado a todos
+        // os papéis de propósito: é o canal do operador, que não edita os campos.
+        Route::prefix('{requisicao}/comentarios')->name('comentarios.')->group(function () {
+            Route::get('/',             [ComentarioController::class, 'index'])->name('index');
+            Route::post('/',            [ComentarioController::class, 'store'])->name('store');
+            Route::delete('/{comentario}', [ComentarioController::class, 'destroy'])->name('destroy');
+        });
     });
 
     // ── Fornecedores ───────────────────────────────────────────────────────────

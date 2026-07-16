@@ -55,6 +55,11 @@ class Cadastro extends Model
         return $this->belongsTo(Requisicao::class);
     }
 
+    public function comentarios(): \Illuminate\Database\Eloquent\Relations\MorphMany
+    {
+        return $this->morphMany(Comentario::class, 'comentavel');
+    }
+
     public function isAtrasada(string $dataFiltro): bool
     {
         return $this->created_at->toDateString() < $dataFiltro;

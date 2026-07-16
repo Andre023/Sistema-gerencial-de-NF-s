@@ -10,6 +10,7 @@ import Modal from '@/Components/painel/Modal';
 import Badge from '@/Components/painel/Badge';
 import THead from '@/Components/painel/THead';
 import CampoFornecedor from '@/Components/painel/CampoFornecedor';
+import ModalComentarios from '@/Components/painel/ModalComentarios';
 
 interface Props {
     auth: { user: { id: number; name: string; email: string } };
@@ -115,9 +116,10 @@ function FormRequisicao({ fornecedores, opcoes, inicial, onSubmit, onCancelar, c
 
 // ─── Linha Pendente ───────────────────────────────────────────────────────────
 
-function LinhaPendente({ req, onEditar, onAtender, onExcluir, carregando, podeGerenciar, p }: {
+function LinhaPendente({ req, onEditar, onAtender, onExcluir, onComentar, carregando, podeGerenciar, p }: {
     req: Requisicao; onEditar: (r: Requisicao) => void; onAtender: (id: number) => void;
-    onExcluir: (id: number) => void; carregando: boolean; podeGerenciar: boolean; p: Palette;
+    onExcluir: (id: number) => void; onComentar: (r: Requisicao) => void;
+    carregando: boolean; podeGerenciar: boolean; p: Palette;
 }) {
     const rowBg = req.atrasada ? (p === DARK ? 'rgba(210,153,34,0.07)' : 'rgba(251,191,36,0.06)') : 'transparent';
 
@@ -140,7 +142,21 @@ function LinhaPendente({ req, onEditar, onAtender, onExcluir, carregando, podeGe
             </td>
             <td className="px-4 py-3 text-sm whitespace-nowrap" style={{ color: p.TEXT }}>{req.user.name.split(' ')[0]}</td>
             <td className="px-4 py-3 text-right">
-                <div className="flex items-center justify-end gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                <div className="flex items-center justify-end gap-0.5">
+
+                    {/* Comentários — visível sempre que houver conversa, para o contexto não passar batido */}
+                    <button onClick={() => onComentar(req)} title="Comentários"
+                        className={`flex items-center gap-1 p-1.5 rounded-lg transition ${req.comentarios_count > 0 ? '' : 'opacity-0 group-hover:opacity-100'}`}
+                        style={{ color: req.comentarios_count > 0 ? p.ACCENT : p.MUTED }}
+                        onMouseEnter={e => (e.currentTarget.style.background = p.HOVER_ROW)}
+                        onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}>
+                        <Icone path="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.8 9.8 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+                        {req.comentarios_count > 0 && (
+                            <span className="text-xs font-medium">{req.comentarios_count}</span>
+                        )}
+                    </button>
+
+                    <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
                     <button onClick={() => onAtender(req.id)} disabled={carregando} title="Atender"
                         className="p-1.5 rounded-lg transition disabled:opacity-40"
                         style={{ color: p.GREEN }}
@@ -166,6 +182,7 @@ function LinhaPendente({ req, onEditar, onAtender, onExcluir, carregando, podeGe
                             </button>
                         </>
                     )}
+                    </div>
                 </div>
             </td>
         </tr>
@@ -182,12 +199,15 @@ export default function Index({ pendentes, atendidas, fornecedores, dataFiltro, 
     useEffect(() => {
         window.Echo.private('requisicoes').listen('.RequisicaoAtualizada', () => {
             router.reload({ only: ['pendentes', 'atendidas'] });
+            setEchoTick(t => t + 1); // recarrega a thread se o modal de comentários estiver aberto
         });
         return () => { window.Echo.leave('requisicoes'); };
     }, []);
 
     const [modalNova, setModalNova] = useState(false);
     const [modalEditar, setModalEditar] = useState<Requisicao | null>(null);
+    const [modalComentarios, setModalComentarios] = useState<Requisicao | null>(null);
+    const [echoTick, setEchoTick] = useState(0);
     const [erros, setErros] = useState<Record<string, string>>({});
     const [submetendo, setSubmetendo] = useState(false);
     const [atendendoId, setAtendendoId] = useState<number | null>(null);
@@ -271,6 +291,15 @@ export default function Index({ pendentes, atendidas, fornecedores, dataFiltro, 
                         carregando={submetendo} erros={erros} labelSubmit="Salvar alterações" p={p} />
                 )}
             </Modal>
+
+            <ModalComentarios
+                aberto={!!modalComentarios}
+                onFechar={() => setModalComentarios(null)}
+                baseUrl={modalComentarios ? `/requisicoes/${modalComentarios.id}/comentarios` : null}
+                titulo={modalComentarios ? `Nota ${modalComentarios.numero_nota} — ${modalComentarios.fornecedor.nome}` : ''}
+                onMudou={() => router.reload({ only: ['pendentes', 'atendidas'] })}
+                recarregarToken={echoTick}
+                p={p} />
 
             <div className="min-h-screen py-6 px-4 sm:px-6 lg:px-8 max-w-screen-2xl mx-auto space-y-4 transition-colors duration-200"
                 style={{ background: p.BG }}>
@@ -395,7 +424,7 @@ export default function Index({ pendentes, atendidas, fornecedores, dataFiltro, 
                                 ) : (
                                     pendentes.map(req => (
                                         <LinhaPendente key={req.id} req={req} onEditar={setModalEditar}
-                                            onAtender={atender} onExcluir={excluir}
+                                            onAtender={atender} onExcluir={excluir} onComentar={setModalComentarios}
                                             carregando={atendendoId === req.id} podeGerenciar={podeGerenciar} p={p} />
                                     ))
                                 )}

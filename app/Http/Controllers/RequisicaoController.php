@@ -30,6 +30,7 @@ class RequisicaoController extends Controller
         $loja       = $request->input('loja');
 
         $base = Requisicao::with(['fornecedor:id,nome', 'user:id,name', 'atendidaPor:id,name'])
+            ->withCount('comentarios')
             ->when($motivo,     fn($q) => $q->where('motivo', $motivo))
             ->when($loja,       fn($q) => $q->where('loja', $loja))
             ->when($fornecedor, fn($q) => $q->where('fornecedor_id', $fornecedor))
@@ -183,6 +184,7 @@ class RequisicaoController extends Controller
             'status'       => $r->status,
             'atendida_por' => $r->atendidaPor,
             'atendida_em'  => $r->atendida_em,
+            'comentarios_count' => $r->comentarios_count ?? 0,
             'created_at'   => $r->created_at,
             'updated_at'   => $r->updated_at,
             'atrasada'     => $r->isAtrasada($dataFiltro),

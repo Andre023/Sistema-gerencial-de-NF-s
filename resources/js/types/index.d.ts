@@ -33,6 +33,7 @@ export interface Requisicao {
     status: 'Pendente' | 'Atendida';
     atendida_por: Pick<User, 'id' | 'name'> | null;
     atendida_em: string | null;
+    comentarios_count: number;
     created_at: string;
     updated_at: string;
     atrasada: boolean;

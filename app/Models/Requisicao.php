@@ -57,6 +57,11 @@ class Requisicao extends Model
         return $this->hasMany(RequisicaoAuditoria::class);
     }
 
+    public function comentarios(): \Illuminate\Database\Eloquent\Relations\MorphMany
+    {
+        return $this->morphMany(Comentario::class, 'comentavel');
+    }
+
     /**
      * Indica se a requisição veio de um dia anterior à data consultada
      */
