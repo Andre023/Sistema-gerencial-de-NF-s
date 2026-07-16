@@ -1,11 +1,11 @@
 <?php
 
-use App\Http\Controllers\CadastroController;
+use App\Http\Controllers\CardController;
 use App\Http\Controllers\ComentarioController;
 use App\Http\Controllers\EstatisticaController;
 use App\Http\Controllers\FornecedorController;
+use App\Http\Controllers\NotaController;
 use App\Http\Controllers\ProfileController;
-use App\Http\Controllers\RequisicaoController;
 use App\Http\Controllers\UserController;
 use Illuminate\Foundation\Application;
 use Illuminate\Support\Facades\Route;
@@ -26,26 +26,36 @@ Route::get('/', function () {
 
 Route::middleware(['auth', 'verified'])->group(function () {
 
-    // Dashboard (redireciona para requisições)
-    Route::get('/dashboard', fn() => redirect()->route('requisicoes.index'))->name('dashboard');
+    // Dashboard (redireciona para a fila de notas)
+    Route::get('/dashboard', fn() => redirect()->route('notas.index'))->name('dashboard');
 
     // Perfil
     Route::get('/profile',    [ProfileController::class, 'edit'])->name('profile.edit');
     Route::patch('/profile',  [ProfileController::class, 'update'])->name('profile.update');
     Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');
 
-    // ── Requisições ────────────────────────────────────────────────────────────
-    Route::prefix('requisicoes')->name('requisicoes.')->group(function () {
-        Route::get('/',           [RequisicaoController::class, 'index'])->name('index');
-        Route::post('/',          [RequisicaoController::class, 'store'])->name('store');
-        Route::patch('/{requisicao}', [RequisicaoController::class, 'update'])->name('update');
-        Route::delete('/{requisicao}', [RequisicaoController::class, 'destroy'])->name('destroy');
+    // ── Notas (a fila do dia) ──────────────────────────────────────────────────
+    Route::prefix('notas')->name('notas.')->group(function () {
+        Route::get('/',              [NotaController::class, 'index'])->name('index');
+        Route::post('/',             [NotaController::class, 'store'])->name('store');
+        Route::patch('/{nota}',      [NotaController::class, 'update'])->name('update');
+        Route::post('/{nota}/liberar', [NotaController::class, 'liberar'])->name('liberar');
+        Route::delete('/{nota}',     [NotaController::class, 'destroy'])->name('destroy');
 
-        // Comentários (JSON — o modal busca a thread sob demanda). Liberado a todos
-        // os papéis de propósito: é o canal do operador, que não edita os campos.
-        Route::prefix('{requisicao}/comentarios')->name('comentarios.')->group(function () {
-            Route::get('/',             [ComentarioController::class, 'index'])->name('index');
-            Route::post('/',            [ComentarioController::class, 'store'])->name('store');
+        // Cards de divergência: abrir (pré-lote) → corrigir (compras) → resolver (pré-lote)
+        Route::prefix('{nota}/cards')->name('cards.')->group(function () {
+            Route::post('/',                      [CardController::class, 'store'])->name('store');
+            Route::patch('/{card}/corrigir',      [CardController::class, 'corrigir'])->name('corrigir');
+            Route::patch('/{card}/resolver',      [CardController::class, 'resolver'])->name('resolver');
+            Route::patch('/{card}/reabrir',       [CardController::class, 'reabrir'])->name('reabrir');
+            Route::delete('/{card}',              [CardController::class, 'destroy'])->name('destroy');
+        });
+
+        // Comentários (JSON — o modal busca a thread sob demanda). Todos os papéis
+        // comentam: é o canal de contexto entre recebimento, pré-lote e compras.
+        Route::prefix('{nota}/comentarios')->name('comentarios.')->group(function () {
+            Route::get('/',                [ComentarioController::class, 'index'])->name('index');
+            Route::post('/',               [ComentarioController::class, 'store'])->name('store');
             Route::delete('/{comentario}', [ComentarioController::class, 'destroy'])->name('destroy');
         });
     });
@@ -53,14 +63,6 @@ Route::middleware(['auth', 'verified'])->group(function () {
     // ── Fornecedores ───────────────────────────────────────────────────────────
     Route::post('/fornecedores/importar', [FornecedorController::class, 'importar'])
          ->name('fornecedores.importar');
-
-    // ── Cadastros ──────────────────────────────────────────────────────────────
-    Route::prefix('cadastros')->name('cadastros.')->group(function () {
-        Route::get('/',               [CadastroController::class, 'index'])->name('index');
-        Route::post('/',              [CadastroController::class, 'store'])->name('store');
-        Route::patch('/{cadastro}',   [CadastroController::class, 'update'])->name('update');
-        Route::delete('/{cadastro}',  [CadastroController::class, 'destroy'])->name('destroy');
-    });
 
     // ── Estatísticas (só admin) ────────────────────────────────────────────────
     Route::get('/estatisticas', [EstatisticaController::class, 'index'])

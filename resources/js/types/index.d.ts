@@ -1,6 +1,6 @@
 // Tipos globais do sistema
 
-export type Papel = 'operador' | 'encarregado' | 'admin';
+export type Papel = 'recebimento' | 'pre_lote' | 'compras' | 'admin';
 
 export interface User {
     id: number;
@@ -11,7 +11,11 @@ export interface User {
 }
 
 export interface Permissoes {
-    gerenciarRegistros: boolean;
+    lancarNota: boolean;
+    gerirCards: boolean;
+    corrigirCard: boolean;
+    liberarNota: boolean;
+    gerenciarNotas: boolean;
     verEstatisticas: boolean;
     gerenciarUsuarios: boolean;
 }
@@ -22,20 +26,34 @@ export interface Fornecedor {
     cnpj?: string | null;
 }
 
-export interface Requisicao {
+export type TipoCard = 'cadastro' | 'regra' | 'custo' | 'quantidade';
+export type StatusCard = 'aberto' | 'corrigido' | 'resolvido';
+
+export interface Card {
+    id: number;
+    tipo: TipoCard;
+    status: StatusCard;
+    detalhe: string | null;
+    reaberturas: number;
+}
+
+export type StatusNota = 'pendente' | 'com_divergencia' | 'reconferir' | 'liberada';
+export type OrigemNota = 'recebimento' | 'pre_lote';
+
+export interface Nota {
     id: number;
     numero_nota: string;
     fornecedor: Fornecedor;
     user: User;
     loja: number;
-    motivo: string;
+    origem: OrigemNota;
     observacao: string | null;
-    status: 'Pendente' | 'Atendida';
-    atendida_por: Pick<User, 'id' | 'name'> | null;
-    atendida_em: string | null;
+    status: StatusNota;
+    cards: Card[];
+    liberada_por: Pick<User, 'id' | 'name'> | null;
+    liberada_em: string | null;
     comentarios_count: number;
     created_at: string;
-    updated_at: string;
     atrasada: boolean;
     dias_aberta: number;
     nivel: Nivel;
@@ -51,36 +69,16 @@ export interface ResumoAlertas {
     atencao: number;
 }
 
-export interface Cadastro {
-    id: number;
-    numero_nota: string;
-    fornecedor: Fornecedor;
-    user: User;
-    loja: number;
-    motivo: 'Pré Lote' | 'Caminhão na Porta';
-    observacao: string | null;
-    status: 'Pendente' | 'Atendida';
-    atendida_por: Pick<User, 'id' | 'name'> | null;
-    atendida_em: string | null;
-    requisicao_id: number | null;
-    created_at: string;
-    updated_at: string;
-    atrasada: boolean;
-    data_origem: string;
-}
-
 export interface FiltrosAtivos {
-    motivo?: string | null;
-    fornecedor?: number | null;
     busca?: string | null;
     loja?: number | null;
     nivel?: Nivel | null;
 }
 
 export interface OpcoesSistema {
-    motivos: string[];
     lojas: number[];
-    status: string[];
+    origens: OrigemNota[];
+    tipos: TipoCard[];
     /** Limiares em dias de cada nível (definidos no backend) */
     sla?: { atencao: number; alerta: number; critico: number };
 }

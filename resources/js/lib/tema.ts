@@ -46,6 +46,43 @@ export const MOTIVO_COR_LIGHT: Record<string, CorMotivo> = {
     'Caminhão na Porta': { bg: '#ffedd5', text: '#9a3412', border: '#fed7aa' },
 };
 
+// ─── Cards de divergência (tipos vêm do backend — Card::TIPOS) ─────────────────
+
+export const TIPO_CARD_LABEL: Record<string, string> = {
+    cadastro: 'Cadastro',
+    regra: 'Regra',
+    custo: 'Custo',
+    quantidade: 'Quantidade',
+};
+
+export const CARD_COR_DARK: Record<string, { bg: string; text: string; border: string }> = {
+    cadastro: { bg: 'rgba(47,129,247,0.15)', text: '#79c0ff', border: 'rgba(47,129,247,0.35)' },
+    regra: { bg: 'rgba(248,81,73,0.15)', text: '#ff7b72', border: 'rgba(248,81,73,0.35)' },
+    custo: { bg: 'rgba(210,153,34,0.15)', text: '#e3b341', border: 'rgba(210,153,34,0.35)' },
+    quantidade: { bg: 'rgba(163,113,247,0.15)', text: '#d2a8ff', border: 'rgba(163,113,247,0.35)' },
+};
+
+export const CARD_COR_LIGHT: Record<string, { bg: string; text: string; border: string }> = {
+    cadastro: { bg: '#dbeafe', text: '#1d4ed8', border: '#93c5fd' },
+    regra: { bg: '#fee2e2', text: '#b91c1c', border: '#fca5a5' },
+    custo: { bg: '#fef9c3', text: '#854d0e', border: '#fde047' },
+    quantidade: { bg: '#f3e8ff', text: '#7e22ce', border: '#d8b4fe' },
+};
+
+export const STATUS_NOTA_LABEL: Record<string, string> = {
+    pendente: 'Aguardando análise',
+    com_divergencia: 'Com divergência',
+    reconferir: 'Reconferir',
+    liberada: 'Liberada',
+};
+
+export const PAPEL_LABEL: Record<string, string> = {
+    recebimento: 'Recebimento',
+    pre_lote: 'Pré-lote',
+    compras: 'Compras',
+    admin: 'Admin',
+};
+
 // ─── Severidade de pendência (níveis vêm do backend — trait TemIdade) ──────────
 
 export type Nivel = 'normal' | 'atencao' | 'alerta' | 'critico';

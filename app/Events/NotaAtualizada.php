@@ -8,8 +8,12 @@ use Illuminate\Contracts\Broadcasting\ShouldBroadcastNow;
 use Illuminate\Foundation\Events\Dispatchable;
 use Illuminate\Queue\SerializesModels;
 
-// 2. Mudamos a interface aqui também
-class RequisicaoAtualizada implements ShouldBroadcastNow
+/**
+ * Avisa todos os navegadores conectados que alguma nota mudou —
+ * é também a "notificação" do fluxo: quando compras marca um card como
+ * corrigido, a tela do pré-lote atualiza na hora.
+ */
+class NotaAtualizada implements ShouldBroadcastNow
 {
     use Dispatchable, InteractsWithSockets, SerializesModels;
 
@@ -18,13 +22,12 @@ class RequisicaoAtualizada implements ShouldBroadcastNow
     public function broadcastOn(): array
     {
         return [
-            new PrivateChannel('requisicoes'),
+            new PrivateChannel('notas'),
         ];
     }
 
-    // 3. Adicionamos esta função para cravar o nome exato do evento
     public function broadcastAs(): string
     {
-        return 'RequisicaoAtualizada';
+        return 'NotaAtualizada';
     }
 }

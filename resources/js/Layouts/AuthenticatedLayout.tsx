@@ -73,11 +73,8 @@ export default function AuthenticatedLayout({
                             </Link>
 
                             <div className="hidden sm:flex gap-2">
-                                <NavLink href={route('requisicoes.index')} active={route().current('requisicoes.*')}>
-                                    Requisições
-                                </NavLink>
-                                <NavLink href={route('cadastros.index')} active={route().current('cadastros.*')}>
-                                    Cadastro
+                                <NavLink href={route('notas.index')} active={route().current('notas.*')}>
+                                    Notas
                                 </NavLink>
                                 {can.verEstatisticas && (
                                     <NavLink href={route('estatisticas.index')} active={route().current('estatisticas.*')}>
@@ -163,11 +160,8 @@ export default function AuthenticatedLayout({
                 {/* Mobile menu */}
                 <div className={`${showingNavDropdown ? 'block' : 'hidden'} sm:hidden border-t ${navBorder}`}>
                     <div className="space-y-1 px-4 pb-3 pt-2">
-                        <ResponsiveNavLink href={route('requisicoes.index')} active={route().current('requisicoes.*')}>
-                            Requisições
-                        </ResponsiveNavLink>
-                        <ResponsiveNavLink href={route('cadastros.index')} active={route().current('cadastros.*')}>
-                            Cadastro
+                        <ResponsiveNavLink href={route('notas.index')} active={route().current('notas.*')}>
+                            Notas
                         </ResponsiveNavLink>
                         {can.verEstatisticas && (
                             <ResponsiveNavLink href={route('estatisticas.index')} active={route().current('estatisticas.*')}>

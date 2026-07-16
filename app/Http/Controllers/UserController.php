@@ -2,8 +2,7 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\Cadastro;
-use App\Models\Requisicao;
+use App\Models\Nota;
 use App\Models\User;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -106,14 +105,18 @@ class UserController extends Controller
             return back()->withErrors(['usuario' => 'Não é possível excluir o único administrador.']);
         }
 
-        // O usuário é o criador (user_id) de requisições/cadastros — a FK é restritiva,
+        // O usuário é o criador (user_id) de notas — a FK é restritiva,
         // então preservamos o histórico em vez de apagar a conta.
-        if (
-            Requisicao::withTrashed()->where('user_id', $user->id)->exists() ||
-            Cadastro::withTrashed()->where('user_id', $user->id)->exists()
-        ) {
+        // (As tabelas legadas requisicoes/cadastros também têm FK e podem ainda existir no banco.)
+        $temHistorico = Nota::withTrashed()->where('user_id', $user->id)->exists()
+            || (\Illuminate\Support\Facades\Schema::hasTable('requisicoes')
+                && \Illuminate\Support\Facades\DB::table('requisicoes')->where('user_id', $user->id)->exists())
+            || (\Illuminate\Support\Facades\Schema::hasTable('cadastros')
+                && \Illuminate\Support\Facades\DB::table('cadastros')->where('user_id', $user->id)->exists());
+
+        if ($temHistorico) {
             return back()->withErrors([
-                'usuario' => 'Usuário tem registros no histórico e não pode ser excluído. Rebaixe o papel para "operador" se quiser limitar o acesso.',
+                'usuario' => 'Usuário tem notas no histórico e não pode ser excluído. Mude o papel dele se quiser limitar o acesso.',
             ]);
         }
 

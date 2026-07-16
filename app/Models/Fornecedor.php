@@ -10,8 +10,8 @@ class Fornecedor extends Model
 
     protected $fillable = ['nome', 'cnpj'];
 
-    public function requisicoes(): \Illuminate\Database\Eloquent\Relations\HasMany
+    public function notas(): \Illuminate\Database\Eloquent\Relations\HasMany
     {
-        return $this->hasMany(Requisicao::class);
+        return $this->hasMany(Nota::class);
     }
 }

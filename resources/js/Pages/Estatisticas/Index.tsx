@@ -361,12 +361,13 @@ export default function Index({
     const p = isDark ? DARK : LIGHT;
     const LOJA_CORES = isDark ? LOJA_CORES_DARK : LOJA_CORES_LIGHT;
 
+    // Tipos de card + a categoria "Sem divergência" (notas limpas)
     const MOTIVO_COR: Record<string, string> = {
         Cadastro: p.ACCENT,
-        Preço: p.AMBER,
         Regra: p.RED,
+        Custo: p.AMBER,
         Quantidade: p.PURPLE,
-        Pedido: p.GREEN,
+        'Sem divergência': p.GREEN,
     };
 
     const [motivoForn, setMotivoForn] = useState(Object.keys(fornecedoresPorMotivo)[0] ?? '');
@@ -419,19 +420,19 @@ export default function Index({
 
                 {/* ── KPIs ──────────────────────────────────────────────────── */}
                 <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
-                    <KpiCard label="Total de requisições" valor={kpis.total} p={p} />
-                    <KpiCard label="Atendidas" valor={kpis.atendidas}
+                    <KpiCard label="Total de notas" valor={kpis.total} p={p} />
+                    <KpiCard label="Liberadas" valor={kpis.atendidas}
                         sub={`${kpis.taxaResolucao}% do total`}
                         trend={`${kpis.taxaResolucao}%`} trendUp p={p} />
-                    <KpiCard label="Pendentes" valor={kpis.pendentes}
+                    <KpiCard label="Na fila" valor={kpis.pendentes}
                         trend={kpis.pendentes > 0 ? `${kpis.pendentes}` : undefined} trendUp={false} p={p} />
-                    <KpiCard label="Resolvidas no dia" valor={kpis.resolvidasNoDia}
-                        sub="criação = atendimento" p={p} />
-                    <KpiCard label="Taxa de resolução" valor={`${kpis.taxaResolucao}%`} p={p} />
+                    <KpiCard label="Liberadas no dia" valor={kpis.resolvidasNoDia}
+                        sub="lançamento = liberação" p={p} />
+                    <KpiCard label="Taxa de liberação" valor={`${kpis.taxaResolucao}%`} p={p} />
                     <KpiCard
                         label="Tempo médio"
                         valor={kpis.tempoMedioHoras !== null ? `${kpis.tempoMedioHoras}h` : '—'}
-                        sub="para atender" p={p} />
+                        sub="para liberar" p={p} />
                 </div>
 
                 {/* ── Evolução + Top fornecedores ────────────────────────────── */}
@@ -442,7 +443,7 @@ export default function Index({
                         <Card title={`Evolução de Faturamento — últimos ${periodo} dias`} p={p}>
                             <Linha dados={linhaTotal} cor={p.ACCENT} altura={200} p={p} />
                             <div className="mt-4 pt-4" style={{ borderTop: `1px solid ${p.BORDER}` }}>
-                                <p className="text-xs mb-2" style={{ color: p.MUTED }}>Atendidas por dia</p>
+                                <p className="text-xs mb-2" style={{ color: p.MUTED }}>Liberadas por dia</p>
                                 <Linha dados={linhaAtend} cor={p.GREEN} altura={100} p={p} />
                             </div>
                         </Card>
@@ -450,7 +451,7 @@ export default function Index({
 
                     {/* Top fornecedores */}
                     <div>
-                        <Card title="⚠️ Fornecedores com mais requisições" p={p}>
+                        <Card title="⚠️ Fornecedores com mais notas" p={p}>
                             <div className="space-y-3">
                                 {topFornecedores.slice(0, 6).map((f, i) => (
                                     <div key={i} className="flex items-center justify-between gap-2">
@@ -483,7 +484,7 @@ export default function Index({
 
                 {/* ── Motivos + Lojas ────────────────────────────────────────── */}
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                    <Card title="Distribuição por motivo" p={p}>
+                    <Card title="Distribuição por divergência" p={p}>
                         <Donut itens={donutMotivos} size={110} p={p} />
                         <div className="mt-5 space-y-2" style={{ borderTop: `1px solid ${p.BORDER}`, paddingTop: 16 }}>
                             {porMotivo.map(m => (
@@ -533,12 +534,12 @@ export default function Index({
                         Análise de Distribuição Temporal
                     </h2>
                     <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                        <Card title="Requisições por dia da semana" p={p}>
+                        <Card title="Notas por dia da semana" p={p}>
                             <BarrasV
                                 items={porDiaSemana.map(d => ({ label: d.dia, valor: d.total }))}
                                 cor={p.PURPLE} altura={150} p={p} />
                         </Card>
-                        <Card title="Requisições por hora do dia" p={p}>
+                        <Card title="Notas por hora do dia" p={p}>
                             <BarrasV
                                 items={porHora.map(h => ({ label: h.hora, valor: h.total }))}
                                 cor={p.AMBER} altura={150} p={p} />
@@ -574,7 +575,7 @@ export default function Index({
                     />
                     {(fornecedoresPorMotivo[motivoForn] ?? []).length === 0 && (
                         <p className="text-sm text-center py-4" style={{ color: p.MUTED }}>
-                            Sem requisições de <strong style={{ color: p.TEXT }}>{motivoForn}</strong> no período.
+                            Sem divergências de <strong style={{ color: p.TEXT }}>{motivoForn}</strong> no período.
                         </p>
                     )}
                 </Card>
@@ -582,7 +583,7 @@ export default function Index({
                 {/* ── Reincidentes + Ranking usuários ───────────────────────── */}
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
 
-                    <Card title="Fornecedores reincidentes (3+ requisições)" p={p}>
+                    <Card title="Fornecedores reincidentes (3+ notas com divergência)" p={p}>
                         <div className="space-y-2">
                             {reincidentes.length === 0 && (
                                 <p className="text-sm text-center py-4" style={{ color: p.MUTED }}>

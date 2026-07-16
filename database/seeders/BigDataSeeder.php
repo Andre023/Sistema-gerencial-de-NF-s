@@ -2,105 +2,109 @@
 
 namespace Database\Seeders;
 
+use App\Models\Card;
+use App\Models\Nota;
+use App\Models\User;
+use Carbon\Carbon;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Schema;
-use Carbon\Carbon;
 
+/**
+ * Dados de demonstração do fluxo real: notas com cards de divergência.
+ *
+ * Preserva usuários que não sejam @sistema.com (contas reais).
+ */
 class BigDataSeeder extends Seeder
 {
-    // ── Configuração ──────────────────────────────────────────────────────────
-    const DIAS_HISTORICO    = 90;
-    const TOTAL_REQUISICOES = 600;
-    const TOTAL_CADASTROS   = 250;
-    const TOTAL_USUARIOS    = 6;
+    const DIAS_HISTORICO = 60;
+    const TOTAL_NOTAS    = 400;
 
-    const LOJAS   = [1, 2, 3, 9, 11, 12];
-    const MOTIVOS_REQ = ['Cadastro', 'Preço', 'Regra', 'Quantidade', 'Pedido'];
-    const MOTIVOS_CAD = ['Pré Lote', 'Caminhão na Porta'];
+    const LOJAS = [1, 2, 3, 9, 11, 12];
 
-    // Peso por motivo (simulando distribuição real)
-    const PESO_MOTIVO_REQ = [
-        'Cadastro'   => 30,
-        'Preço'      => 25,
-        'Regra'      => 15,
-        'Quantidade' => 20,
-        'Pedido'     => 10,
+    // Peso por tipo de divergência (cadastro é o campeão no fluxo real)
+    const PESO_TIPO = [
+        'cadastro'   => 40,
+        'custo'      => 25,
+        'regra'      => 20,
+        'quantidade' => 15,
     ];
 
-    // Peso por loja (algumas lojas mais movimentadas)
-    const PESO_LOJA = [
-        1  => 25,
-        2  => 20,
-        3  => 18,
-        9  => 15,
-        11 => 12,
-        12 => 10,
-    ];
+    const PESO_LOJA = [1 => 25, 2 => 20, 3 => 18, 9 => 15, 11 => 12, 12 => 10];
 
     public function run(): void
     {
-        $this->command->info('🌱 Iniciando BigDataSeeder...');
+        $this->command->info('🌱 Iniciando BigDataSeeder (fluxo de notas)...');
         $this->command->newLine();
 
         Schema::disableForeignKeyConstraints();
 
-        // Ordem importa por FK
-        DB::table('requisicao_auditorias')->delete();
-        DB::table('cadastros')->delete();
-        DB::table('requisicoes')->delete();
+        DB::table('comentarios')->delete();
+        DB::table('cards')->delete();
+        DB::table('notas')->delete();
         DB::table('fornecedores')->delete();
-        DB::table('users')->where('email', '!=', 'admin@sistema.com')->delete();
+        DB::table('users')->where('email', 'like', '%@sistema.com')->delete();
 
         Schema::enableForeignKeyConstraints();
 
-        $usuarios    = $this->seedUsuarios();
+        $usuarios     = $this->seedUsuarios();
         $fornecedores = $this->seedFornecedores();
-        $this->seedRequisicoes($usuarios, $fornecedores);
-        $this->seedCadastros($usuarios, $fornecedores);
+        $this->seedNotas($usuarios, $fornecedores);
 
         $this->command->newLine();
-        $this->command->info('✅ BigDataSeeder concluído com sucesso!');
+        $this->command->info('✅ BigDataSeeder concluído!');
         $this->command->newLine();
-        $this->command->line('  📧 Usuários criados:');
-        foreach ($usuarios as $u) {
-            $this->command->line("     {$u['email']}  →  senha: <comment>password</comment>");
+        $this->command->line('  📧 Usuários de demonstração (senha: password):');
+        foreach ($usuarios as $papel => $lista) {
+            foreach ($lista as $u) {
+                $this->command->line("     {$u['email']}  →  {$papel}");
+            }
         }
         $this->command->newLine();
     }
 
-    // ── Usuários ──────────────────────────────────────────────────────────────
+    // ── Usuários por função ───────────────────────────────────────────────────
 
     private function seedUsuarios(): array
     {
-        $this->command->info('👤 Criando usuários...');
+        $this->command->info('👤 Criando usuários por função...');
 
-        $lista = [
-            ['name' => 'Admin Sistema',    'email' => 'admin@sistema.com',    'role' => \App\Models\User::ROLE_ADMIN],
-            ['name' => 'Ana Paula',         'email' => 'ana@sistema.com',      'role' => \App\Models\User::ROLE_ENCARREGADO],
-            ['name' => 'Carlos Mendes',     'email' => 'carlos@sistema.com',   'role' => \App\Models\User::ROLE_OPERADOR],
-            ['name' => 'Fernanda Lima',     'email' => 'fernanda@sistema.com', 'role' => \App\Models\User::ROLE_OPERADOR],
-            ['name' => 'João Vitor',        'email' => 'joao@sistema.com',     'role' => \App\Models\User::ROLE_OPERADOR],
-            ['name' => 'Mariana Costa',     'email' => 'mariana@sistema.com',  'role' => \App\Models\User::ROLE_OPERADOR],
+        $porPapel = [
+            User::ROLE_ADMIN       => [['name' => 'Admin Sistema', 'email' => 'admin@sistema.com']],
+            User::ROLE_RECEBIMENTO => [
+                ['name' => 'Ana Paula',    'email' => 'ana@sistema.com'],
+                ['name' => 'Mariana Costa', 'email' => 'mariana@sistema.com'],
+            ],
+            User::ROLE_PRE_LOTE => [
+                ['name' => 'Fernanda Lima', 'email' => 'fernanda@sistema.com'],
+                ['name' => 'João Vitor',    'email' => 'joao@sistema.com'],
+            ],
+            User::ROLE_COMPRAS => [
+                ['name' => 'Carlos Mendes', 'email' => 'carlos@sistema.com'],
+            ],
         ];
 
-        $inseridos = [];
-        foreach ($lista as $u) {
-            $id = DB::table('users')->insertGetId([
-                'name'              => $u['name'],
-                'email'             => $u['email'],
-                'role'              => $u['role'],
-                'password'          => Hash::make('password'),
-                'email_verified_at' => now(),
-                'created_at'        => now(),
-                'updated_at'        => now(),
-            ]);
-            $inseridos[] = array_merge($u, ['id' => $id]);
+        $criados = [];
+        foreach ($porPapel as $papel => $lista) {
+            foreach ($lista as $u) {
+                $id = DB::table('users')->insertGetId([
+                    'name'              => $u['name'],
+                    'email'             => $u['email'],
+                    'role'              => $papel,
+                    'password'          => Hash::make('password'),
+                    'email_verified_at' => now(),
+                    'created_at'        => now(),
+                    'updated_at'        => now(),
+                ]);
+                $criados[$papel][] = array_merge($u, ['id' => $id]);
+            }
         }
 
-        $this->command->line("   → " . count($inseridos) . " usuários criados.");
-        return $inseridos;
+        $total = array_sum(array_map('count', $criados));
+        $this->command->line("   → {$total} usuários criados.");
+
+        return $criados;
     }
 
     // ── Fornecedores ──────────────────────────────────────────────────────────
@@ -110,401 +114,220 @@ class BigDataSeeder extends Seeder
         $this->command->info('🏭 Criando fornecedores...');
 
         $nomes = [
-            'Distribuidora Alfa Ltda',
-            'Comercial Beta S/A',
-            'Indústria Gama ME',
-            'Atacadão Delta Distribuidora',
-            'Frigorífico Epsilon Ltda',
-            'Laticínios Zeta S/A',
-            'Cerealista Eta Comércio',
-            'Panificadora Theta ME',
-            'Bebidas Iota Ltda',
-            'Hortifruti Kappa S/A',
-            'Carnes Nobre Lambda Ltda',
-            'Mercearia Mu Distribuidora',
-            'Alimentos Nu S/A',
-            'Doces Xi ME',
-            'Biscoitos Omicron Ltda',
-            'Massas Pi Indústria',
-            'Grãos Rho Comércio',
-            'Temperos Sigma ME',
-            'Conservas Tau Ltda',
-            'Bebidas Upsilon S/A',
-            'Laticínios Phi Comércio',
-            'Rações Chi Distribuidora',
-            'Embutidos Psi Ltda',
-            'Frios Omega S/A',
-            'Distribuidora Norte ME',
-            'Atacado Sul Ltda',
-            'Comércio Leste S/A',
-            'Produtos Oeste ME',
-            'Alimentos Central Ltda',
-            'Frigorífico Novo Mundo S/A',
-            'Indústria Premium ME',
-            'Distribuidora Top Ltda',
-            'Comercial Plus S/A',
-            'Atacadista Max ME',
-            'Fornecedor Mix Ltda',
-            'Alimentos Select S/A',
-            'Cerealista Nacional ME',
-            'Bebidas Import Ltda',
-            'Frios Brasil S/A',
-            'Laticínios Primor ME',
-            'Grãos e Farinhas Ltda',
-            'Condimentos Real S/A',
-            'Doces & Balas ME',
-            'Massas Italianas Ltda',
-            'Embutidos Chef S/A',
-            'Conservas Gourmet ME',
-            'Hortifruti Express Ltda',
-            'Carnes Prime S/A',
-            'Biscoitos Alegria ME',
-            'Temperos do Sul Ltda',
-            'Mercearia Boa Vista S/A',
-            'Frigorífico São Paulo ME',
-            'Distribuidora Rio Ltda',
-            'Comércio Minas S/A',
-            'Alimentos Bahia ME',
-            'Bebidas Pernambuco Ltda',
-            'Laticínios Goiás S/A',
-            'Cerealista Paraná ME',
-            'Grãos Santa Catarina Ltda',
-            'Frios Rio Grande S/A',
-            'Embutidos Nordeste ME',
-            'Carnes Centro-Oeste Ltda',
-            'Doces Sudeste S/A',
-            'Massas Norte ME',
-            'Temperos Brasil Ltda',
-            'Conservas Nacional S/A',
-            'Hortifruti Premium ME',
-            'Biscoitos Gourmet Ltda',
-            'Condimentos Select S/A',
-            'Bebidas Especiais ME',
-            'Laticínios Artesanais Ltda',
-            'Frigorífico Rural S/A',
-            'Distribuidora Campo ME',
-            'Comercial Fazenda Ltda',
-            'Alimentos Serra S/A',
-            'Cerealista Vale ME',
-            'Grãos Planalto Ltda',
-            'Frios Litoral S/A',
-            'Embutidos Sertão ME',
-            'Carnes Pantanal Ltda',
-            'Doces Cerrado S/A',
-            'Massas Amazônia ME',
-            'Temperos Caatinga Ltda',
-            'Conservas Pampa S/A',
-            'Hortifruti Mata ME',
-            'Biscoitos Chapada Ltda',
-            'Condimentos Mangue S/A',
-            'Bebidas Pantaneira ME',
-            'Laticínios Gaúcha Ltda',
-            'Frigorífico Mineiro S/A',
-            'Distribuidora Paulista ME',
-            'Comercial Carioca Ltda',
-            'Alimentos Nordestina S/A',
-            'Cerealista Baiana ME',
-            'Grãos Pernambucana Ltda',
-            'Frios Cearense S/A',
-            'Embutidos Maranhense ME',
-            'Carnes Piauiense Ltda',
-            'Doces Alagoana S/A',
-            'Massas Sergipana ME',
-            'Temperos Paraibana Ltda',
-            'Conservas Potiguar S/A',
-            'Hortifruti Capixaba ME',
-            'Biscoitos Fluminense Ltda',
-            'Condimentos Bonaerense S/A',
-            'Bebidas Catarina ME',
-            'Laticínios Gaúcha Premium Ltda',
-            'Frigorífico Mato-Grossense S/A',
-            'Distribuidora Goiana ME',
-            'Comercial Tocantinense Ltda',
-            'Alimentos Acreana S/A',
-            'Cerealista Amapaense ME',
-            'Grãos Roraimense Ltda',
-            'Frios Paraense S/A',
-            'Embutidos Amazonense ME',
-            'Carnes Rondoniense Ltda',
-            'Doces Sul-Mato-Grossense S/A',
+            'Distribuidora Alfa Ltda', 'Comercial Beta S/A', 'Indústria Gama ME',
+            'Atacadão Delta Distribuidora', 'Frigorífico Epsilon Ltda', 'Laticínios Zeta S/A',
+            'Cerealista Eta Comércio', 'Panificadora Theta ME', 'Bebidas Iota Ltda',
+            'Hortifruti Kappa S/A', 'Carnes Nobre Lambda Ltda', 'Mercearia Mu Distribuidora',
+            'Alimentos Nu S/A', 'Doces Xi ME', 'Biscoitos Omicron Ltda', 'Massas Pi Indústria',
+            'Grãos Rho Comércio', 'Temperos Sigma ME', 'Conservas Tau Ltda', 'Bebidas Upsilon S/A',
+            'Laticínios Phi Comércio', 'Rações Chi Distribuidora', 'Embutidos Psi Ltda',
+            'Frios Omega S/A', 'Distribuidora Norte ME', 'Atacado Sul Ltda', 'Comércio Leste S/A',
+            'Produtos Oeste ME', 'Alimentos Central Ltda', 'Frigorífico Novo Mundo S/A',
+            'Indústria Premium ME', 'Distribuidora Top Ltda', 'Comercial Plus S/A',
+            'Atacadista Max ME', 'Fornecedor Mix Ltda', 'Alimentos Select S/A',
+            'Cerealista Nacional ME', 'Bebidas Import Ltda', 'Frios Brasil S/A',
+            'Laticínios Primor ME', 'Grãos e Farinhas Ltda', 'Condimentos Real S/A',
+            'Doces & Balas ME', 'Massas Italianas Ltda', 'Embutidos Chef S/A',
+            'Conservas Gourmet ME', 'Hortifruti Express Ltda', 'Carnes Prime S/A',
+            'Biscoitos Alegria ME', 'Temperos do Sul Ltda',
         ];
 
         $inseridos = [];
-        $cnpjBase = 10000000000100;
+        $cnpjBase  = 10000000000100;
 
         foreach ($nomes as $i => $nome) {
-            $cnpj = $this->formatarCnpj($cnpjBase + ($i * 37));
             $id = DB::table('fornecedores')->insertGetId([
-                'nome'       => $nome,
-                'cnpj'       => $cnpj,
+                'nome'       => mb_strtoupper($nome),
+                'cnpj'       => $this->formatarCnpj($cnpjBase + ($i * 37)),
                 'created_at' => now(),
                 'updated_at' => now(),
             ]);
-            $inseridos[] = ['id' => $id, 'nome' => $nome];
+            $inseridos[] = $id;
         }
 
-        $this->command->line("   → " . count($inseridos) . " fornecedores criados.");
+        $this->command->line('   → ' . count($inseridos) . ' fornecedores criados.');
+
         return $inseridos;
     }
 
-    // ── Requisições ───────────────────────────────────────────────────────────
+    // ── Notas com ciclo de vida ───────────────────────────────────────────────
 
-    private function seedRequisicoes(array $usuarios, array $fornecedores): void
+    private function seedNotas(array $usuarios, array $fornecedores): void
     {
-        $this->command->info('📋 Criando requisições...');
+        $this->command->info('📋 Criando notas e cards...');
 
-        $hoje     = Carbon::today();
-        $motivos  = $this->construirPeso(self::PESO_MOTIVO_REQ);
+        $hoje      = Carbon::today();
+        $tiposPeso = $this->construirPeso(self::PESO_TIPO);
         $lojasPeso = $this->construirPeso(self::PESO_LOJA);
 
-        $bar = $this->command->getOutput()->createProgressBar(self::TOTAL_REQUISICOES);
+        $lancadores = array_merge($usuarios[User::ROLE_RECEBIMENTO], $usuarios[User::ROLE_PRE_LOTE]);
+        $preLote    = $usuarios[User::ROLE_PRE_LOTE];
+        $compras    = $usuarios[User::ROLE_COMPRAS];
+
+        $bar = $this->command->getOutput()->createProgressBar(self::TOTAL_NOTAS);
         $bar->start();
 
-        $lote = [];
+        for ($i = 0; $i < self::TOTAL_NOTAS; $i++) {
+            $diasAtras = $this->distribuicaoDias(self::DIAS_HISTORICO);
+            $createdAt = $hoje->copy()->subDays($diasAtras)
+                ->setTimeFromTimeString($this->horarioComercial());
 
-        for ($i = 0; $i < self::TOTAL_REQUISICOES; $i++) {
-            $diasAtras  = $this->distribuicaoDias(self::DIAS_HISTORICO);
-            $data       = $hoje->copy()->subDays($diasAtras);
-            $hora       = $this->horarioComercial();
-            $createdAt  = $data->copy()->setTimeFromTimeString($hora);
+            $origem   = rand(1, 100) <= 85 ? 'recebimento' : 'pre_lote';
+            $lancador = $lancadores[array_rand($lancadores)];
 
-            $user       = $usuarios[array_rand($usuarios)];
-            $fornecedor = $fornecedores[array_rand($fornecedores)];
-            $motivo     = $motivos[array_rand($motivos)];
-            $loja       = $lojasPeso[array_rand($lojasPeso)];
-
-            // Requisições mais antigas têm maior chance de estar atendidas
-            $chanceAtendida = min(95, 40 + ($diasAtras * 0.8));
-            $status = (rand(1, 100) <= $chanceAtendida) ? 'Atendida' : 'Pendente';
-
-            $updatedAt = $createdAt->copy();
-            $atendidaPor = null;
-            $atendidaEm  = null;
-            if ($status === 'Atendida') {
-                // Atendida algumas horas depois (ou no mesmo dia, ou no dia seguinte)
-                $updatedAt->addMinutes(rand(20, 600));
-                $atendidaPor = $usuarios[array_rand($usuarios)]['id'];
-                $atendidaEm  = $updatedAt->copy();
-            }
-
-            $lote[] = [
-                'numero_nota'   => $this->gerarNumeroNota(),
-                'fornecedor_id' => $fornecedor['id'],
-                'user_id'       => $user['id'],
-                'atendida_por'  => $atendidaPor,
-                'loja'          => $loja,
-                'motivo'        => $motivo,
-                'observacao'    => rand(1, 3) === 1 ? $this->observacaoAleatoria() : null,
-                'status'        => $status,
-                'atendida_em'   => $atendidaEm,
-                'created_at'    => $createdAt,
-                'updated_at'    => $updatedAt,
-            ];
-
-            // Insere a cada 50 — cada linha é gravada UMA vez, com sua auditoria
-            if (count($lote) >= 50) {
-                $this->inserirAuditoriasLote($lote);
-                $lote = [];
-                $bar->advance(50);
-            }
-        }
-
-        // Resto
-        if (!empty($lote)) {
-            $this->inserirAuditoriasLote($lote);
-            $bar->advance(count($lote));
-        }
-
-        $bar->finish();
-        $this->command->newLine();
-        $this->command->line("   → " . self::TOTAL_REQUISICOES . " requisições criadas.");
-    }
-
-    private function inserirAuditoriasLote(array $lote): void
-    {
-        $audRows = [];
-        foreach ($lote as $row) {
-            $id = DB::table('requisicoes')->insertGetId($row);
-
-            $audRows[] = [
-                'requisicao_id'    => $id,
-                'user_id'          => $row['user_id'],
-                'acao'             => 'criada',
-                'dados_anteriores' => null,
-                'dados_novos'      => json_encode(['status' => 'Pendente', 'motivo' => $row['motivo']]),
-                'criado_em'        => $row['created_at'],
-            ];
-
-            if ($row['status'] === 'Atendida') {
-                $audRows[] = [
-                    'requisicao_id'    => $id,
-                    'user_id'          => $row['atendida_por'],
-                    'acao'             => 'atendida',
-                    'dados_anteriores' => json_encode(['status' => 'Pendente']),
-                    'dados_novos'      => json_encode(['status' => 'Atendida']),
-                    'criado_em'        => $row['atendida_em'],
-                ];
-            }
-        }
-
-        foreach (array_chunk($audRows, 100) as $chunk) {
-            DB::table('requisicao_auditorias')->insert($chunk);
-        }
-    }
-
-    // ── Cadastros ─────────────────────────────────────────────────────────────
-
-    private function seedCadastros(array $usuarios, array $fornecedores): void
-    {
-        $this->command->info('📦 Criando cadastros...');
-
-        $hoje = Carbon::today();
-
-        $bar = $this->command->getOutput()->createProgressBar(self::TOTAL_CADASTROS);
-        $bar->start();
-
-        $lote = [];
-
-        for ($i = 0; $i < self::TOTAL_CADASTROS; $i++) {
-            $diasAtras  = $this->distribuicaoDias(self::DIAS_HISTORICO);
-            $data       = $hoje->copy()->subDays($diasAtras);
-            $hora       = $this->horarioComercial();
-            $createdAt  = $data->copy()->setTimeFromTimeString($hora);
-
-            $user       = $usuarios[array_rand($usuarios)];
-            $fornecedor = $fornecedores[array_rand($fornecedores)];
-            $motivo     = self::MOTIVOS_CAD[rand(0, 1)];
-            $loja       = self::LOJAS[array_rand(self::LOJAS)];
-
-            $chanceAtendida = min(95, 35 + ($diasAtras * 0.75));
-            $status = (rand(1, 100) <= $chanceAtendida) ? 'Atendida' : 'Pendente';
-
-            $updatedAt = ($status === 'Atendida')
-                ? $createdAt->copy()->addMinutes(rand(30, 480))
-                : $createdAt->copy();
-
-            $atendidaPor = $status === 'Atendida' ? $usuarios[array_rand($usuarios)]['id'] : null;
-            $atendidaEm  = $status === 'Atendida' ? $updatedAt->copy() : null;
-
-            $lote[] = [
-                'numero_nota'   => $this->gerarNumeroNota(),
-                'fornecedor_id' => $fornecedor['id'],
-                'user_id'       => $user['id'],
-                'atendida_por'  => $atendidaPor,
-                'requisicao_id' => null,
-                'loja'          => $loja,
-                'motivo'        => $motivo,
+            $notaId = DB::table('notas')->insertGetId([
+                'numero_nota'   => (string) rand(10000, 9999999),
+                'fornecedor_id' => $fornecedores[array_rand($fornecedores)],
+                'user_id'       => $lancador['id'],
+                'loja'          => $lojasPeso[array_rand($lojasPeso)],
+                'origem'        => $origem,
                 'observacao'    => rand(1, 4) === 1 ? $this->observacaoAleatoria() : null,
-                'status'        => $status,
-                'atendida_em'   => $atendidaEm,
-                'deleted_at'    => null,
                 'created_at'    => $createdAt,
-                'updated_at'    => $updatedAt,
-            ];
+                'updated_at'    => $createdAt,
+            ]);
 
-            if (count($lote) >= 50) {
-                DB::table('cadastros')->insert($lote);
-                $lote = [];
-                $bar->advance(50);
+            // ~45% das notas passam limpas; o resto ganha 1-2 cards (3 às vezes)
+            $qtdCards = rand(1, 100) <= 45 ? 0 : (rand(1, 100) <= 70 ? 1 : (rand(1, 100) <= 85 ? 2 : 3));
+
+            $tiposUsados = [];
+            $ultimoEvento = $createdAt->copy();
+            $todosResolvidos = true;
+
+            for ($c = 0; $c < $qtdCards; $c++) {
+                $tipo = $tiposPeso[array_rand($tiposPeso)];
+                if (in_array($tipo, $tiposUsados, true)) continue; // um card ativo por tipo
+                $tiposUsados[] = $tipo;
+
+                $abertoEm = $createdAt->copy()->addMinutes(rand(15, 240));
+                $analista = $preLote[array_rand($preLote)];
+
+                // Quanto mais antiga a nota, mais avançado o ciclo do card
+                $chanceResolvido = min(95, 30 + ($diasAtras * 2.5));
+                $sorte = rand(1, 100);
+
+                $card = [
+                    'nota_id'    => $notaId,
+                    'tipo'       => $tipo,
+                    'detalhe'    => rand(1, 3) === 1 ? $this->detalheAleatorio($tipo) : null,
+                    'aberto_por' => $analista['id'],
+                    'created_at' => $abertoEm,
+                    'updated_at' => $abertoEm,
+                    'status'     => Card::STATUS_ABERTO,
+                    'reaberturas' => 0,
+                ];
+
+                if ($sorte <= $chanceResolvido) {
+                    // ciclo completo: corrigido por compras, resolvido pelo pré-lote
+                    $corrigidoEm = $abertoEm->copy()->addMinutes(rand(60, 1440));
+                    $resolvidoEm = $corrigidoEm->copy()->addMinutes(rand(30, 480));
+                    $card['status']        = Card::STATUS_RESOLVIDO;
+                    $card['corrigido_por'] = $compras[array_rand($compras)]['id'];
+                    $card['corrigido_em']  = $corrigidoEm;
+                    $card['resolvido_por'] = $preLote[array_rand($preLote)]['id'];
+                    $card['resolvido_em']  = $resolvidoEm;
+                    $card['reaberturas']   = rand(1, 100) <= 12 ? 1 : 0;
+                    $card['updated_at']    = $resolvidoEm;
+                    $ultimoEvento = $ultimoEvento->max($resolvidoEm);
+                } elseif ($sorte <= $chanceResolvido + 20) {
+                    // corrigido, aguardando reconferência
+                    $corrigidoEm = $abertoEm->copy()->addMinutes(rand(60, 1440));
+                    $card['status']        = Card::STATUS_CORRIGIDO;
+                    $card['corrigido_por'] = $compras[array_rand($compras)]['id'];
+                    $card['corrigido_em']  = $corrigidoEm;
+                    $card['updated_at']    = $corrigidoEm;
+                    $todosResolvidos = false;
+                } else {
+                    $todosResolvidos = false;
+                }
+
+                DB::table('cards')->insert($card);
             }
-        }
 
-        if (!empty($lote)) {
-            DB::table('cadastros')->insert($lote);
-            $bar->advance(count($lote));
+            // Liberação: nota sem cards ativos tem chance de já ter sido liberada
+            $chanceLiberada = min(95, 40 + ($diasAtras * 2));
+            if ($todosResolvidos && rand(1, 100) <= $chanceLiberada) {
+                $liberadaEm = $ultimoEvento->copy()->addMinutes(rand(10, 300));
+                $analista   = $preLote[array_rand($preLote)];
+                DB::table('notas')->where('id', $notaId)->update([
+                    'liberada_por' => $analista['id'],
+                    'liberada_em'  => $liberadaEm,
+                    'updated_at'   => $liberadaEm,
+                ]);
+            }
+
+            $bar->advance();
         }
 
         $bar->finish();
         $this->command->newLine();
-        $this->command->line("   → " . self::TOTAL_CADASTROS . " cadastros criados.");
+        $this->command->line('   → ' . self::TOTAL_NOTAS . ' notas criadas.');
     }
 
     // ── Helpers ───────────────────────────────────────────────────────────────
 
-    /**
-     * Distribuição de dias com peso: dias recentes aparecem mais (curva exponencial suave).
-     */
     private function distribuicaoDias(int $max): int
     {
-        // Quanto mais recente, maior a chance
         $rand = mt_rand(0, 1000) / 1000;
         return (int) floor($max * pow($rand, 1.8));
     }
 
-    /**
-     * Horário comercial com distribuição realista:
-     * pico pela manhã (08-11h) e tarde (13-16h), menos no almoço e fim do dia.
-     */
     private function horarioComercial(): string
     {
         $faixas = [
-            ['ini' => '07:30', 'fim' => '09:30', 'peso' => 20],
-            ['ini' => '09:30', 'fim' => '12:00', 'peso' => 35],
-            ['ini' => '12:00', 'fim' => '13:30', 'peso' => 8],
-            ['ini' => '13:30', 'fim' => '16:00', 'peso' => 28],
-            ['ini' => '16:00', 'fim' => '18:30', 'peso' => 9],
+            ['ini' => 7 * 60 + 30, 'fim' => 9 * 60 + 30, 'peso' => 20],
+            ['ini' => 9 * 60 + 30, 'fim' => 12 * 60, 'peso' => 35],
+            ['ini' => 12 * 60, 'fim' => 13 * 60 + 30, 'peso' => 8],
+            ['ini' => 13 * 60 + 30, 'fim' => 16 * 60, 'peso' => 28],
+            ['ini' => 16 * 60, 'fim' => 18 * 60 + 30, 'peso' => 9],
         ];
 
-        $faixa = $this->construirPeso(array_column($faixas, 'peso', 'ini'));
-        $chave = $faixa[array_rand($faixa)];
-        $faixaSel = collect($faixas)->firstWhere('ini', $chave);
+        $pool = [];
+        foreach ($faixas as $idx => $f) {
+            for ($i = 0; $i < $f['peso']; $i++) $pool[] = $idx;
+        }
+        $faixa = $faixas[$pool[array_rand($pool)]];
+        $min   = rand($faixa['ini'], $faixa['fim']);
 
-        $iniMin = $this->horaParaMinutos($faixaSel['ini']);
-        $fimMin = $this->horaParaMinutos($faixaSel['fim']);
-        $minutos = rand($iniMin, $fimMin);
-
-        return sprintf('%02d:%02d:00', intdiv($minutos, 60), $minutos % 60);
-    }
-
-    private function horaParaMinutos(string $hora): int
-    {
-        [$h, $m] = explode(':', $hora);
-        return (int)$h * 60 + (int)$m;
-    }
-
-    private function gerarNumeroNota(): string
-    {
-        return (string) rand(10000, 99999);
+        return sprintf('%02d:%02d:00', intdiv($min, 60), $min % 60);
     }
 
     private function observacaoAleatoria(): string
     {
         $obs = [
-            'Nota fiscal com divergência de preço',
             'Fornecedor solicitou urgência',
-            'Produto chegou sem código de barras',
             'Conferir com o comprador',
             'Nota duplicada — verificar',
             'Aguardando retorno do fornecedor',
             'Produto com validade próxima',
-            'Quantidade no pedido diferente da NF',
-            'Nota emitida com CNPJ incorreto',
-            'Substituição de mercadoria danificada',
             'Bonificação — sem custo',
-            'Falta embalagem secundária',
-            'Produto sem registro na tabela',
             'Devolução parcial aprovada',
-            'Preço negociado não aplicado',
         ];
         return $obs[array_rand($obs)];
     }
 
+    private function detalheAleatorio(string $tipo): string
+    {
+        $detalhes = [
+            'cadastro'   => ['Item sem cadastro no ERP', 'Código de barras não registrado', 'Produto novo — cadastrar'],
+            'regra'      => ['Regra fiscal divergente', 'NCM incorreto na nota', 'CFOP não confere'],
+            'custo'      => ['Custo diferente do negociado', 'Preço tabela desatualizado', 'Desconto não aplicado'],
+            'quantidade' => ['Quantidade da NF difere do pedido', 'Volume a menos na carga', 'Item faltando'],
+        ];
+        $lista = $detalhes[$tipo];
+        return $lista[array_rand($lista)];
+    }
+
     private function formatarCnpj(int $base): string
     {
-        $s = str_pad((string)($base % 100000000000000), 14, '0', STR_PAD_LEFT);
+        $s = str_pad((string) ($base % 100000000000000), 14, '0', STR_PAD_LEFT);
         return substr($s, 0, 2) . '.' . substr($s, 2, 3) . '.' . substr($s, 5, 3) . '/' . substr($s, 8, 4) . '-' . substr($s, 12, 2);
     }
 
-    /**
-     * Constrói um array "pesado" para array_rand — repete cada chave N vezes conforme peso.
-     */
     private function construirPeso(array $pesos): array
     {
         $resultado = [];
         foreach ($pesos as $chave => $peso) {
-            for ($i = 0; $i < $peso; $i++) {
-                $resultado[] = $chave;
-            }
+            for ($i = 0; $i < $peso; $i++) $resultado[] = $chave;
         }
         return $resultado;
     }

@@ -24,10 +24,14 @@ class AppServiceProvider extends ServiceProvider
     {
         Vite::prefetch(concurrency: 3);
 
-        // ─── Autorização por papel ──────────────────────────────────────────────
+        // ─── Autorização por função ─────────────────────────────────────────────
         // As regras vivem no model User (fonte única, reaproveitada pelo frontend).
-        Gate::define('gerenciar-registros', fn(User $u) => $u->podeGerenciarRegistros());
-        Gate::define('ver-estatisticas',    fn(User $u) => $u->podeVerEstatisticas());
-        Gate::define('gerenciar-usuarios',  fn(User $u) => $u->podeGerenciarUsuarios());
+        Gate::define('lancar-nota',        fn(User $u) => $u->podeLancarNota());
+        Gate::define('gerir-cards',        fn(User $u) => $u->podeGerirCards());
+        Gate::define('corrigir-card',      fn(User $u) => $u->podeCorrigirCard());
+        Gate::define('liberar-nota',       fn(User $u) => $u->podeLiberarNota());
+        Gate::define('gerenciar-notas',    fn(User $u) => $u->podeGerenciarNotas());
+        Gate::define('ver-estatisticas',   fn(User $u) => $u->podeVerEstatisticas());
+        Gate::define('gerenciar-usuarios', fn(User $u) => $u->podeGerenciarUsuarios());
     }
 }

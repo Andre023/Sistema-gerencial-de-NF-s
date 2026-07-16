@@ -35,11 +35,15 @@ class HandleInertiaRequests extends Middleware
             ...parent::share($request),
             'auth' => [
                 'user' => $user,
-                // Permissões derivadas do papel — o frontend usa isto para mostrar/ocultar
+                // Permissões derivadas da função — o frontend usa isto para mostrar/ocultar
                 'can'  => $user ? [
-                    'gerenciarRegistros' => $user->podeGerenciarRegistros(),
-                    'verEstatisticas'    => $user->podeVerEstatisticas(),
-                    'gerenciarUsuarios'  => $user->podeGerenciarUsuarios(),
+                    'lancarNota'        => $user->podeLancarNota(),
+                    'gerirCards'        => $user->podeGerirCards(),
+                    'corrigirCard'      => $user->podeCorrigirCard(),
+                    'liberarNota'       => $user->podeLiberarNota(),
+                    'gerenciarNotas'    => $user->podeGerenciarNotas(),
+                    'verEstatisticas'   => $user->podeVerEstatisticas(),
+                    'gerenciarUsuarios' => $user->podeGerenciarUsuarios(),
                 ] : null,
             ],
         ];

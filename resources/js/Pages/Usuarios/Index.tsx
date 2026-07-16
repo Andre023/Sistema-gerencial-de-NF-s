@@ -21,14 +21,16 @@ interface Props {
 }
 
 const PAPEL_LABEL: Record<Papel, string> = {
-    operador: 'Operador',
-    encarregado: 'Encarregado',
+    recebimento: 'Recebimento',
+    pre_lote: 'Pré-lote',
+    compras: 'Compras',
     admin: 'Admin',
 };
 
 function papelCor(papel: Papel, p: Palette): string {
     if (papel === 'admin') return p.GREEN;
-    if (papel === 'encarregado') return p.PURPLE;
+    if (papel === 'pre_lote') return p.PURPLE;
+    if (papel === 'compras') return p.AMBER;
     return p.ACCENT;
 }
 
@@ -44,7 +46,7 @@ function FormUsuario({ papeis, inicial, onSubmit, onCancelar, carregando, erros,
 }) {
     const [form, setForm] = useState<DadosForm>({
         name: inicial?.name ?? '', email: inicial?.email ?? '',
-        password: '', password_confirmation: '', role: inicial?.role ?? 'operador',
+        password: '', password_confirmation: '', role: inicial?.role ?? 'recebimento',
     });
 
     const set = <K extends keyof DadosForm>(k: K, v: DadosForm[K]) => setForm(prev => ({ ...prev, [k]: v }));

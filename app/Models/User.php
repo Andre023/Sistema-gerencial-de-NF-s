@@ -13,22 +13,17 @@ class User extends Authenticatable
     /** @use HasFactory<UserFactory> */
     use HasFactory, Notifiable;
 
-    // ─── Papéis ────────────────────────────────────────────────────────────────
-    public const ROLE_OPERADOR    = 'operador';
-    public const ROLE_ENCARREGADO = 'encarregado';
+    // ─── Papéis funcionais (espelham os setores reais, não uma hierarquia) ──────
+    public const ROLE_RECEBIMENTO = 'recebimento'; // lança a nota quando o caminhão chega
+    public const ROLE_PRE_LOTE    = 'pre_lote';    // analisa, abre/fecha cards, libera
+    public const ROLE_COMPRAS     = 'compras';     // corrige no ERP, marca o card
     public const ROLE_ADMIN       = 'admin';
 
     public const ROLES = [
-        self::ROLE_OPERADOR,
-        self::ROLE_ENCARREGADO,
+        self::ROLE_RECEBIMENTO,
+        self::ROLE_PRE_LOTE,
+        self::ROLE_COMPRAS,
         self::ROLE_ADMIN,
-    ];
-
-    /** Nível hierárquico de cada papel (maior = mais permissões) */
-    private const NIVEL = [
-        self::ROLE_OPERADOR    => 1,
-        self::ROLE_ENCARREGADO => 2,
-        self::ROLE_ADMIN       => 3,
     ];
 
     /**
@@ -68,28 +63,46 @@ class User extends Authenticatable
 
     // ─── Helpers de papel ───────────────────────────────────────────────────────
 
-    /** Papel atual tem nível >= ao papel informado? */
-    public function temNivel(string $role): bool
-    {
-        return (self::NIVEL[$this->role] ?? 0) >= (self::NIVEL[$role] ?? 99);
-    }
-
     public function isAdmin(): bool
     {
         return $this->role === self::ROLE_ADMIN;
     }
 
-    public function isEncarregado(): bool
+    private function ehUmDe(string ...$roles): bool
     {
-        return $this->temNivel(self::ROLE_ENCARREGADO);
+        return $this->isAdmin() || in_array($this->role, $roles, true);
     }
 
-    // ─── Permissões (fonte única, usada por Gates e frontend) ───────────────────
+    // ─── Permissões por ação (fonte única, usada por Gates e frontend) ──────────
 
-    /** Excluir registros e editar campos além de "atender" — encarregado ou admin */
-    public function podeGerenciarRegistros(): bool
+    /** Lançar nota — recebimento (caminhão na porta) e pré-lote (antecipada) */
+    public function podeLancarNota(): bool
     {
-        return $this->temNivel(self::ROLE_ENCARREGADO);
+        return $this->ehUmDe(self::ROLE_RECEBIMENTO, self::ROLE_PRE_LOTE);
+    }
+
+    /** Abrir, resolver, reabrir e excluir cards — quem confere é o pré-lote */
+    public function podeGerirCards(): bool
+    {
+        return $this->ehUmDe(self::ROLE_PRE_LOTE);
+    }
+
+    /** Marcar card como corrigido — quem corrige no ERP é compras */
+    public function podeCorrigirCard(): bool
+    {
+        return $this->ehUmDe(self::ROLE_COMPRAS);
+    }
+
+    /** Liberar a nota (o ✅) — ato do pré-lote */
+    public function podeLiberarNota(): bool
+    {
+        return $this->ehUmDe(self::ROLE_PRE_LOTE);
+    }
+
+    /** Editar campos e excluir notas */
+    public function podeGerenciarNotas(): bool
+    {
+        return $this->ehUmDe(self::ROLE_PRE_LOTE);
     }
 
     /** Ver Estatísticas — só admin */

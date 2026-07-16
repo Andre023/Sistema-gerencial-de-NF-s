@@ -2,12 +2,17 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\Requisicao;
-use Carbon\Carbon;
+use App\Models\Card;
+use App\Models\Nota;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 use Inertia\Response;
 
+/**
+ * Estatísticas sobre a fila de notas. As keys das props mantêm os nomes
+ * genéricos (kpis, porMotivo...) para o frontend mudar pouco:
+ * "atendida" = liberada; "motivo" = tipo de card (ou "sem divergência").
+ */
 class EstatisticaController extends Controller
 {
     public function index(Request $request): Response
@@ -17,34 +22,34 @@ class EstatisticaController extends Controller
         $de  = now()->subDays($periodo - 1)->startOfDay();
         $ate = now()->endOfDay();
 
-        $base = Requisicao::whereBetween('created_at', [$de, $ate])->withTrashed();
+        $base = Nota::whereBetween('created_at', [$de, $ate]);
 
         // ── KPIs principais ───────────────────────────────────────────────────
-        $totalReqs     = (clone $base)->count();
-        $totalAtendidas = (clone $base)->where('status', 'Atendida')->count();
-        $totalPendentes = (clone $base)->where('status', 'Pendente')->count();
+        $totalNotas     = (clone $base)->count();
+        $totalLiberadas = (clone $base)->whereNotNull('liberada_em')->count();
+        $totalPendentes = $totalNotas - $totalLiberadas;
 
         $resolvidasNoDia = (clone $base)
-            ->where('status', 'Atendida')
-            ->whereRaw('DATE(created_at) = DATE(atendida_em)')
+            ->whereNotNull('liberada_em')
+            ->whereRaw('DATE(created_at) = DATE(liberada_em)')
             ->count();
 
-        $taxaResolucao = $totalReqs > 0
-            ? round(($totalAtendidas / $totalReqs) * 100, 1)
+        $taxaResolucao = $totalNotas > 0
+            ? round(($totalLiberadas / $totalNotas) * 100, 1)
             : 0;
 
-        // Tempo médio de resolução (em horas) — só das atendidas no período
+        // Tempo médio entre lançar e liberar (em horas)
         $tempoMedio = (clone $base)
-            ->where('status', 'Atendida')
-            ->selectRaw('AVG(TIMESTAMPDIFF(MINUTE, created_at, atendida_em)) as media_minutos')
+            ->whereNotNull('liberada_em')
+            ->selectRaw('AVG(TIMESTAMPDIFF(MINUTE, created_at, liberada_em)) as media_minutos')
             ->value('media_minutos');
         $tempoMedioHoras = $tempoMedio ? round($tempoMedio / 60, 1) : null;
 
         // ── Evolução diária ───────────────────────────────────────────────────
         $evolucaoDiaria = (clone $base)
             ->selectRaw('DATE(created_at) as dia, COUNT(*) as total,
-                          SUM(CASE WHEN status = "Atendida" THEN 1 ELSE 0 END) as atendidas,
-                          SUM(CASE WHEN status = "Pendente" THEN 1 ELSE 0 END) as pendentes')
+                          SUM(CASE WHEN liberada_em IS NOT NULL THEN 1 ELSE 0 END) as atendidas,
+                          SUM(CASE WHEN liberada_em IS NULL THEN 1 ELSE 0 END) as pendentes')
             ->groupBy('dia')
             ->orderBy('dia')
             ->get()
@@ -55,23 +60,37 @@ class EstatisticaController extends Controller
                 'pendentes' => (int) $r->pendentes,
             ]);
 
-        // ── Por motivo ────────────────────────────────────────────────────────
-        $porMotivo = (clone $base)
-            ->selectRaw('motivo, COUNT(*) as total,
-                          SUM(CASE WHEN status = "Atendida" THEN 1 ELSE 0 END) as atendidas')
-            ->groupBy('motivo')
+        // ── Por tipo de divergência (card) ────────────────────────────────────
+        $porMotivo = Card::whereHas('nota', fn($q) => $q->whereBetween('created_at', [$de, $ate]))
+            ->selectRaw('tipo as motivo, COUNT(*) as total,
+                          SUM(CASE WHEN status = "resolvido" THEN 1 ELSE 0 END) as atendidas')
+            ->groupBy('tipo')
             ->orderByDesc('total')
             ->get()
             ->map(fn($r) => [
-                'motivo'    => $r->motivo,
+                'motivo'    => ucfirst($r->motivo),
                 'total'     => (int) $r->total,
                 'atendidas' => (int) $r->atendidas,
             ]);
 
+        // Notas limpas (liberadas sem nenhum card) entram como categoria própria
+        $semDivergencia = (clone $base)
+            ->whereNotNull('liberada_em')
+            ->whereDoesntHave('cards')
+            ->count();
+
+        if ($semDivergencia > 0) {
+            $porMotivo->push([
+                'motivo'    => 'Sem divergência',
+                'total'     => $semDivergencia,
+                'atendidas' => $semDivergencia,
+            ]);
+        }
+
         // ── Por loja ──────────────────────────────────────────────────────────
         $porLoja = (clone $base)
             ->selectRaw('loja, COUNT(*) as total,
-                          SUM(CASE WHEN status = "Atendida" THEN 1 ELSE 0 END) as atendidas')
+                          SUM(CASE WHEN liberada_em IS NOT NULL THEN 1 ELSE 0 END) as atendidas')
             ->groupBy('loja')
             ->orderBy('loja')
             ->get()
@@ -106,7 +125,7 @@ class EstatisticaController extends Controller
         // ── Top fornecedores geral ────────────────────────────────────────────
         $topFornecedores = (clone $base)
             ->selectRaw('fornecedor_id, COUNT(*) as total,
-                          SUM(CASE WHEN status = "Atendida" THEN 1 ELSE 0 END) as atendidas')
+                          SUM(CASE WHEN liberada_em IS NOT NULL THEN 1 ELSE 0 END) as atendidas')
             ->with('fornecedor:id,nome')
             ->groupBy('fornecedor_id')
             ->orderByDesc('total')
@@ -118,19 +137,20 @@ class EstatisticaController extends Controller
                 'atendidas'  => (int) $r->atendidas,
             ]);
 
-        // ── Top fornecedores por motivo ───────────────────────────────────────
+        // ── Top fornecedores por tipo de divergência ──────────────────────────
         $fornecedoresPorMotivo = [];
-        foreach (Requisicao::MOTIVOS as $motivo) {
-            $fornecedoresPorMotivo[$motivo] = (clone $base)
-                ->where('motivo', $motivo)
-                ->selectRaw('fornecedor_id, COUNT(*) as total')
-                ->with('fornecedor:id,nome')
-                ->groupBy('fornecedor_id')
+        foreach (Card::TIPOS as $tipo) {
+            $fornecedoresPorMotivo[ucfirst($tipo)] = Card::where('cards.tipo', $tipo)
+                ->join('notas', 'notas.id', '=', 'cards.nota_id')
+                ->join('fornecedores', 'fornecedores.id', '=', 'notas.fornecedor_id')
+                ->whereBetween('notas.created_at', [$de, $ate])
+                ->selectRaw('fornecedores.nome as fornecedor, COUNT(*) as total')
+                ->groupBy('fornecedores.nome')
                 ->orderByDesc('total')
                 ->limit(8)
                 ->get()
                 ->map(fn($r) => [
-                    'fornecedor' => $r->fornecedor->nome ?? '—',
+                    'fornecedor' => $r->fornecedor,
                     'total'      => (int) $r->total,
                 ]);
         }
@@ -140,6 +160,7 @@ class EstatisticaController extends Controller
             ->selectRaw('fornecedor_id, COUNT(*) as total,
                           COUNT(DISTINCT DATE(created_at)) as dias_distintos')
             ->with('fornecedor:id,nome')
+            ->whereHas('cards')
             ->groupBy('fornecedor_id')
             ->having('total', '>', 2)
             ->orderByDesc('total')
@@ -154,7 +175,7 @@ class EstatisticaController extends Controller
         // ── Ranking de usuários (quem mais lançou) ────────────────────────────
         $rankingUsuarios = (clone $base)
             ->selectRaw('user_id, COUNT(*) as total,
-                          SUM(CASE WHEN status = "Atendida" THEN 1 ELSE 0 END) as atendidas')
+                          SUM(CASE WHEN liberada_em IS NOT NULL THEN 1 ELSE 0 END) as atendidas')
             ->with('user:id,name')
             ->groupBy('user_id')
             ->orderByDesc('total')
@@ -169,28 +190,28 @@ class EstatisticaController extends Controller
         // ── Pendentes mais antigas (top 10 travadas) ──────────────────────────
         $hojeStr = now()->toDateString();
 
-        $pendentesMaisAntigas = Requisicao::where('status', 'Pendente')
-            ->with(['fornecedor:id,nome', 'user:id,name'])
+        $pendentesMaisAntigas = Nota::whereNull('liberada_em')
+            ->with(['fornecedor:id,nome', 'user:id,name', 'cards'])
             ->orderBy('created_at', 'asc')
             ->limit(10)
             ->get()
-            ->map(fn($r) => [
-                'id'          => $r->id,
-                'numero_nota' => $r->numero_nota,
-                'fornecedor'  => $r->fornecedor->nome ?? '—',
-                'motivo'      => $r->motivo,
-                'loja'        => $r->loja,
-                // Mesma fonte de verdade da listagem (trait TemIdade)
-                'dias_aberta' => $r->diasEmAberto($hojeStr),
-                'nivel'       => $r->nivelAlerta($hojeStr),
-                'created_at'  => $r->created_at->format('d/m/Y H:i'),
+            ->map(fn($n) => [
+                'id'          => $n->id,
+                'numero_nota' => $n->numero_nota,
+                'fornecedor'  => $n->fornecedor->nome ?? '—',
+                'motivo'      => $n->cards->where('status', '!=', Card::STATUS_RESOLVIDO)
+                                          ->pluck('tipo')->map(fn($t) => ucfirst($t))->implode(', ') ?: 'Sem divergência',
+                'loja'        => $n->loja,
+                'dias_aberta' => $n->diasEmAberto($hojeStr),
+                'nivel'       => $n->nivelAlerta($hojeStr),
+                'created_at'  => $n->created_at->format('d/m/Y H:i'),
             ]);
 
         return Inertia::render('Estatisticas/Index', [
             'periodo'              => $periodo,
             'kpis' => [
-                'total'            => $totalReqs,
-                'atendidas'        => $totalAtendidas,
+                'total'            => $totalNotas,
+                'atendidas'        => $totalLiberadas,
                 'pendentes'        => $totalPendentes,
                 'resolvidasNoDia'  => $resolvidasNoDia,
                 'taxaResolucao'    => $taxaResolucao,

@@ -11,10 +11,6 @@ Broadcast::channel('presenca.sistema', function (User $user) {
     ];
 });
 
-Broadcast::channel('requisicoes', function ($user) {
-    return true;
-});
-
-Broadcast::channel('cadastros', function ($user) {
+Broadcast::channel('notas', function ($user) {
     return true;
 });

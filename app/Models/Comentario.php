@@ -17,7 +17,7 @@ class Comentario extends Model
         'texto',
     ];
 
-    /** O registro comentado (Requisicao, Cadastro...) */
+    /** O registro comentado (Nota, ...) */
     public function comentavel(): MorphTo
     {
         return $this->morphTo();
@@ -28,9 +28,9 @@ class Comentario extends Model
         return $this->belongsTo(User::class);
     }
 
-    /** Autor do comentário, ou quem pode gerenciar registros, pode apagar. */
+    /** Autor do comentário, ou quem pode gerenciar notas, pode apagar. */
     public function podeSerExcluidoPor(User $user): bool
     {
-        return $this->user_id === $user->id || $user->podeGerenciarRegistros();
+        return $this->user_id === $user->id || $user->podeGerenciarNotas();
     }
 }

@@ -2,57 +2,56 @@
 
 namespace App\Http\Controllers;
 
-use App\Events\RequisicaoAtualizada;
+use App\Events\NotaAtualizada;
+use App\Models\Card;
 use App\Models\Comentario;
-use App\Models\Requisicao;
+use App\Models\Nota;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
 class ComentarioController extends Controller
 {
     /**
-     * Linha do tempo da requisição: auditoria + comentários, em ordem cronológica.
-     * Responde JSON — o modal busca sob demanda, então a listagem não carrega
-     * thread nenhuma (só o contador).
+     * Linha do tempo da nota: criação, ciclo dos cards, liberação e comentários,
+     * em ordem cronológica. Os eventos nascem dos próprios dados — não há tabela
+     * de auditoria para dessincronizar.
      */
-    public function index(Request $request, Requisicao $requisicao): JsonResponse
+    public function index(Request $request, Nota $nota): JsonResponse
     {
         return response()->json([
-            'timeline' => $this->timeline($requisicao, $request->user()),
+            'timeline' => $this->timeline($nota, $request->user()),
         ]);
     }
 
     // ─── STORE ────────────────────────────────────────────────────────────────
 
-    public function store(Request $request, Requisicao $requisicao): JsonResponse
+    public function store(Request $request, Nota $nota): JsonResponse
     {
-        // Comentar é liberado a todos os papéis — é justamente o canal do operador,
-        // que não pode editar os campos do registro.
+        // Comentar é liberado a todos os papéis — é o canal de contexto entre
+        // recebimento, pré-lote e compras (substitui a conversa do grupo).
         $dados = $request->validate([
             'texto' => 'required|string|max:1000',
         ]);
 
-        $requisicao->comentarios()->create([
+        $nota->comentarios()->create([
             'user_id' => $request->user()->id,
             'texto'   => $dados['texto'],
         ]);
 
-        // Atualiza o contador na lista dos outros usuários
-        event(new RequisicaoAtualizada());
+        event(new NotaAtualizada());
 
         return response()->json([
-            'timeline' => $this->timeline($requisicao->fresh(), $request->user()),
+            'timeline' => $this->timeline($nota->fresh(), $request->user()),
         ], 201);
     }
 
     // ─── DESTROY ──────────────────────────────────────────────────────────────
 
-    public function destroy(Request $request, Requisicao $requisicao, Comentario $comentario): JsonResponse
+    public function destroy(Request $request, Nota $nota, Comentario $comentario): JsonResponse
     {
-        // Garante que o comentário é mesmo desta requisição (evita id de outra thread)
         if (
-            $comentario->comentavel_type !== Requisicao::class ||
-            $comentario->comentavel_id !== $requisicao->id
+            $comentario->comentavel_type !== Nota::class ||
+            $comentario->comentavel_id !== $nota->id
         ) {
             abort(404);
         }
@@ -63,35 +62,71 @@ class ComentarioController extends Controller
 
         $comentario->delete();
 
-        event(new RequisicaoAtualizada());
+        event(new NotaAtualizada());
 
         return response()->json([
-            'timeline' => $this->timeline($requisicao->fresh(), $request->user()),
+            'timeline' => $this->timeline($nota->fresh(), $request->user()),
         ]);
     }
 
     // ─── HELPERS ──────────────────────────────────────────────────────────────
 
-    /** Rótulo humano para cada ação da auditoria. */
-    private const ACAO_LABEL = [
-        'criada'   => 'criou a requisição',
-        'editada'  => 'editou',
-        'atendida' => 'atendeu',
-        'excluida' => 'excluiu',
-    ];
-
-    private function timeline(Requisicao $requisicao, \App\Models\User $atual): array
+    private function timeline(Nota $nota, \App\Models\User $atual): array
     {
-        $eventos = $requisicao->auditorias()->with('user:id,name')->get()
-            ->map(fn($a) => [
+        $nota->load([
+            'user:id,name', 'liberadaPor:id,name',
+            'cards.abertoPor:id,name', 'cards.corrigidoPor:id,name', 'cards.resolvidoPor:id,name',
+        ]);
+
+        $eventos = collect([[
+            'tipo'    => 'evento',
+            'id'      => 'criada',
+            'acao'    => 'lançou a nota',
+            'usuario' => $nota->user->name ?? '—',
+            'em'      => $nota->created_at,
+        ]]);
+
+        foreach ($nota->cards as $card) {
+            $eventos->push([
                 'tipo'    => 'evento',
-                'id'      => 'a' . $a->id,
-                'acao'    => self::ACAO_LABEL[$a->acao] ?? $a->acao,
-                'usuario' => $a->user->name ?? '—',
-                'em'      => $a->criado_em,
+                'id'      => "card{$card->id}-aberto",
+                'acao'    => "abriu divergência de {$card->tipo}",
+                'usuario' => $card->abertoPor->name ?? '—',
+                'em'      => $card->created_at,
             ]);
 
-        $comentarios = $requisicao->comentarios()->with('user:id,name')->get()
+            if ($card->corrigido_em) {
+                $eventos->push([
+                    'tipo'    => 'evento',
+                    'id'      => "card{$card->id}-corrigido",
+                    'acao'    => "marcou {$card->tipo} como corrigido",
+                    'usuario' => $card->corrigidoPor->name ?? '—',
+                    'em'      => $card->corrigido_em,
+                ]);
+            }
+
+            if ($card->resolvido_em) {
+                $eventos->push([
+                    'tipo'    => 'evento',
+                    'id'      => "card{$card->id}-resolvido",
+                    'acao'    => "resolveu {$card->tipo}" . ($card->reaberturas > 0 ? " (após {$card->reaberturas} reabertura" . ($card->reaberturas > 1 ? 's' : '') . ')' : ''),
+                    'usuario' => $card->resolvidoPor->name ?? '—',
+                    'em'      => $card->resolvido_em,
+                ]);
+            }
+        }
+
+        if ($nota->liberada_em) {
+            $eventos->push([
+                'tipo'    => 'evento',
+                'id'      => 'liberada',
+                'acao'    => 'liberou a nota',
+                'usuario' => $nota->liberadaPor->name ?? '—',
+                'em'      => $nota->liberada_em,
+            ]);
+        }
+
+        $comentarios = $nota->comentarios()->with('user:id,name')->get()
             ->map(fn($c) => [
                 'tipo'         => 'comentario',
                 'id'           => $c->id,
