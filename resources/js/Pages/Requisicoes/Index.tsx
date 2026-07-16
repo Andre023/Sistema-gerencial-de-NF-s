@@ -2,9 +2,9 @@ import React, { useState, useEffect } from 'react';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 import { Head, router, usePage } from '@inertiajs/react';
 import { format, parseISO, addDays, subDays } from 'date-fns';
-import { Requisicao, Fornecedor, FiltrosAtivos, OpcoesSistema } from '@/types';
+import { Requisicao, Fornecedor, FiltrosAtivos, OpcoesSistema, Nivel, ResumoAlertas } from '@/types';
 import { useTheme } from '@/Contexts/ThemeContext';
-import { DARK, LIGHT, Palette, lojaNome, hoje } from '@/lib/tema';
+import { DARK, LIGHT, Palette, lojaNome, hoje, nivelCor, NIVEL_LABEL, idadeTexto } from '@/lib/tema';
 import Icone from '@/Components/painel/Icone';
 import Modal from '@/Components/painel/Modal';
 import Badge from '@/Components/painel/Badge';
@@ -18,6 +18,7 @@ interface Props {
     atendidas: Requisicao[];
     fornecedores: Fornecedor[];
     dataFiltro: string;
+    resumoAlertas: ResumoAlertas;
     filtros: FiltrosAtivos;
     opcoes: OpcoesSistema;
 }
@@ -121,18 +122,28 @@ function LinhaPendente({ req, onEditar, onAtender, onExcluir, onComentar, carreg
     onExcluir: (id: number) => void; onComentar: (r: Requisicao) => void;
     carregando: boolean; podeGerenciar: boolean; p: Palette;
 }) {
-    const rowBg = req.atrasada ? (p === DARK ? 'rgba(210,153,34,0.07)' : 'rgba(251,191,36,0.06)') : 'transparent';
+    // Fundo tingido conforme a gravidade — quanto mais velha, mais forte
+    const cor = nivelCor(req.nivel, p);
+    const rowBg = req.nivel === 'normal' ? 'transparent' : cor + (req.nivel === 'critico' ? '1f' : '12');
 
     return (
         <tr className="group transition-colors"
             style={{ borderBottom: `1px solid ${p.BORDER}`, background: rowBg }}
-            onMouseEnter={e => !req.atrasada && (e.currentTarget.style.background = p.HOVER_ROW)}
-            onMouseLeave={e => !req.atrasada && (e.currentTarget.style.background = rowBg)}>
+            onMouseEnter={e => req.nivel === 'normal' && (e.currentTarget.style.background = p.HOVER_ROW)}
+            onMouseLeave={e => req.nivel === 'normal' && (e.currentTarget.style.background = rowBg)}>
             <td className="px-4 py-3 text-sm">
-                <span className="font-medium" style={{ color: p.TEXT }}>{req.numero_nota}</span>
-                {req.atrasada && (
-                    <span className="ml-2 text-xs font-medium" style={{ color: p.AMBER }}>⚠ {req.data_origem}</span>
-                )}
+                <div className="flex items-center gap-2">
+                    <span className="font-medium" style={{ color: p.TEXT }}>{req.numero_nota}</span>
+                    {req.nivel !== 'normal' && (
+                        // Idade explícita: 1 dia e 6 meses não podem parecer a mesma coisa
+                        <span className="inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-xs font-semibold whitespace-nowrap"
+                            style={{ background: cor + '22', color: cor, border: `1px solid ${cor}44` }}
+                            title={`Aberta desde ${req.data_origem}`}>
+                            {req.nivel === 'critico' ? '🔴' : req.nivel === 'alerta' ? '🟠' : '🟡'}
+                            {idadeTexto(req.dias_aberta)}
+                        </span>
+                    )}
+                </div>
             </td>
             <td className="px-4 py-3 text-sm max-w-[180px] truncate" style={{ color: p.TEXT }}>{req.fornecedor.nome}</td>
             <td className="px-4 py-3"><Badge label={req.motivo} isDark={p === DARK} /></td>
@@ -191,7 +202,7 @@ function LinhaPendente({ req, onEditar, onAtender, onExcluir, onComentar, carreg
 
 // ─── Página principal ─────────────────────────────────────────────────────────
 
-export default function Index({ pendentes, atendidas, fornecedores, dataFiltro, filtros, opcoes }: Props) {
+export default function Index({ pendentes, atendidas, fornecedores, dataFiltro, resumoAlertas, filtros, opcoes }: Props) {
     const { isDark } = useTheme();
     const p = isDark ? DARK : LIGHT;
     const podeGerenciar = usePage().props.auth.can.gerenciarRegistros;
@@ -217,15 +228,21 @@ export default function Index({ pendentes, atendidas, fornecedores, dataFiltro, 
 
     const isHoje = dataFiltro === hoje();
 
+    // Parâmetros atuais da tela — o nível vem do servidor (é um toggle, não campo de form)
+    const paramsAtuais = () => ({
+        data: dataFiltro,
+        busca: buscaLocal || undefined,
+        motivo: motivoLocal || undefined,
+        loja: lojaLocal || undefined,
+        nivel: filtros.nivel || undefined,
+    });
+
     const irPara = (extras: Record<string, unknown> = {}) =>
-        router.get(route('requisicoes.index'),
-            { data: dataFiltro, busca: buscaLocal || undefined, motivo: motivoLocal || undefined, loja: lojaLocal || undefined, ...extras },
+        router.get(route('requisicoes.index'), { ...paramsAtuais(), ...extras },
             { preserveState: true, replace: true });
 
-    const mudarData = (d: string) =>
-        router.get(route('requisicoes.index'),
-            { data: d, busca: buscaLocal || undefined, motivo: motivoLocal || undefined, loja: lojaLocal || undefined },
-            { preserveState: true, replace: true });
+    const mudarData = (d: string) => irPara({ data: d });
+    const filtrarNivel = (n: Nivel | null) => irPara({ nivel: n ?? undefined });
 
     const diaAnterior = () => mudarData(format(subDays(parseISO(dataFiltro), 1), 'yyyy-MM-dd'));
     const diaSeguinte = () => mudarData(format(addDays(parseISO(dataFiltro), 1), 'yyyy-MM-dd'));
@@ -234,7 +251,7 @@ export default function Index({ pendentes, atendidas, fornecedores, dataFiltro, 
         setBuscaLocal(''); setMotivoLocal(''); setLojaLocal('');
         router.get(route('requisicoes.index'), { data: dataFiltro }, { preserveState: true, replace: true });
     };
-    const filtrosAtivos = !!(filtros.busca || filtros.motivo || filtros.loja);
+    const filtrosAtivos = !!(filtros.busca || filtros.motivo || filtros.loja || filtros.nivel);
 
     const criar = (dados: any) => {
         setSubmetendo(true);
@@ -265,7 +282,15 @@ export default function Index({ pendentes, atendidas, fornecedores, dataFiltro, 
         router.delete(route('requisicoes.destroy', id));
     };
 
-    const qtdAtrasadas = pendentes.filter(r => r.atrasada).length;
+    const sla = opcoes.sla ?? { atencao: 1, alerta: 3, critico: 7 };
+    const faixaTexto: Record<Exclude<Nivel, 'normal'>, string> = {
+        critico: `${sla.critico}+ dias`,
+        alerta: `${sla.alerta}–${sla.critico - 1} dias`,
+        atencao: `${sla.atencao}–${sla.alerta - 1} dias`,
+    };
+    const emoji: Record<Exclude<Nivel, 'normal'>, string> = { critico: '🔴', alerta: '🟠', atencao: '🟡' };
+    const temAlertas = resumoAlertas.critico + resumoAlertas.alerta + resumoAlertas.atencao > 0;
+
     const COLS_PENDENTES = ['Nota', 'Fornecedor', 'Motivo', 'Loja', 'Observação', 'Solicitado', ''];
     const COLS_ATENDIDAS = ['Nota', 'Fornecedor', 'Motivo', 'Loja', 'Observação', 'Atendida por'];
 
@@ -386,16 +411,38 @@ export default function Index({ pendentes, atendidas, fornecedores, dataFiltro, 
                     </button>
                 </div>
 
-                {/* ── Aviso atrasadas ────────────────────────────────────────── */}
-                {qtdAtrasadas > 0 && (
-                    <div className="flex items-center gap-2 text-sm px-4 py-2.5 rounded-lg"
-                        style={{
-                            background: p.AMBER + '18',
-                            border: `1px solid ${p.AMBER}44`,
-                            color: p.AMBER,
-                        }}>
-                        <Icone path="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" className="w-4 h-4 shrink-0" />
-                        <span><strong>{qtdAtrasadas}</strong> requisição{qtdAtrasadas !== 1 ? 'ões' : ''} pendente{qtdAtrasadas !== 1 ? 's' : ''} de dias anteriores.</span>
+                {/* ── Alertas de envelhecimento — clicáveis, viram filtro ─────── */}
+                {temAlertas && (
+                    <div className="flex flex-wrap items-center gap-2">
+                        {(['critico', 'alerta', 'atencao'] as const).map(n => {
+                            const qtd = resumoAlertas[n];
+                            if (!qtd) return null;
+                            const cor = nivelCor(n, p);
+                            const ativo = filtros.nivel === n;
+                            return (
+                                <button key={n} onClick={() => filtrarNivel(ativo ? null : n)}
+                                    title={ativo ? 'Remover filtro' : `Ver só as ${NIVEL_LABEL[n]}`}
+                                    className="flex items-center gap-1.5 text-sm px-3 py-1.5 rounded-lg transition"
+                                    style={{
+                                        background: ativo ? cor + '33' : cor + '14',
+                                        border: `1px solid ${cor}${ativo ? 'aa' : '44'}`,
+                                        color: cor,
+                                    }}>
+                                    <span>{emoji[n]}</span>
+                                    <strong>{qtd}</strong>
+                                    <span>{NIVEL_LABEL[n]}</span>
+                                    <span className="text-xs" style={{ opacity: 0.75 }}>({faixaTexto[n]})</span>
+                                </button>
+                            );
+                        })}
+                        {filtros.nivel && (
+                            <button onClick={() => filtrarNivel(null)}
+                                className="text-xs flex items-center gap-1 transition" style={{ color: p.MUTED }}
+                                onMouseEnter={e => (e.currentTarget.style.color = p.TEXT)}
+                                onMouseLeave={e => (e.currentTarget.style.color = p.MUTED)}>
+                                <Icone path="M6 18L18 6M6 6l12 12" className="w-3 h-3" /> Ver todas
+                            </button>
+                        )}
                     </div>
                 )}
 

@@ -46,6 +46,30 @@ export const MOTIVO_COR_LIGHT: Record<string, CorMotivo> = {
     'Caminhão na Porta': { bg: '#ffedd5', text: '#9a3412', border: '#fed7aa' },
 };
 
+// ─── Severidade de pendência (níveis vêm do backend — trait TemIdade) ──────────
+
+export type Nivel = 'normal' | 'atencao' | 'alerta' | 'critico';
+
+/** Cor de cada nível. Os limiares em dias moram no backend; aqui só a aparência. */
+export function nivelCor(nivel: Nivel, p: Palette): string {
+    switch (nivel) {
+        case 'critico': return p.RED;
+        case 'alerta':  return p.ORANGE;
+        case 'atencao': return p.AMBER;
+        default:        return p.MUTED;
+    }
+}
+
+export const NIVEL_LABEL: Record<Exclude<Nivel, 'normal'>, string> = {
+    critico: 'críticas',
+    alerta: 'em alerta',
+    atencao: 'em atenção',
+};
+
+/** "Hoje", "1 dia", "12 dias" */
+export const idadeTexto = (dias: number) =>
+    dias === 0 ? 'Hoje' : dias === 1 ? '1 dia' : `${dias} dias`;
+
 // ─── Helpers ─────────────────────────────────────────────────────────────────────
 
 export const lojaNome = (n: number) => `Loja ${String(n).padStart(2, '0')}`;

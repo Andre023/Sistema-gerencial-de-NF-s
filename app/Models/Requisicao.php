@@ -2,12 +2,13 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\TemIdade;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
 class Requisicao extends Model
 {
-    use SoftDeletes;
+    use SoftDeletes, TemIdade;
 
     protected $table = 'requisicoes';
 
@@ -62,11 +63,4 @@ class Requisicao extends Model
         return $this->morphMany(Comentario::class, 'comentavel');
     }
 
-    /**
-     * Indica se a requisição veio de um dia anterior à data consultada
-     */
-    public function isAtrasada(string $dataFiltro): bool
-    {
-        return $this->created_at->toDateString() < $dataFiltro;
-    }
 }

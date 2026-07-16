@@ -2,12 +2,13 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\TemIdade;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
 class Cadastro extends Model
 {
-    use SoftDeletes;
+    use SoftDeletes, TemIdade;
 
     protected $table = 'cadastros';
 
@@ -60,8 +61,4 @@ class Cadastro extends Model
         return $this->morphMany(Comentario::class, 'comentavel');
     }
 
-    public function isAtrasada(string $dataFiltro): bool
-    {
-        return $this->created_at->toDateString() < $dataFiltro;
-    }
 }

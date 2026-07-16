@@ -167,6 +167,8 @@ class EstatisticaController extends Controller
             ]);
 
         // ── Pendentes mais antigas (top 10 travadas) ──────────────────────────
+        $hojeStr = now()->toDateString();
+
         $pendentesMaisAntigas = Requisicao::where('status', 'Pendente')
             ->with(['fornecedor:id,nome', 'user:id,name'])
             ->orderBy('created_at', 'asc')
@@ -178,7 +180,9 @@ class EstatisticaController extends Controller
                 'fornecedor'  => $r->fornecedor->nome ?? '—',
                 'motivo'      => $r->motivo,
                 'loja'        => $r->loja,
-                'dias_aberta' => (int) $r->created_at->diffInDays(now()),
+                // Mesma fonte de verdade da listagem (trait TemIdade)
+                'dias_aberta' => $r->diasEmAberto($hojeStr),
+                'nivel'       => $r->nivelAlerta($hojeStr),
                 'created_at'  => $r->created_at->format('d/m/Y H:i'),
             ]);
 

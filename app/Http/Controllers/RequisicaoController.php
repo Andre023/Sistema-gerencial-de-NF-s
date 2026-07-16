@@ -28,6 +28,11 @@ class RequisicaoController extends Controller
         $fornecedor = $request->input('fornecedor');
         $busca      = $request->input('busca');
         $loja       = $request->input('loja');
+        $nivel      = $request->input('nivel');
+
+        if (! in_array($nivel, Requisicao::NIVEIS_ALERTA, true)) {
+            $nivel = null;
+        }
 
         $base = Requisicao::with(['fornecedor:id,nome', 'user:id,name', 'atendidaPor:id,name'])
             ->withCount('comentarios')
@@ -40,12 +45,24 @@ class RequisicaoController extends Controller
             }));
 
         // PENDENTES: todas até a data filtrada (inclusive arrastadas de dias anteriores)
-        $pendentes = (clone $base)
+        $pendentesTodas = (clone $base)
             ->where('status', 'Pendente')
             ->whereDate('created_at', '<=', $dataFiltro)
             ->orderBy('created_at', 'asc')
             ->get()
             ->map(fn($r) => $this->formatRequisicao($r, $dataFiltro));
+
+        // Contadores do banner: contam antes do filtro de nível, senão clicar num
+        // nível zeraria os demais e o panorama se perderia.
+        $resumoAlertas = [
+            Requisicao::NIVEL_CRITICO => $pendentesTodas->where('nivel', Requisicao::NIVEL_CRITICO)->count(),
+            Requisicao::NIVEL_ALERTA  => $pendentesTodas->where('nivel', Requisicao::NIVEL_ALERTA)->count(),
+            Requisicao::NIVEL_ATENCAO => $pendentesTodas->where('nivel', Requisicao::NIVEL_ATENCAO)->count(),
+        ];
+
+        $pendentes = $nivel
+            ? $pendentesTodas->where('nivel', $nivel)->values()
+            : $pendentesTodas;
 
         // ATENDIDAS: somente as resolvidas no dia exato (pela data de atendimento,
         // não pelo updated_at — que muda a cada edição posterior)
@@ -60,20 +77,27 @@ class RequisicaoController extends Controller
         $fornecedores = Fornecedor::select('id', 'nome')->orderBy('nome')->get();
 
         return Inertia::render('Requisicoes/Index', [
-            'pendentes'    => $pendentes,
-            'atendidas'    => $atendidas,
-            'fornecedores' => $fornecedores,
-            'dataFiltro'   => $dataFiltro,
+            'pendentes'     => $pendentes,
+            'atendidas'     => $atendidas,
+            'fornecedores'  => $fornecedores,
+            'dataFiltro'    => $dataFiltro,
+            'resumoAlertas' => $resumoAlertas,
             'filtros'      => [
                 'motivo'     => $motivo,
                 'fornecedor' => $fornecedor,
                 'busca'      => $busca,
                 'loja'       => $loja,
+                'nivel'      => $nivel,
             ],
             'opcoes' => [
                 'motivos' => Requisicao::MOTIVOS,
                 'lojas'   => Requisicao::LOJAS,
                 'status'  => Requisicao::STATUS,
+                'sla'     => [
+                    'atencao' => Requisicao::SLA_ATENCAO,
+                    'alerta'  => Requisicao::SLA_ALERTA,
+                    'critico' => Requisicao::SLA_CRITICO,
+                ],
             ],
         ]);
     }
@@ -188,6 +212,8 @@ class RequisicaoController extends Controller
             'created_at'   => $r->created_at,
             'updated_at'   => $r->updated_at,
             'atrasada'     => $r->isAtrasada($dataFiltro),
+            'dias_aberta'  => $r->diasEmAberto($dataFiltro),
+            'nivel'        => $r->nivelAlerta($dataFiltro),
             'data_origem'  => $r->created_at->format('d/m'),
         ];
     }

@@ -2,6 +2,8 @@ import React, { useState } from 'react';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 import { Head, router } from '@inertiajs/react';
 import { useTheme } from '@/Contexts/ThemeContext';
+import { nivelCor, idadeTexto } from '@/lib/tema';
+import { Nivel } from '@/types';
 
 // ─── Tipos ────────────────────────────────────────────────────────────────────
 
@@ -24,7 +26,7 @@ interface Reincidente { fornecedor: string; total: number; dias_distintos: numbe
 interface RankUser { usuario: string; total: number; atendidas: number }
 interface PendAntiga {
     id: number; numero_nota: string; fornecedor: string;
-    motivo: string; loja: number; dias_aberta: number; created_at: string;
+    motivo: string; loja: number; dias_aberta: number; nivel: Nivel; created_at: string;
 }
 
 interface Props {
@@ -664,10 +666,9 @@ export default function Index({
                                             </td>
                                             <td className="px-3 py-3 whitespace-nowrap" style={{ color: p.MUTED }}>{pen.created_at}</td>
                                             <td className="px-3 py-3">
-                                                <span className="font-bold" style={{
-                                                    color: pen.dias_aberta >= 3 ? p.RED : pen.dias_aberta >= 1 ? p.AMBER : p.MUTED
-                                                }}>
-                                                    {pen.dias_aberta === 0 ? 'Hoje' : `${pen.dias_aberta}d`}
+                                                {/* Cor vem do nível calculado no backend (trait TemIdade) */}
+                                                <span className="font-bold" style={{ color: nivelCor(pen.nivel, p as any) }}>
+                                                    {idadeTexto(pen.dias_aberta)}
                                                 </span>
                                             </td>
                                         </tr>

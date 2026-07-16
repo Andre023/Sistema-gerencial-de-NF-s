@@ -37,7 +37,18 @@ export interface Requisicao {
     created_at: string;
     updated_at: string;
     atrasada: boolean;
+    dias_aberta: number;
+    nivel: Nivel;
     data_origem: string;
+}
+
+export type Nivel = 'normal' | 'atencao' | 'alerta' | 'critico';
+
+/** Contagem de pendentes por severidade — calculada antes do filtro de nível. */
+export interface ResumoAlertas {
+    critico: number;
+    alerta: number;
+    atencao: number;
 }
 
 export interface Cadastro {
@@ -63,12 +74,15 @@ export interface FiltrosAtivos {
     fornecedor?: number | null;
     busca?: string | null;
     loja?: number | null;
+    nivel?: Nivel | null;
 }
 
 export interface OpcoesSistema {
     motivos: string[];
     lojas: number[];
     status: string[];
+    /** Limiares em dias de cada nível (definidos no backend) */
+    sla?: { atencao: number; alerta: number; critico: number };
 }
 
 export type PageProps<T extends Record<string, unknown> = Record<string, unknown>> = T & {
