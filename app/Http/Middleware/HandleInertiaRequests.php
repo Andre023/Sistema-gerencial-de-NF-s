@@ -29,10 +29,18 @@ class HandleInertiaRequests extends Middleware
      */
     public function share(Request $request): array
     {
+        $user = $request->user();
+
         return [
             ...parent::share($request),
             'auth' => [
-                'user' => $request->user(),
+                'user' => $user,
+                // Permissões derivadas do papel — o frontend usa isto para mostrar/ocultar
+                'can'  => $user ? [
+                    'gerenciarRegistros' => $user->podeGerenciarRegistros(),
+                    'verEstatisticas'    => $user->podeVerEstatisticas(),
+                    'gerenciarUsuarios'  => $user->podeGerenciarUsuarios(),
+                ] : null,
             ],
         ];
     }

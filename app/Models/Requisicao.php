@@ -15,14 +15,17 @@ class Requisicao extends Model
         'numero_nota',
         'fornecedor_id',
         'user_id',
+        'atendida_por',
         'loja',
         'motivo',
         'observacao',
         'status',
+        'atendida_em',
     ];
 
     protected $casts = [
-        'loja' => 'integer',
+        'loja'        => 'integer',
+        'atendida_em' => 'datetime',
     ];
 
     // Lojas válidas no sistema
@@ -42,6 +45,11 @@ class Requisicao extends Model
     public function user(): \Illuminate\Database\Eloquent\Relations\BelongsTo
     {
         return $this->belongsTo(User::class);
+    }
+
+    public function atendidaPor(): \Illuminate\Database\Eloquent\Relations\BelongsTo
+    {
+        return $this->belongsTo(User::class, 'atendida_por');
     }
 
     public function auditorias(): \Illuminate\Database\Eloquent\Relations\HasMany

@@ -77,12 +77,12 @@ class BigDataSeeder extends Seeder
         $this->command->info('👤 Criando usuários...');
 
         $lista = [
-            ['name' => 'Admin Sistema',    'email' => 'admin@sistema.com'],
-            ['name' => 'Ana Paula',         'email' => 'ana@sistema.com'],
-            ['name' => 'Carlos Mendes',     'email' => 'carlos@sistema.com'],
-            ['name' => 'Fernanda Lima',     'email' => 'fernanda@sistema.com'],
-            ['name' => 'João Vitor',        'email' => 'joao@sistema.com'],
-            ['name' => 'Mariana Costa',     'email' => 'mariana@sistema.com'],
+            ['name' => 'Admin Sistema',    'email' => 'admin@sistema.com',    'role' => \App\Models\User::ROLE_ADMIN],
+            ['name' => 'Ana Paula',         'email' => 'ana@sistema.com',      'role' => \App\Models\User::ROLE_ENCARREGADO],
+            ['name' => 'Carlos Mendes',     'email' => 'carlos@sistema.com',   'role' => \App\Models\User::ROLE_OPERADOR],
+            ['name' => 'Fernanda Lima',     'email' => 'fernanda@sistema.com', 'role' => \App\Models\User::ROLE_OPERADOR],
+            ['name' => 'João Vitor',        'email' => 'joao@sistema.com',     'role' => \App\Models\User::ROLE_OPERADOR],
+            ['name' => 'Mariana Costa',     'email' => 'mariana@sistema.com',  'role' => \App\Models\User::ROLE_OPERADOR],
         ];
 
         $inseridos = [];
@@ -90,6 +90,7 @@ class BigDataSeeder extends Seeder
             $id = DB::table('users')->insertGetId([
                 'name'              => $u['name'],
                 'email'             => $u['email'],
+                'role'              => $u['role'],
                 'password'          => Hash::make('password'),
                 'email_verified_at' => now(),
                 'created_at'        => now(),
@@ -260,7 +261,6 @@ class BigDataSeeder extends Seeder
         $bar->start();
 
         $lote = [];
-        $auditoria = [];
 
         for ($i = 0; $i < self::TOTAL_REQUISICOES; $i++) {
             $diasAtras  = $this->distribuicaoDias(self::DIAS_HISTORICO);
@@ -278,71 +278,40 @@ class BigDataSeeder extends Seeder
             $status = (rand(1, 100) <= $chanceAtendida) ? 'Atendida' : 'Pendente';
 
             $updatedAt = $createdAt->copy();
+            $atendidaPor = null;
+            $atendidaEm  = null;
             if ($status === 'Atendida') {
                 // Atendida algumas horas depois (ou no mesmo dia, ou no dia seguinte)
                 $updatedAt->addMinutes(rand(20, 600));
+                $atendidaPor = $usuarios[array_rand($usuarios)]['id'];
+                $atendidaEm  = $updatedAt->copy();
             }
 
             $lote[] = [
                 'numero_nota'   => $this->gerarNumeroNota(),
                 'fornecedor_id' => $fornecedor['id'],
                 'user_id'       => $user['id'],
+                'atendida_por'  => $atendidaPor,
                 'loja'          => $loja,
                 'motivo'        => $motivo,
                 'observacao'    => rand(1, 3) === 1 ? $this->observacaoAleatoria() : null,
                 'status'        => $status,
+                'atendida_em'   => $atendidaEm,
                 'created_at'    => $createdAt,
                 'updated_at'    => $updatedAt,
             ];
 
-            // Auditoria de criação
-            $auditoria[] = [
-                'acao'             => 'criada',
-                'user_id'          => $user['id'],
-                'dados_anteriores' => null,
-                'dados_novos'      => json_encode(['status' => 'Pendente', 'motivo' => $motivo]),
-                'criado_em'        => $createdAt,
-            ];
-
-            // Auditoria de atendimento
-            if ($status === 'Atendida') {
-                $userAtendeu = $usuarios[array_rand($usuarios)];
-                $auditoria[] = [
-                    'acao'             => 'atendida',
-                    'user_id'          => $userAtendeu['id'],
-                    'dados_anteriores' => json_encode(['status' => 'Pendente']),
-                    'dados_novos'      => json_encode(['status' => 'Atendida']),
-                    'criado_em'        => $updatedAt,
-                ];
-            }
-
+            // Insere a cada 50 — cada linha é gravada UMA vez, com sua auditoria
             if (count($lote) >= 50) {
-                $ids = [];
-                foreach ($lote as $row) {
-                    $ids[] = DB::table('requisicoes')->insertGetId($row);
-                }
-                // Associa auditoria ao id correto
-                $aud = array_splice($auditoria, 0, count($lote));
-                $idIdx = 0;
-                foreach ($aud as &$a) {
-                    $a['requisicao_id'] = $ids[$idIdx];
-                    if ($a['acao'] === 'atendida') {
-                        // atendida compartilha o mesmo id do anterior
-                    } else {
-                        $idIdx++;
-                    }
-                }
-                // Reprocessa para garantir ids corretos
-                $this->inserirAuditoriasLote($lote, $aud, $usuarios);
+                $this->inserirAuditoriasLote($lote);
                 $lote = [];
-                $auditoria = [];
                 $bar->advance(50);
             }
         }
 
         // Resto
         if (!empty($lote)) {
-            $this->inserirAuditoriasLote($lote, $auditoria, $usuarios);
+            $this->inserirAuditoriasLote($lote);
             $bar->advance(count($lote));
         }
 
@@ -351,7 +320,7 @@ class BigDataSeeder extends Seeder
         $this->command->line("   → " . self::TOTAL_REQUISICOES . " requisições criadas.");
     }
 
-    private function inserirAuditoriasLote(array $lote, array $_auditoria, array $usuarios): void
+    private function inserirAuditoriasLote(array $lote): void
     {
         $audRows = [];
         foreach ($lote as $row) {
@@ -369,11 +338,11 @@ class BigDataSeeder extends Seeder
             if ($row['status'] === 'Atendida') {
                 $audRows[] = [
                     'requisicao_id'    => $id,
-                    'user_id'          => $usuarios[array_rand($usuarios)]['id'],
+                    'user_id'          => $row['atendida_por'],
                     'acao'             => 'atendida',
                     'dados_anteriores' => json_encode(['status' => 'Pendente']),
                     'dados_novos'      => json_encode(['status' => 'Atendida']),
-                    'criado_em'        => $row['updated_at'],
+                    'criado_em'        => $row['atendida_em'],
                 ];
             }
         }
@@ -414,15 +383,20 @@ class BigDataSeeder extends Seeder
                 ? $createdAt->copy()->addMinutes(rand(30, 480))
                 : $createdAt->copy();
 
+            $atendidaPor = $status === 'Atendida' ? $usuarios[array_rand($usuarios)]['id'] : null;
+            $atendidaEm  = $status === 'Atendida' ? $updatedAt->copy() : null;
+
             $lote[] = [
                 'numero_nota'   => $this->gerarNumeroNota(),
                 'fornecedor_id' => $fornecedor['id'],
                 'user_id'       => $user['id'],
+                'atendida_por'  => $atendidaPor,
                 'requisicao_id' => null,
                 'loja'          => $loja,
                 'motivo'        => $motivo,
                 'observacao'    => rand(1, 4) === 1 ? $this->observacaoAleatoria() : null,
                 'status'        => $status,
+                'atendida_em'   => $atendidaEm,
                 'deleted_at'    => null,
                 'created_at'    => $createdAt,
                 'updated_at'    => $updatedAt,

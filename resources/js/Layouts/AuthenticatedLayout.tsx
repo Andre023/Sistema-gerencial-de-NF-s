@@ -5,7 +5,7 @@ import ResponsiveNavLink from '@/Components/ResponsiveNavLink';
 import OnlineSidebar from '@/Components/OnlineSidebar';
 import { Link, usePage } from '@inertiajs/react';
 import { PropsWithChildren, ReactNode, useState, useEffect } from 'react';
-import { User } from '@/types';
+import { User, Permissoes } from '@/types';
 import { useTheme } from '@/Contexts/ThemeContext';
 
 interface FlashMessage {
@@ -37,8 +37,9 @@ export default function AuthenticatedLayout({
     header,
     children,
 }: PropsWithChildren<{ header?: ReactNode }>) {
-    const { auth, flash } = usePage().props as { auth: { user: User }; flash?: FlashMessage };
+    const { auth, flash } = usePage().props as { auth: { user: User; can: Permissoes }; flash?: FlashMessage };
     const user = auth.user;
+    const can = auth.can;
     const { isDark, toggleTheme } = useTheme();
 
     const [showingNavDropdown, setShowingNavDropdown] = useState(false);
@@ -78,9 +79,16 @@ export default function AuthenticatedLayout({
                                 <NavLink href={route('cadastros.index')} active={route().current('cadastros.*')}>
                                     Cadastro
                                 </NavLink>
-                                <NavLink href={route('estatisticas.index')} active={route().current('estatisticas.*')}>
-                                    Estatísticas
-                                </NavLink>
+                                {can.verEstatisticas && (
+                                    <NavLink href={route('estatisticas.index')} active={route().current('estatisticas.*')}>
+                                        Estatísticas
+                                    </NavLink>
+                                )}
+                                {can.gerenciarUsuarios && (
+                                    <NavLink href={route('usuarios.index')} active={route().current('usuarios.*')}>
+                                        Usuários
+                                    </NavLink>
+                                )}
                             </div>
                         </div>
 
@@ -161,9 +169,16 @@ export default function AuthenticatedLayout({
                         <ResponsiveNavLink href={route('cadastros.index')} active={route().current('cadastros.*')}>
                             Cadastro
                         </ResponsiveNavLink>
-                        <ResponsiveNavLink href={route('estatisticas.index')} active={route().current('estatisticas.*')}>
-                            Estatísticas
-                        </ResponsiveNavLink>
+                        {can.verEstatisticas && (
+                            <ResponsiveNavLink href={route('estatisticas.index')} active={route().current('estatisticas.*')}>
+                                Estatísticas
+                            </ResponsiveNavLink>
+                        )}
+                        {can.gerenciarUsuarios && (
+                            <ResponsiveNavLink href={route('usuarios.index')} active={route().current('usuarios.*')}>
+                                Usuários
+                            </ResponsiveNavLink>
+                        )}
                     </div>
                     <div className={`border-t ${navBorder} pb-3 pt-4 px-4`}>
                         <div className={`text-base font-medium ${isDark ? 'text-[#e6edf3]' : 'text-gray-800'}`}>{user.name}</div>

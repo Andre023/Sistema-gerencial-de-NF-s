@@ -13,6 +13,24 @@ class User extends Authenticatable
     /** @use HasFactory<UserFactory> */
     use HasFactory, Notifiable;
 
+    // ─── Papéis ────────────────────────────────────────────────────────────────
+    public const ROLE_OPERADOR    = 'operador';
+    public const ROLE_ENCARREGADO = 'encarregado';
+    public const ROLE_ADMIN       = 'admin';
+
+    public const ROLES = [
+        self::ROLE_OPERADOR,
+        self::ROLE_ENCARREGADO,
+        self::ROLE_ADMIN,
+    ];
+
+    /** Nível hierárquico de cada papel (maior = mais permissões) */
+    private const NIVEL = [
+        self::ROLE_OPERADOR    => 1,
+        self::ROLE_ENCARREGADO => 2,
+        self::ROLE_ADMIN       => 3,
+    ];
+
     /**
      * The attributes that are mass assignable.
      *
@@ -22,6 +40,7 @@ class User extends Authenticatable
         'name',
         'email',
         'password',
+        'role',
     ];
 
     /**
@@ -45,5 +64,43 @@ class User extends Authenticatable
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
         ];
+    }
+
+    // ─── Helpers de papel ───────────────────────────────────────────────────────
+
+    /** Papel atual tem nível >= ao papel informado? */
+    public function temNivel(string $role): bool
+    {
+        return (self::NIVEL[$this->role] ?? 0) >= (self::NIVEL[$role] ?? 99);
+    }
+
+    public function isAdmin(): bool
+    {
+        return $this->role === self::ROLE_ADMIN;
+    }
+
+    public function isEncarregado(): bool
+    {
+        return $this->temNivel(self::ROLE_ENCARREGADO);
+    }
+
+    // ─── Permissões (fonte única, usada por Gates e frontend) ───────────────────
+
+    /** Excluir registros e editar campos além de "atender" — encarregado ou admin */
+    public function podeGerenciarRegistros(): bool
+    {
+        return $this->temNivel(self::ROLE_ENCARREGADO);
+    }
+
+    /** Ver Estatísticas — só admin */
+    public function podeVerEstatisticas(): bool
+    {
+        return $this->isAdmin();
+    }
+
+    /** Gerenciar usuários — só admin */
+    public function podeGerenciarUsuarios(): bool
+    {
+        return $this->isAdmin();
     }
 }

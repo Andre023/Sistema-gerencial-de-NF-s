@@ -26,7 +26,7 @@ class EstatisticaController extends Controller
 
         $resolvidasNoDia = (clone $base)
             ->where('status', 'Atendida')
-            ->whereRaw('DATE(created_at) = DATE(updated_at)')
+            ->whereRaw('DATE(created_at) = DATE(atendida_em)')
             ->count();
 
         $taxaResolucao = $totalReqs > 0
@@ -36,7 +36,7 @@ class EstatisticaController extends Controller
         // Tempo médio de resolução (em horas) — só das atendidas no período
         $tempoMedio = (clone $base)
             ->where('status', 'Atendida')
-            ->selectRaw('AVG(TIMESTAMPDIFF(MINUTE, created_at, updated_at)) as media_minutos')
+            ->selectRaw('AVG(TIMESTAMPDIFF(MINUTE, created_at, atendida_em)) as media_minutos')
             ->value('media_minutos');
         $tempoMedioHoras = $tempoMedio ? round($tempoMedio / 60, 1) : null;
 
@@ -178,7 +178,7 @@ class EstatisticaController extends Controller
                 'fornecedor'  => $r->fornecedor->nome ?? '—',
                 'motivo'      => $r->motivo,
                 'loja'        => $r->loja,
-                'dias_aberta' => (int) now()->diffInDays($r->created_at),
+                'dias_aberta' => (int) $r->created_at->diffInDays(now()),
                 'created_at'  => $r->created_at->format('d/m/Y H:i'),
             ]);
 

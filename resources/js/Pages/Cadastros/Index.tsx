@@ -1,9 +1,15 @@
-import React, { useState, useMemo, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
-import { Head, router } from '@inertiajs/react';
+import { Head, router, usePage } from '@inertiajs/react';
 import { format, parseISO, addDays, subDays } from 'date-fns';
 import { Cadastro, Fornecedor, FiltrosAtivos, OpcoesSistema } from '@/types';
 import { useTheme } from '@/Contexts/ThemeContext';
+import { DARK, LIGHT, Palette, lojaNome, hoje } from '@/lib/tema';
+import Icone from '@/Components/painel/Icone';
+import Modal from '@/Components/painel/Modal';
+import Badge from '@/Components/painel/Badge';
+import THead from '@/Components/painel/THead';
+import CampoFornecedor from '@/Components/painel/CampoFornecedor';
 
 interface Props {
     auth: { user: { id: number; name: string; email: string } };
@@ -13,149 +19,6 @@ interface Props {
     dataFiltro: string;
     filtros: FiltrosAtivos;
     opcoes: OpcoesSistema;
-}
-
-// ─── Paletas ──────────────────────────────────────────────────────────────────
-
-interface Palette {
-    BG: string; SURFACE: string; BORDER: string; TEXT: string; MUTED: string;
-    ACCENT: string; GREEN: string; RED: string; AMBER: string; ORANGE: string;
-    INPUT_BG: string; INPUT_BORDER: string; HOVER_ROW: string;
-}
-
-const DARK: Palette = {
-    BG: '#0d1117', SURFACE: '#161b22', BORDER: '#21262d', TEXT: '#e6edf3', MUTED: '#7d8590',
-    ACCENT: '#2f81f7', GREEN: '#3fb950', RED: '#f85149', AMBER: '#d29922', ORANGE: '#e3954a',
-    INPUT_BG: '#0d1117', INPUT_BORDER: '#30363d', HOVER_ROW: '#21262d',
-};
-const LIGHT: Palette = {
-    BG: '#f6f8fa', SURFACE: '#ffffff', BORDER: '#d0d7de', TEXT: '#1f2328', MUTED: '#656d76',
-    ACCENT: '#0969da', GREEN: '#1a7f37', RED: '#d1242f', AMBER: '#9a6700', ORANGE: '#c2410c',
-    INPUT_BG: '#ffffff', INPUT_BORDER: '#d0d7de', HOVER_ROW: '#f6f8fa',
-};
-
-const MOTIVO_COR_DARK: Record<string, { bg: string; text: string; border: string }> = {
-    'Pré Lote': { bg: 'rgba(47,129,247,0.15)', text: '#79c0ff', border: 'rgba(47,129,247,0.3)' },
-    'Caminhão na Porta': { bg: 'rgba(227,149,74,0.15)', text: '#f0a868', border: 'rgba(227,149,74,0.3)' },
-};
-const MOTIVO_COR_LIGHT: Record<string, { bg: string; text: string; border: string }> = {
-    'Pré Lote': { bg: '#dbeafe', text: '#1d4ed8', border: '#bfdbfe' },
-    'Caminhão na Porta': { bg: '#ffedd5', text: '#9a3412', border: '#fed7aa' },
-};
-
-const lojaNome = (n: number) => `Loja ${String(n).padStart(2, '0')}`;
-const hoje = () => format(new Date(), 'yyyy-MM-dd');
-
-// ─── Badge ────────────────────────────────────────────────────────────────────
-
-function Badge({ label, isDark }: { label: string; isDark: boolean }) {
-    const map = isDark ? MOTIVO_COR_DARK : MOTIVO_COR_LIGHT;
-    const c = map[label] ?? { bg: isDark ? '#21262d' : '#f3f4f6', text: isDark ? '#7d8590' : '#6b7280', border: isDark ? '#30363d' : '#e5e7eb' };
-    return (
-        <span className="inline-flex items-center rounded px-2 py-0.5 text-xs font-medium"
-            style={{ background: c.bg, color: c.text, border: `1px solid ${c.border}` }}>
-            {label}
-        </span>
-    );
-}
-
-// ─── Ícone ────────────────────────────────────────────────────────────────────
-
-function Icone({ path, className = 'w-4 h-4' }: { path: string; className?: string }) {
-    return (
-        <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.75} d={path} />
-        </svg>
-    );
-}
-
-// ─── Modal ────────────────────────────────────────────────────────────────────
-
-function Modal({ aberto, onFechar, titulo, children, p }: {
-    aberto: boolean; onFechar: () => void; titulo: string; children: React.ReactNode; p: Palette;
-}) {
-    useEffect(() => {
-        if (!aberto) return;
-        const fn = (e: KeyboardEvent) => { if (e.key === 'Escape') onFechar(); };
-        window.addEventListener('keydown', fn);
-        return () => window.removeEventListener('keydown', fn);
-    }, [aberto, onFechar]);
-
-    if (!aberto) return null;
-
-    return (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-            <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={onFechar} />
-            <div className="relative rounded-2xl shadow-2xl w-full max-w-lg"
-                style={{ background: p.SURFACE, border: `1px solid ${p.BORDER}` }}>
-                <div className="flex items-center justify-between px-6 pt-5 pb-4"
-                    style={{ borderBottom: `1px solid ${p.BORDER}` }}>
-                    <h3 className="text-sm font-semibold" style={{ color: p.TEXT }}>{titulo}</h3>
-                    <button onClick={onFechar} className="p-0.5 rounded transition-colors"
-                        style={{ color: p.MUTED }}
-                        onMouseEnter={e => (e.currentTarget.style.color = p.TEXT)}
-                        onMouseLeave={e => (e.currentTarget.style.color = p.MUTED)}>
-                        <Icone path="M6 18L18 6M6 6l12 12" />
-                    </button>
-                </div>
-                <div className="px-6 py-5">{children}</div>
-            </div>
-        </div>
-    );
-}
-
-// ─── Autocomplete Fornecedor ──────────────────────────────────────────────────
-
-function CampoFornecedor({ fornecedores, valor, onChange, erro, p }: {
-    fornecedores: Fornecedor[]; valor: { id: number | ''; nome: string };
-    onChange: (f: { id: number | ''; nome: string }) => void; erro?: string; p: Palette;
-}) {
-    const [busca, setBusca] = useState(valor.nome);
-    const [aberto, setAberto] = useState(false);
-    const ref = useRef<HTMLDivElement>(null);
-
-    const opcoes = useMemo(() =>
-        fornecedores.filter(f => f.nome.toLowerCase().includes(busca.toLowerCase())).slice(0, 12),
-        [fornecedores, busca]
-    );
-
-    useEffect(() => {
-        const fn = (e: MouseEvent) => {
-            if (ref.current && !ref.current.contains(e.target as Node)) setAberto(false);
-        };
-        document.addEventListener('mousedown', fn);
-        return () => document.removeEventListener('mousedown', fn);
-    }, []);
-
-    const selecionar = (f: Fornecedor) => { onChange({ id: f.id, nome: f.nome }); setBusca(f.nome); setAberto(false); };
-
-    return (
-        <div ref={ref} className="relative">
-            <input type="text" value={busca}
-                onChange={e => { setBusca(e.target.value); onChange({ id: '', nome: e.target.value }); setAberto(true); }}
-                onFocus={() => setAberto(true)} placeholder="Buscar fornecedor..." autoComplete="off"
-                className="block w-full rounded-lg text-sm px-3 py-2 outline-none transition"
-                style={{ background: p.INPUT_BG, color: p.TEXT, border: `1px solid ${erro ? p.RED : p.INPUT_BORDER}` }}
-            />
-            {aberto && opcoes.length > 0 && (
-                <ul className="absolute z-20 mt-1 w-full rounded-xl shadow-lg max-h-52 overflow-y-auto"
-                    style={{ background: p.SURFACE, border: `1px solid ${p.BORDER}` }}>
-                    {opcoes.map(f => (
-                        <li key={f.id}>
-                            <button type="button" onMouseDown={() => selecionar(f)}
-                                className="w-full text-left px-3.5 py-2 text-sm transition"
-                                style={{ color: p.TEXT }}
-                                onMouseEnter={e => (e.currentTarget.style.background = p.HOVER_ROW)}
-                                onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}>
-                                {f.nome}
-                            </button>
-                        </li>
-                    ))}
-                </ul>
-            )}
-            {erro && <p className="text-xs mt-1" style={{ color: p.RED }}>{erro}</p>}
-        </div>
-    );
 }
 
 // ─── Formulário ───────────────────────────────────────────────────────────────
@@ -259,29 +122,11 @@ function FormCadastro({ fornecedores, opcoes, inicial, onSubmit, onCancelar, car
     );
 }
 
-// ─── THead ────────────────────────────────────────────────────────────────────
-
-function THead({ colunas, p }: { colunas: string[]; p: Palette }) {
-    return (
-        <thead>
-            <tr style={{ borderBottom: `1px solid ${p.BORDER}` }}>
-                {colunas.map(c => (
-                    <th key={c}
-                        className="px-4 py-2.5 text-left text-xs font-semibold uppercase tracking-wide whitespace-nowrap"
-                        style={{ color: p.MUTED }}>
-                        {c}
-                    </th>
-                ))}
-            </tr>
-        </thead>
-    );
-}
-
 // ─── Linha Pendente ───────────────────────────────────────────────────────────
 
-function LinhaPendente({ cad, onEditar, onAtender, onExcluir, carregando, p }: {
+function LinhaPendente({ cad, onEditar, onAtender, onExcluir, carregando, podeGerenciar, p }: {
     cad: Cadastro; onEditar: (c: Cadastro) => void; onAtender: (id: number) => void;
-    onExcluir: (id: number) => void; carregando: boolean; p: Palette;
+    onExcluir: (id: number) => void; carregando: boolean; podeGerenciar: boolean; p: Palette;
 }) {
     const isCaminhao = cad.motivo === 'Caminhão na Porta';
     const rowBg = cad.atrasada ? (p === DARK ? 'rgba(210,153,34,0.07)' : 'rgba(251,191,36,0.06)') : 'transparent';
@@ -320,20 +165,24 @@ function LinhaPendente({ cad, onEditar, onAtender, onExcluir, carregando, p }: {
                         onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}>
                         <Icone path="M5 13l4 4L19 7" />
                     </button>
-                    <button onClick={() => onEditar(cad)} title="Editar"
-                        className="p-1.5 rounded-lg transition"
-                        style={{ color: p.ACCENT }}
-                        onMouseEnter={e => (e.currentTarget.style.background = p.ACCENT + '1a')}
-                        onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}>
-                        <Icone path="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                    </button>
-                    <button onClick={() => onExcluir(cad.id)} title="Excluir"
-                        className="p-1.5 rounded-lg transition"
-                        style={{ color: p.RED }}
-                        onMouseEnter={e => (e.currentTarget.style.background = p.RED + '1a')}
-                        onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}>
-                        <Icone path="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                    </button>
+                    {podeGerenciar && (
+                        <>
+                            <button onClick={() => onEditar(cad)} title="Editar"
+                                className="p-1.5 rounded-lg transition"
+                                style={{ color: p.ACCENT }}
+                                onMouseEnter={e => (e.currentTarget.style.background = p.ACCENT + '1a')}
+                                onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}>
+                                <Icone path="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                            </button>
+                            <button onClick={() => onExcluir(cad.id)} title="Excluir"
+                                className="p-1.5 rounded-lg transition"
+                                style={{ color: p.RED }}
+                                onMouseEnter={e => (e.currentTarget.style.background = p.RED + '1a')}
+                                onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}>
+                                <Icone path="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                            </button>
+                        </>
+                    )}
                 </div>
             </td>
         </tr>
@@ -345,6 +194,7 @@ function LinhaPendente({ cad, onEditar, onAtender, onExcluir, carregando, p }: {
 export default function Index({ pendentes, atendidas, fornecedores, dataFiltro, filtros, opcoes }: Props) {
     const { isDark } = useTheme();
     const p = isDark ? DARK : LIGHT;
+    const podeGerenciar = usePage().props.auth.can.gerenciarRegistros;
 
     useEffect(() => {
         window.Echo.private('cadastros').listen('.CadastroAtualizado', () => {
@@ -410,7 +260,7 @@ export default function Index({ pendentes, atendidas, fornecedores, dataFiltro, 
     const excluir = (id: number) => {
         const cad = pendentes.find(c => c.id === id);
         const msg = cad?.motivo === 'Caminhão na Porta'
-            ? 'Excluir este cadastro? O motivo da requisição vinculada será alterado para "Cadastro".'
+            ? 'Excluir este cadastro? O motivo da requisição vinculada será alterado para "Pedido".'
             : 'Excluir este cadastro? Esta ação pode ser revertida pelo administrador.';
         if (!confirm(msg)) return;
         router.delete(route('cadastros.destroy', id));
@@ -571,7 +421,7 @@ export default function Index({ pendentes, atendidas, fornecedores, dataFiltro, 
                                     pendentes.map(cad => (
                                         <LinhaPendente key={cad.id} cad={cad} onEditar={setModalEditar}
                                             onAtender={atender} onExcluir={excluir}
-                                            carregando={atendendoId === cad.id} p={p} />
+                                            carregando={atendendoId === cad.id} podeGerenciar={podeGerenciar} p={p} />
                                     ))
                                 )}
                             </tbody>
@@ -610,7 +460,7 @@ export default function Index({ pendentes, atendidas, fornecedores, dataFiltro, 
                                             <td className="px-4 py-3"><Badge label={cad.motivo} isDark={isDark} /></td>
                                             <td className="px-4 py-3 text-sm whitespace-nowrap" style={{ color: p.TEXT }}>{lojaNome(cad.loja)}</td>
                                             <td className="px-4 py-3 text-sm max-w-[200px] truncate" style={{ color: p.TEXT }}>{cad.observacao || '—'}</td>
-                                            <td className="px-4 py-3 text-sm" style={{ color: p.TEXT }}>{cad.user.name.split(' ')[0]}</td>
+                                            <td className="px-4 py-3 text-sm" style={{ color: p.TEXT }}>{cad.atendida_por?.name.split(' ')[0] ?? '—'}</td>
                                         </tr>
                                     ))
                                 )}

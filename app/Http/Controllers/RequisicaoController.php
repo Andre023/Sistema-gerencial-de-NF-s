@@ -6,9 +6,12 @@ use App\Models\Fornecedor;
 use App\Models\Requisicao;
 use App\Models\RequisicaoAuditoria;
 use App\Events\RequisicaoAtualizada;
+use App\Http\Requests\RequisicaoRequest;
 use Carbon\Carbon;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Gate;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -26,7 +29,7 @@ class RequisicaoController extends Controller
         $busca      = $request->input('busca');
         $loja       = $request->input('loja');
 
-        $base = Requisicao::with(['fornecedor:id,nome', 'user:id,name'])
+        $base = Requisicao::with(['fornecedor:id,nome', 'user:id,name', 'atendidaPor:id,name'])
             ->when($motivo,     fn($q) => $q->where('motivo', $motivo))
             ->when($loja,       fn($q) => $q->where('loja', $loja))
             ->when($fornecedor, fn($q) => $q->where('fornecedor_id', $fornecedor))
@@ -43,11 +46,12 @@ class RequisicaoController extends Controller
             ->get()
             ->map(fn($r) => $this->formatRequisicao($r, $dataFiltro));
 
-        // ATENDIDAS: somente as resolvidas no dia exato
+        // ATENDIDAS: somente as resolvidas no dia exato (pela data de atendimento,
+        // não pelo updated_at — que muda a cada edição posterior)
         $atendidas = (clone $base)
             ->where('status', 'Atendida')
-            ->whereDate('updated_at', $dataFiltro)
-            ->orderBy('updated_at', 'desc')
+            ->whereDate('atendida_em', $dataFiltro)
+            ->orderBy('atendida_em', 'desc')
             ->get()
             ->map(fn($r) => $this->formatRequisicao($r, $dataFiltro));
 
@@ -75,28 +79,24 @@ class RequisicaoController extends Controller
 
     // ─── STORE ────────────────────────────────────────────────────────────────
 
-    public function store(Request $request): RedirectResponse
+    public function store(RequisicaoRequest $request): RedirectResponse
     {
-        $dados = $request->validate([
-            'numero_nota'   => 'required|string|max:30',
-            'fornecedor_id' => 'required|exists:fornecedores,id',
-            'loja'          => 'required|integer|in:' . implode(',', Requisicao::LOJAS),
-            'motivo'        => 'required|string|in:' . implode(',', Requisicao::MOTIVOS),
-            'observacao'    => 'nullable|string|max:500',
-        ]);
+        $dados = $request->validated();
 
         $dados['user_id'] = $request->user()->id;
         $dados['status']  = 'Pendente';
 
-        $req = Requisicao::create($dados);
+        DB::transaction(function () use ($dados, $request) {
+            $req = Requisicao::create($dados);
 
-        RequisicaoAuditoria::create([
-            'requisicao_id'   => $req->id,
-            'user_id'         => $request->user()->id,
-            'acao'            => 'criada',
-            'dados_anteriores' => null,
-            'dados_novos'     => $req->toArray(),
-        ]);
+            RequisicaoAuditoria::create([
+                'requisicao_id'    => $req->id,
+                'user_id'          => $request->user()->id,
+                'acao'             => 'criada',
+                'dados_anteriores' => null,
+                'dados_novos'      => $req->toArray(),
+            ]);
+        });
 
         // AVISA TODOS OS COMPUTADORES ONLINE QUE HOUVE ATUALIZAÇÃO
         event(new RequisicaoAtualizada());
@@ -106,30 +106,37 @@ class RequisicaoController extends Controller
 
     // ─── UPDATE ───────────────────────────────────────────────────────────────
 
-    public function update(Request $request, Requisicao $requisicao): RedirectResponse
+    public function update(RequisicaoRequest $request, Requisicao $requisicao): RedirectResponse
     {
-        $dados = $request->validate([
-            'numero_nota'   => 'sometimes|string|max:30',
-            'fornecedor_id' => 'sometimes|exists:fornecedores,id',
-            'loja'          => 'sometimes|integer|in:' . implode(',', Requisicao::LOJAS),
-            'motivo'        => 'sometimes|string|in:' . implode(',', Requisicao::MOTIVOS),
-            'observacao'    => 'nullable|string|max:500',
-            'status'        => 'sometimes|string|in:' . implode(',', Requisicao::STATUS),
-        ]);
+        // Autorização (atender x editar) fica em RequisicaoRequest::authorize().
+        $dados = $request->validated();
+
+        // Registra quem atendeu e quando (ou limpa, se voltou a Pendente)
+        if (isset($dados['status'])) {
+            if ($dados['status'] === 'Atendida' && $requisicao->status !== 'Atendida') {
+                $dados['atendida_por'] = $request->user()->id;
+                $dados['atendida_em']  = now();
+            } elseif ($dados['status'] === 'Pendente') {
+                $dados['atendida_por'] = null;
+                $dados['atendida_em']  = null;
+            }
+        }
 
         $anterior = $requisicao->toArray();
 
-        $requisicao->update($dados);
+        DB::transaction(function () use ($requisicao, $dados, $anterior, $request) {
+            $requisicao->update($dados);
 
-        $acao = isset($dados['status']) && $dados['status'] === 'Atendida' ? 'atendida' : 'editada';
+            $acao = isset($dados['status']) && $dados['status'] === 'Atendida' ? 'atendida' : 'editada';
 
-        RequisicaoAuditoria::create([
-            'requisicao_id'    => $requisicao->id,
-            'user_id'          => $request->user()->id,
-            'acao'             => $acao,
-            'dados_anteriores' => $anterior,
-            'dados_novos'      => $requisicao->fresh()->toArray(),
-        ]);
+            RequisicaoAuditoria::create([
+                'requisicao_id'    => $requisicao->id,
+                'user_id'          => $request->user()->id,
+                'acao'             => $acao,
+                'dados_anteriores' => $anterior,
+                'dados_novos'      => $requisicao->fresh()->toArray(),
+            ]);
+        });
 
         // AVISA TODOS OS COMPUTADORES ONLINE QUE HOUVE ATUALIZAÇÃO
         event(new RequisicaoAtualizada());
@@ -141,15 +148,19 @@ class RequisicaoController extends Controller
 
     public function destroy(Request $request, Requisicao $requisicao): RedirectResponse
     {
-        RequisicaoAuditoria::create([
-            'requisicao_id'    => $requisicao->id,
-            'user_id'          => $request->user()->id,
-            'acao'             => 'excluida',
-            'dados_anteriores' => $requisicao->toArray(),
-            'dados_novos'      => null,
-        ]);
+        Gate::authorize('gerenciar-registros'); // excluir — encarregado ou admin
 
-        $requisicao->delete(); // SoftDelete — não apaga do banco
+        DB::transaction(function () use ($requisicao, $request) {
+            RequisicaoAuditoria::create([
+                'requisicao_id'    => $requisicao->id,
+                'user_id'          => $request->user()->id,
+                'acao'             => 'excluida',
+                'dados_anteriores' => $requisicao->toArray(),
+                'dados_novos'      => null,
+            ]);
+
+            $requisicao->delete(); // SoftDelete — não apaga do banco
+        });
 
         // AVISA TODOS OS COMPUTADORES ONLINE QUE HOUVE ATUALIZAÇÃO
         event(new RequisicaoAtualizada());
@@ -170,6 +181,8 @@ class RequisicaoController extends Controller
             'motivo'       => $r->motivo,
             'observacao'   => $r->observacao,
             'status'       => $r->status,
+            'atendida_por' => $r->atendidaPor,
+            'atendida_em'  => $r->atendida_em,
             'created_at'   => $r->created_at,
             'updated_at'   => $r->updated_at,
             'atrasada'     => $r->isAtrasada($dataFiltro),

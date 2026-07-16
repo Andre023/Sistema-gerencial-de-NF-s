@@ -15,15 +15,18 @@ class Cadastro extends Model
         'numero_nota',
         'fornecedor_id',
         'user_id',
+        'atendida_por',
         'requisicao_id',
         'loja',
         'motivo',
         'observacao',
         'status',
+        'atendida_em',
     ];
 
     protected $casts = [
-        'loja' => 'integer',
+        'loja'        => 'integer',
+        'atendida_em' => 'datetime',
     ];
 
     public const LOJAS = [1, 2, 3, 9, 11, 12];
@@ -40,6 +43,11 @@ class Cadastro extends Model
     public function user(): \Illuminate\Database\Eloquent\Relations\BelongsTo
     {
         return $this->belongsTo(User::class);
+    }
+
+    public function atendidaPor(): \Illuminate\Database\Eloquent\Relations\BelongsTo
+    {
+        return $this->belongsTo(User::class, 'atendida_por');
     }
 
     public function requisicao(): \Illuminate\Database\Eloquent\Relations\BelongsTo

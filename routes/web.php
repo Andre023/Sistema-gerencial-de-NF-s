@@ -5,6 +5,7 @@ use App\Http\Controllers\EstatisticaController;
 use App\Http\Controllers\FornecedorController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\RequisicaoController;
+use App\Http\Controllers\UserController;
 use Illuminate\Foundation\Application;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
@@ -52,8 +53,18 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::delete('/{cadastro}',  [CadastroController::class, 'destroy'])->name('destroy');
     });
 
-    // ── Estatísticas ───────────────────────────────────────────────────────────
-    Route::get('/estatisticas', [EstatisticaController::class, 'index'])->name('estatisticas.index');
+    // ── Estatísticas (só admin) ────────────────────────────────────────────────
+    Route::get('/estatisticas', [EstatisticaController::class, 'index'])
+        ->middleware('can:ver-estatisticas')
+        ->name('estatisticas.index');
+
+    // ── Usuários (só admin) ────────────────────────────────────────────────────
+    Route::middleware('can:gerenciar-usuarios')->prefix('usuarios')->name('usuarios.')->group(function () {
+        Route::get('/',              [UserController::class, 'index'])->name('index');
+        Route::post('/',             [UserController::class, 'store'])->name('store');
+        Route::patch('/{user}',      [UserController::class, 'update'])->name('update');
+        Route::delete('/{user}',     [UserController::class, 'destroy'])->name('destroy');
+    });
 });
 
 require __DIR__ . '/auth.php';
