@@ -217,26 +217,23 @@ class BigDataSeeder extends Seeder
                 ];
 
                 if ($sorte <= $chanceResolvido) {
-                    // ciclo completo: corrigido por compras, resolvido pelo pré-lote
-                    $corrigidoEm = $abertoEm->copy()->addMinutes(rand(60, 1440));
-                    $resolvidoEm = $corrigidoEm->copy()->addMinutes(rand(30, 480));
-                    $card['status']        = Card::STATUS_RESOLVIDO;
-                    $card['corrigido_por'] = $compras[array_rand($compras)]['id'];
-                    $card['corrigido_em']  = $corrigidoEm;
-                    $card['resolvido_por'] = $preLote[array_rand($preLote)]['id'];
-                    $card['resolvido_em']  = $resolvidoEm;
-                    $card['reaberturas']   = rand(1, 100) <= 12 ? 1 : 0;
-                    $card['updated_at']    = $resolvidoEm;
+                    // resolvido — regra é fechada pelo pré-lote; o resto, corrigido por compras
+                    $resolvidoEm = $abertoEm->copy()->addMinutes(rand(60, 1440));
+                    $card['status']      = Card::STATUS_RESOLVIDO;
+                    $card['reaberturas'] = rand(1, 100) <= 12 ? 1 : 0;
+                    $card['updated_at']  = $resolvidoEm;
+
+                    if ($tipo === 'regra') {
+                        $card['resolvido_por'] = $preLote[array_rand($preLote)]['id'];
+                        $card['resolvido_em']  = $resolvidoEm;
+                    } else {
+                        $card['corrigido_por'] = $compras[array_rand($compras)]['id'];
+                        $card['corrigido_em']  = $resolvidoEm;
+                    }
+
                     $ultimoEvento = $ultimoEvento->max($resolvidoEm);
-                } elseif ($sorte <= $chanceResolvido + 20) {
-                    // corrigido, aguardando reconferência
-                    $corrigidoEm = $abertoEm->copy()->addMinutes(rand(60, 1440));
-                    $card['status']        = Card::STATUS_CORRIGIDO;
-                    $card['corrigido_por'] = $compras[array_rand($compras)]['id'];
-                    $card['corrigido_em']  = $corrigidoEm;
-                    $card['updated_at']    = $corrigidoEm;
-                    $todosResolvidos = false;
                 } else {
+                    // ainda aberto — aguardando quem corrige
                     $todosResolvidos = false;
                 }
 

@@ -119,9 +119,9 @@ class FluxoNotaTest extends TestCase
         $this->assertSame(1, $nota->cards()->count());
     }
 
-    // ── Cards: corrigir (compras) ─────────────────────────────────────────────
+    // ── Cards: corrigir (compras) — corrigir já resolve, sem confirmação ──────
 
-    public function test_compras_marca_card_corrigido(): void
+    public function test_compras_corrige_e_card_ja_fica_resolvido(): void
     {
         $nota = $this->nota();
         $card = $this->cardAberto($nota);
@@ -131,9 +131,36 @@ class FluxoNotaTest extends TestCase
             ->assertRedirect();
 
         $card->refresh();
-        $this->assertSame(Card::STATUS_CORRIGIDO, $card->status);
+        $this->assertSame(Card::STATUS_RESOLVIDO, $card->status);
         $this->assertSame($this->compras->id, $card->corrigido_por);
         $this->assertNotNull($card->corrigido_em);
+    }
+
+    public function test_corrigir_o_unico_card_deixa_a_nota_reconferir(): void
+    {
+        $nota = $this->nota();
+        $card = $this->cardAberto($nota, 'cadastro');
+
+        $this->actingAs($this->compras)->patch(route('notas.cards.corrigir', [$nota, $card]));
+
+        $this->assertSame(Nota::STATUS_RECONFERIR, $nota->fresh()->load('cards')->statusCalculado());
+    }
+
+    public function test_corrigir_um_de_dois_cards_mantem_divergencia_e_o_corrigido_some(): void
+    {
+        $nota = $this->nota();
+        $cadastro = $this->cardAberto($nota, 'cadastro');
+        $this->cardAberto($nota, 'custo');
+
+        $this->actingAs($this->compras)->patch(route('notas.cards.corrigir', [$nota, $cadastro]));
+
+        $nota->refresh()->load('cards');
+        // Ainda há o card de custo aberto → nota segue com divergência
+        $this->assertSame(Nota::STATUS_DIVERGENCIA, $nota->statusCalculado());
+        // O cadastro corrigido saiu da fila (só cards abertos aparecem)
+        $abertos = $nota->cards->where('status', Card::STATUS_ABERTO);
+        $this->assertCount(1, $abertos);
+        $this->assertSame('custo', $abertos->first()->tipo);
     }
 
     public function test_recebimento_nao_marca_corrigido(): void
@@ -157,7 +184,7 @@ class FluxoNotaTest extends TestCase
                 ->patch(route('notas.cards.corrigir', [$nota, $card]))
                 ->assertRedirect();
 
-            $this->assertSame(Card::STATUS_CORRIGIDO, $card->fresh()->status, "compras deveria corrigir {$tipo}");
+            $this->assertSame(Card::STATUS_RESOLVIDO, $card->fresh()->status, "compras deveria corrigir {$tipo}");
         }
 
         // Regra é do pré-lote — compras é barrada
@@ -181,16 +208,15 @@ class FluxoNotaTest extends TestCase
             ->patch(route('notas.cards.corrigir', [$nota, $card]))
             ->assertRedirect();
 
-        $this->assertSame(Card::STATUS_CORRIGIDO, $card->fresh()->status);
+        $this->assertSame(Card::STATUS_RESOLVIDO, $card->fresh()->status);
     }
 
-    // ── Cards: reconferir (pré-lote resolve ou reabre) ────────────────────────
+    // ── Cards: pré-lote resolve regra direto e reabre na conferência ──────────
 
-    public function test_pre_lote_resolve_card_corrigido(): void
+    public function test_pre_lote_resolve_card_de_regra_direto(): void
     {
         $nota = $this->nota();
-        $card = $this->cardAberto($nota);
-        $card->update(['status' => Card::STATUS_CORRIGIDO, 'corrigido_por' => $this->compras->id, 'corrigido_em' => now()]);
+        $card = $this->cardAberto($nota, 'regra');
 
         $this->actingAs($this->preLote)
             ->patch(route('notas.cards.resolver', [$nota, $card]))
@@ -201,11 +227,12 @@ class FluxoNotaTest extends TestCase
         $this->assertSame($this->preLote->id, $card->resolvido_por);
     }
 
-    public function test_pre_lote_reabre_card_ainda_errado(): void
+    public function test_pre_lote_reabre_card_resolvido_ainda_errado(): void
     {
         $nota = $this->nota();
         $card = $this->cardAberto($nota);
-        $card->update(['status' => Card::STATUS_CORRIGIDO, 'corrigido_por' => $this->compras->id, 'corrigido_em' => now()]);
+        // compras corrigiu → resolvido
+        $card->update(['status' => Card::STATUS_RESOLVIDO, 'corrigido_por' => $this->compras->id, 'corrigido_em' => now()]);
 
         $this->actingAs($this->preLote)
             ->patch(route('notas.cards.reabrir', [$nota, $card]))
@@ -287,11 +314,9 @@ class FluxoNotaTest extends TestCase
         $card = $this->cardAberto($nota);
         $this->assertSame(Nota::STATUS_DIVERGENCIA, $nota->fresh()->load('cards')->statusCalculado());
 
-        $card->update(['status' => Card::STATUS_CORRIGIDO]);
-        $this->assertSame(Nota::STATUS_RECONFERIR, $nota->fresh()->load('cards')->statusCalculado());
-
+        // Corrigido/resolvido: teve divergência e foi tratada → aguarda conferência final
         $card->update(['status' => Card::STATUS_RESOLVIDO]);
-        $this->assertSame(Nota::STATUS_PENDENTE, $nota->fresh()->load('cards')->statusCalculado());
+        $this->assertSame(Nota::STATUS_RECONFERIR, $nota->fresh()->load('cards')->statusCalculado());
 
         $nota->update(['liberada_em' => now(), 'liberada_por' => $this->preLote->id]);
         $this->assertSame(Nota::STATUS_LIBERADA, $nota->fresh()->load('cards')->statusCalculado());

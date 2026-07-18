@@ -42,13 +42,12 @@ class Card extends Model
      */
     public const TIPOS_COMPRAS = ['cadastro', 'custo', 'quantidade'];
 
+    // Corrigir (compras) já resolve o card — não há estado intermediário.
     public const STATUS_ABERTO    = 'aberto';
-    public const STATUS_CORRIGIDO = 'corrigido';
     public const STATUS_RESOLVIDO = 'resolvido';
 
     public const STATUS = [
         self::STATUS_ABERTO,
-        self::STATUS_CORRIGIDO,
         self::STATUS_RESOLVIDO,
     ];
 
@@ -79,7 +78,7 @@ class Card extends Model
     }
 
     /**
-     * Compras só marca como corrigido os tipos que ela mesma arruma no ERP
+     * Compras só corrige os tipos que ela mesma arruma no ERP
      * (cadastro, custo, quantidade). Card de regra é do pré-lote. Admin pode tudo.
      */
     public function podeSerCorrigidoPor(User $user): bool

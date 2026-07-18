@@ -203,8 +203,7 @@ function ModalCards({ nota, onFechar, can, tiposCompras, isDark, p }: {
                                 {c.status === 'aberto' && podeCorrigirEste(c) && btn('Corrigido ✓', p.GREEN, () => corrigir(c))}
                                 {c.status === 'aberto' && can.gerirCards && btn('Resolver', p.GREEN, () => resolver(c))}
                                 {c.status === 'aberto' && can.gerirCards && btn('Excluir', p.RED, () => excluirCard(c))}
-                                {c.status === 'corrigido' && can.gerirCards && btn('Confirmar ✓', p.GREEN, () => resolver(c))}
-                                {c.status === 'corrigido' && can.gerirCards && btn('Reabrir', p.RED, () => reabrir(c))}
+                                {c.status === 'resolvido' && can.gerirCards && btn('Reabrir', p.RED, () => reabrir(c))}
                             </div>
                         </div>
                     ))}

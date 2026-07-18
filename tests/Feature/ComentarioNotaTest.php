@@ -49,10 +49,16 @@ class ComentarioNotaTest extends TestCase
         $compras     = User::factory()->create(['role' => User::ROLE_COMPRAS, 'name' => 'Carla Compras']);
 
         $nota = $this->nota($recebimento);
-        $card = $nota->cards()->create([
+        // cadastro: corrigido por compras (já resolve)
+        $nota->cards()->create([
             'tipo' => 'cadastro', 'status' => Card::STATUS_RESOLVIDO,
             'aberto_por' => $preLote->id,
             'corrigido_por' => $compras->id, 'corrigido_em' => now()->addMinutes(10),
+        ]);
+        // regra: resolvida direto pelo pré-lote
+        $nota->cards()->create([
+            'tipo' => 'regra', 'status' => Card::STATUS_RESOLVIDO,
+            'aberto_por' => $preLote->id,
             'resolvido_por' => $preLote->id, 'resolvido_em' => now()->addMinutes(20),
         ]);
         $nota->update(['liberada_por' => $preLote->id, 'liberada_em' => now()->addMinutes(30)]);
@@ -67,8 +73,8 @@ class ComentarioNotaTest extends TestCase
 
         $this->assertContains('lançou a nota', $acoes);
         $this->assertContains('abriu divergência de cadastro', $acoes);
-        $this->assertContains('marcou cadastro como corrigido', $acoes);
-        $this->assertContains('resolveu cadastro', $acoes);
+        $this->assertContains('corrigiu cadastro', $acoes);
+        $this->assertContains('resolveu regra', $acoes);
         $this->assertContains('liberou a nota', $acoes);
         $this->assertContains('Corrigido no ERP, chamado 123', collect($timeline)->where('tipo', 'comentario')->pluck('texto')->all());
     }

@@ -55,7 +55,7 @@ class CardController extends Controller
         return back()->with('sucesso', 'Divergência registrada.');
     }
 
-    // ─── CORRIGIR (compras marca que arrumou no ERP) ──────────────────────────
+    // ─── CORRIGIR (compras arruma no ERP → card resolvido, some da fila) ───────
 
     public function corrigir(Request $request, Nota $nota, Card $card): RedirectResponse
     {
@@ -63,7 +63,7 @@ class CardController extends Controller
 
         $this->garanteVinculo($nota, $card);
 
-        // Compras corrige cadastro/custo/quantidade; regra é reconferida pelo pré-lote
+        // Compras corrige cadastro/custo/quantidade; regra é resolvida pelo pré-lote
         if (! $card->podeSerCorrigidoPor($request->user())) {
             abort(403, 'Cards de regra são resolvidos pelo pré-lote.');
         }
@@ -72,8 +72,10 @@ class CardController extends Controller
             return back()->withErrors(['card' => 'Este card não está aberto.']);
         }
 
+        // Corrigir já resolve: sem passo de confirmação por card. corrigido_por
+        // registra que a resolução veio de compras (a conferência final é a liberação).
         $card->update([
-            'status'        => Card::STATUS_CORRIGIDO,
+            'status'        => Card::STATUS_RESOLVIDO,
             'corrigido_por' => $request->user()->id,
             'corrigido_em'  => now(),
         ]);
@@ -81,10 +83,10 @@ class CardController extends Controller
         // O broadcast é a notificação: a tela do pré-lote atualiza na hora
         event(new NotaAtualizada());
 
-        return back()->with('sucesso', 'Card marcado como corrigido — aguardando reconferência do pré-lote.');
+        return back()->with('sucesso', 'Card corrigido.');
     }
 
-    // ─── RESOLVER (pré-lote reconfere e fecha) ────────────────────────────────
+    // ─── RESOLVER (pré-lote fecha direto — principalmente cards de regra) ──────
 
     public function resolver(Request $request, Nota $nota, Card $card): RedirectResponse
     {
@@ -107,7 +109,7 @@ class CardController extends Controller
         return back()->with('sucesso', 'Card resolvido.');
     }
 
-    // ─── REABRIR (reconferiu e ainda está errado) ─────────────────────────────
+    // ─── REABRIR (na conferência final o pré-lote achou que ainda está errado) ─
 
     public function reabrir(Request $request, Nota $nota, Card $card): RedirectResponse
     {
@@ -115,20 +117,22 @@ class CardController extends Controller
 
         $this->garanteVinculo($nota, $card);
 
-        if ($card->status !== Card::STATUS_CORRIGIDO) {
-            return back()->withErrors(['card' => 'Só é possível reabrir um card que está aguardando reconferência.']);
+        if ($card->status !== Card::STATUS_RESOLVIDO) {
+            return back()->withErrors(['card' => 'Só é possível reabrir um card já resolvido.']);
         }
 
         $card->update([
             'status'        => Card::STATUS_ABERTO,
             'corrigido_por' => null,
             'corrigido_em'  => null,
+            'resolvido_por' => null,
+            'resolvido_em'  => null,
             'reaberturas'   => $card->reaberturas + 1,
         ]);
 
         event(new NotaAtualizada());
 
-        return back()->with('sucesso', 'Card reaberto — voltou para a fila de compras.');
+        return back()->with('sucesso', 'Card reaberto.');
     }
 
     // ─── EXCLUIR (aberto por engano) ──────────────────────────────────────────

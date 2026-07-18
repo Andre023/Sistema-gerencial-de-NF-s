@@ -83,14 +83,17 @@ class Nota extends Model
 
         $cards = $this->cards;
 
+        // Algum card ainda aberto → há divergência a corrigir
         if ($cards->contains(fn($c) => $c->status === Card::STATUS_ABERTO)) {
             return self::STATUS_DIVERGENCIA;
         }
 
-        if ($cards->contains(fn($c) => $c->status === Card::STATUS_CORRIGIDO)) {
+        // Teve divergência e tudo foi corrigido → aguarda a conferência final
+        if ($cards->isNotEmpty()) {
             return self::STATUS_RECONFERIR;
         }
 
+        // Nunca teve card → só aguardando a análise do pré-lote
         return self::STATUS_PENDENTE;
     }
 

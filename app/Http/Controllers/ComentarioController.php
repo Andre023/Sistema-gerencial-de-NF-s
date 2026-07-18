@@ -95,21 +95,27 @@ class ComentarioController extends Controller
                 'em'      => $card->created_at,
             ]);
 
+            $sufixoReab = $card->reaberturas > 0
+                ? " (após {$card->reaberturas} reabertura" . ($card->reaberturas > 1 ? 's' : '') . ')'
+                : '';
+
+            // Compras corrigindo no ERP já resolve o card
             if ($card->corrigido_em) {
                 $eventos->push([
                     'tipo'    => 'evento',
                     'id'      => "card{$card->id}-corrigido",
-                    'acao'    => "marcou {$card->tipo} como corrigido",
+                    'acao'    => "corrigiu {$card->tipo}{$sufixoReab}",
                     'usuario' => $card->corrigidoPor->name ?? '—',
                     'em'      => $card->corrigido_em,
                 ]);
             }
 
+            // Pré-lote resolvendo direto (ex.: regra)
             if ($card->resolvido_em) {
                 $eventos->push([
                     'tipo'    => 'evento',
                     'id'      => "card{$card->id}-resolvido",
-                    'acao'    => "resolveu {$card->tipo}" . ($card->reaberturas > 0 ? " (após {$card->reaberturas} reabertura" . ($card->reaberturas > 1 ? 's' : '') . ')' : ''),
+                    'acao'    => "resolveu {$card->tipo}{$sufixoReab}",
                     'usuario' => $card->resolvidoPor->name ?? '—',
                     'em'      => $card->resolvido_em,
                 ]);

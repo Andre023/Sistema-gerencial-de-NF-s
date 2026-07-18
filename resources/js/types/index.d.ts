@@ -27,7 +27,7 @@ export interface Fornecedor {
 }
 
 export type TipoCard = 'cadastro' | 'regra' | 'custo' | 'quantidade';
-export type StatusCard = 'aberto' | 'corrigido' | 'resolvido';
+export type StatusCard = 'aberto' | 'resolvido';
 
 export interface Card {
     id: number;
