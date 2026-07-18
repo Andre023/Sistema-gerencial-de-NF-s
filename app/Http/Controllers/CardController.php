@@ -63,6 +63,11 @@ class CardController extends Controller
 
         $this->garanteVinculo($nota, $card);
 
+        // Compras corrige cadastro/custo/quantidade; regra é reconferida pelo pré-lote
+        if (! $card->podeSerCorrigidoPor($request->user())) {
+            abort(403, 'Cards de regra são resolvidos pelo pré-lote.');
+        }
+
         if ($card->status !== Card::STATUS_ABERTO) {
             return back()->withErrors(['card' => 'Este card não está aberto.']);
         }

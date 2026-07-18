@@ -84,9 +84,10 @@ class NotaController extends Controller
                 'nivel' => $nivel,
             ],
             'opcoes' => [
-                'lojas'   => Nota::LOJAS,
-                'origens' => Nota::ORIGENS,
-                'tipos'   => Card::TIPOS,
+                'lojas'        => Nota::LOJAS,
+                'origens'      => Nota::ORIGENS,
+                'tipos'        => Card::TIPOS,
+                'tiposCompras' => Card::TIPOS_COMPRAS,
                 'sla'     => [
                     'atencao' => Nota::SLA_ATENCAO,
                     'alerta'  => Nota::SLA_ALERTA,

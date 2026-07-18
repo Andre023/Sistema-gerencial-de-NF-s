@@ -113,9 +113,14 @@ function FormNota({ fornecedores, opcoes, inicial, origemDefault, onSubmit, onCa
 
 // ─── Modal de cards (detalhe da nota) ───────────────────────────────────────────
 
-function ModalCards({ nota, onFechar, can, isDark, p }: {
-    nota: Nota | null; onFechar: () => void; can: Permissoes; isDark: boolean; p: Palette;
+function ModalCards({ nota, onFechar, can, tiposCompras, isDark, p }: {
+    nota: Nota | null; onFechar: () => void; can: Permissoes; tiposCompras: TipoCard[]; isDark: boolean; p: Palette;
 }) {
+    // Compras só corrige os tipos dela (regra é do pré-lote); admin corrige tudo
+    const ehCompras = usePage().props.auth.user.role === 'compras';
+    const podeCorrigirEste = (c: Card) =>
+        can.corrigirCard && (!ehCompras || tiposCompras.includes(c.tipo));
+
     const [tipoNovo, setTipoNovo] = useState<TipoCard | ''>('');
     const [detalheNovo, setDetalheNovo] = useState('');
     const [erro, setErro] = useState<string | null>(null);
@@ -195,7 +200,7 @@ function ModalCards({ nota, onFechar, can, isDark, p }: {
                                 {c.reaberturas > 0 && <em> · reaberto {c.reaberturas}x</em>}
                             </span>
                             <div className="flex items-center gap-1.5 shrink-0">
-                                {c.status === 'aberto' && can.corrigirCard && btn('Corrigido ✓', p.GREEN, () => corrigir(c))}
+                                {c.status === 'aberto' && podeCorrigirEste(c) && btn('Corrigido ✓', p.GREEN, () => corrigir(c))}
                                 {c.status === 'aberto' && can.gerirCards && btn('Resolver', p.GREEN, () => resolver(c))}
                                 {c.status === 'aberto' && can.gerirCards && btn('Excluir', p.RED, () => excluirCard(c))}
                                 {c.status === 'corrigido' && can.gerirCards && btn('Confirmar ✓', p.GREEN, () => resolver(c))}
@@ -484,7 +489,8 @@ export default function Index({ recebimento, preLote, liberadas, fornecedores, d
                 )}
             </Modal>
 
-            <ModalCards nota={notaCards} onFechar={() => setCardsId(null)} can={can} isDark={isDark} p={p} />
+            <ModalCards nota={notaCards} onFechar={() => setCardsId(null)} can={can}
+                tiposCompras={opcoes.tiposCompras ?? ['cadastro', 'custo', 'quantidade']} isDark={isDark} p={p} />
 
             <ModalComentarios
                 aberto={!!comentariosNota}

@@ -36,6 +36,12 @@ class Card extends Model
 
     public const TIPOS = ['cadastro', 'regra', 'custo', 'quantidade'];
 
+    /**
+     * Tipos que o comprador corrige no ERP e marca aqui.
+     * "Regra" fica de fora: é o pré-lote que resolve direto quando estiver acertada.
+     */
+    public const TIPOS_COMPRAS = ['cadastro', 'custo', 'quantidade'];
+
     public const STATUS_ABERTO    = 'aberto';
     public const STATUS_CORRIGIDO = 'corrigido';
     public const STATUS_RESOLVIDO = 'resolvido';
@@ -70,5 +76,18 @@ class Card extends Model
     public function ativo(): bool
     {
         return $this->status !== self::STATUS_RESOLVIDO;
+    }
+
+    /**
+     * Compras só marca como corrigido os tipos que ela mesma arruma no ERP
+     * (cadastro, custo, quantidade). Card de regra é do pré-lote. Admin pode tudo.
+     */
+    public function podeSerCorrigidoPor(User $user): bool
+    {
+        if ($user->isAdmin()) {
+            return true;
+        }
+
+        return $user->podeCorrigirCard() && in_array($this->tipo, self::TIPOS_COMPRAS, true);
     }
 }

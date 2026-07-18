@@ -146,6 +146,44 @@ class FluxoNotaTest extends TestCase
             ->assertForbidden();
     }
 
+    public function test_compras_corrige_cadastro_custo_e_quantidade_mas_nao_regra(): void
+    {
+        // Os tipos que compras arruma no ERP — pode marcar
+        foreach (['cadastro', 'custo', 'quantidade'] as $tipo) {
+            $nota = $this->nota();
+            $card = $this->cardAberto($nota, $tipo);
+
+            $this->actingAs($this->compras)
+                ->patch(route('notas.cards.corrigir', [$nota, $card]))
+                ->assertRedirect();
+
+            $this->assertSame(Card::STATUS_CORRIGIDO, $card->fresh()->status, "compras deveria corrigir {$tipo}");
+        }
+
+        // Regra é do pré-lote — compras é barrada
+        $nota = $this->nota();
+        $card = $this->cardAberto($nota, 'regra');
+
+        $this->actingAs($this->compras)
+            ->patch(route('notas.cards.corrigir', [$nota, $card]))
+            ->assertForbidden();
+
+        $this->assertSame(Card::STATUS_ABERTO, $card->fresh()->status);
+    }
+
+    public function test_admin_corrige_qualquer_tipo_inclusive_regra(): void
+    {
+        $admin = User::factory()->create(['role' => User::ROLE_ADMIN]);
+        $nota  = $this->nota();
+        $card  = $this->cardAberto($nota, 'regra');
+
+        $this->actingAs($admin)
+            ->patch(route('notas.cards.corrigir', [$nota, $card]))
+            ->assertRedirect();
+
+        $this->assertSame(Card::STATUS_CORRIGIDO, $card->fresh()->status);
+    }
+
     // ── Cards: reconferir (pré-lote resolve ou reabre) ────────────────────────
 
     public function test_pre_lote_resolve_card_corrigido(): void
