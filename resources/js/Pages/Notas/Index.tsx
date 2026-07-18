@@ -19,6 +19,7 @@ interface Props {
     fornecedores: Fornecedor[];
     dataFiltro: string;
     resumoAlertas: ResumoAlertas;
+    totalReconferir: number;
     filtros: FiltrosAtivos;
     opcoes: OpcoesSistema;
 }
@@ -285,9 +286,14 @@ function LinhaFila({ nota, onCards, onComentar, onEditar, onExcluir, onLiberar, 
             <td className="px-4 py-3 text-sm max-w-[180px] truncate" style={{ color: p.TEXT }}>{nota.fornecedor.nome}</td>
             <td className="px-4 py-3">
                 <button onClick={() => onCards(nota)} className="flex flex-wrap items-center gap-1" title="Abrir cards da nota">
-                    {ativos.length === 0
-                        ? <span className="text-xs" style={{ color: p.MUTED }}>{nota.status === 'pendente' ? 'aguardando análise' : '—'}</span>
-                        : ativos.map(c => <CardBadge key={c.id} card={c} isDark={isDark} />)}
+                    {ativos.length > 0
+                        ? ativos.map(c => <CardBadge key={c.id} card={c} isDark={isDark} />)
+                        : nota.status === 'reconferir'
+                            ? <span className="inline-flex items-center gap-1 rounded px-2 py-0.5 text-xs font-medium whitespace-nowrap"
+                                style={{ background: p.AMBER + '22', color: p.AMBER, border: `1px solid ${p.AMBER}44` }}>
+                                Reconferir
+                              </span>
+                            : <span className="text-xs" style={{ color: p.MUTED }}>aguardando análise</span>}
                 </button>
             </td>
             <td className="px-4 py-3 text-sm whitespace-nowrap" style={{ color: p.TEXT }}>{lojaNome(nota.loja)}</td>
@@ -346,14 +352,14 @@ function LinhaFila({ nota, onCards, onComentar, onEditar, onExcluir, onLiberar, 
 
 // ─── Página ─────────────────────────────────────────────────────────────────────
 
-export default function Index({ recebimento, preLote, liberadas, fornecedores, dataFiltro, resumoAlertas, filtros, opcoes }: Props) {
+export default function Index({ recebimento, preLote, liberadas, fornecedores, dataFiltro, resumoAlertas, totalReconferir, filtros, opcoes }: Props) {
     const { isDark } = useTheme();
     const p = isDark ? DARK : LIGHT;
     const { can, user } = usePage().props.auth;
 
     useEffect(() => {
         window.Echo.private('notas').listen('.NotaAtualizada', () => {
-            router.reload({ only: ['recebimento', 'preLote', 'liberadas', 'resumoAlertas'] });
+            router.reload({ only: ['recebimento', 'preLote', 'liberadas', 'resumoAlertas', 'totalReconferir'] });
             setEchoTick(t => t + 1);
         });
         return () => { window.Echo.leave('notas'); };
@@ -379,6 +385,7 @@ export default function Index({ recebimento, preLote, liberadas, fornecedores, d
         busca: buscaLocal || undefined,
         loja: lojaLocal || undefined,
         nivel: filtros.nivel || undefined,
+        status: filtros.status || undefined,
     });
 
     const irPara = (extras: Record<string, unknown> = {}) =>
@@ -386,6 +393,7 @@ export default function Index({ recebimento, preLote, liberadas, fornecedores, d
 
     const mudarData = (d: string) => irPara({ data: d });
     const filtrarNivel = (n: Nivel | null) => irPara({ nivel: n ?? undefined });
+    const filtrarStatus = (s: string | null) => irPara({ status: s ?? undefined });
     const diaAnterior = () => mudarData(format(subDays(parseISO(dataFiltro), 1), 'yyyy-MM-dd'));
     const diaSeguinte = () => mudarData(format(addDays(parseISO(dataFiltro), 1), 'yyyy-MM-dd'));
     const aplicarFiltros = () => irPara();
@@ -393,7 +401,7 @@ export default function Index({ recebimento, preLote, liberadas, fornecedores, d
         setBuscaLocal(''); setLojaLocal('');
         router.get(route('notas.index'), { data: dataFiltro }, { preserveState: true, replace: true });
     };
-    const filtrosAtivos = !!(filtros.busca || filtros.loja || filtros.nivel);
+    const filtrosAtivos = !!(filtros.busca || filtros.loja || filtros.nivel || filtros.status);
 
     const criar = (dados: any) => {
         setSubmetendo(true);
@@ -431,6 +439,8 @@ export default function Index({ recebimento, preLote, liberadas, fornecedores, d
         atencao: `${sla.atencao}–${sla.alerta - 1} dias`,
     };
     const temAlertas = resumoAlertas.critico + resumoAlertas.alerta + resumoAlertas.atencao > 0;
+    const temFiltros = temAlertas || totalReconferir > 0;
+    const filtrandoReconferir = filtros.status === 'reconferir';
 
     const COLS_FILA = ['Nota', 'Fornecedor', 'Divergências', 'Loja', 'Observação', 'Lançado', ''];
     const COLS_LIBERADAS = ['Nota', 'Fornecedor', 'Divergências', 'Loja', 'Liberada por', ''];
@@ -565,8 +575,8 @@ export default function Index({ recebimento, preLote, liberadas, fornecedores, d
                     )}
                 </div>
 
-                {/* ── Alertas de envelhecimento ───────────────────────────────── */}
-                {temAlertas && (
+                {/* ── Chips de filtro: envelhecimento + prontas p/ liberar ────── */}
+                {temFiltros && (
                     <div className="flex flex-wrap items-center gap-2">
                         {(['critico', 'alerta', 'atencao'] as const).map(n => {
                             const qtd = resumoAlertas[n];
@@ -588,8 +598,26 @@ export default function Index({ recebimento, preLote, liberadas, fornecedores, d
                                 </button>
                             );
                         })}
-                        {filtros.nivel && (
-                            <button onClick={() => filtrarNivel(null)} className="text-xs flex items-center gap-1" style={{ color: p.MUTED }}>
+
+                        {/* Reconferir: tudo corrigido, esperando o pré-lote conferir e liberar */}
+                        {totalReconferir > 0 && (
+                            <button onClick={() => filtrarStatus(filtrandoReconferir ? null : 'reconferir')}
+                                title={filtrandoReconferir ? 'Remover filtro' : 'Ver só as prontas p/ liberar'}
+                                className="flex items-center gap-1.5 text-sm px-3 py-1.5 rounded-lg transition"
+                                style={{
+                                    background: filtrandoReconferir ? p.AMBER + '33' : p.AMBER + '14',
+                                    border: `1px solid ${p.AMBER}${filtrandoReconferir ? 'aa' : '44'}`,
+                                    color: p.AMBER,
+                                }}>
+                                <strong>{totalReconferir}</strong>
+                                <span>reconferir</span>
+                                <span className="text-xs" style={{ opacity: 0.75 }}>(pronta p/ liberar)</span>
+                            </button>
+                        )}
+
+                        {(filtros.nivel || filtros.status) && (
+                            <button onClick={() => irPara({ nivel: undefined, status: undefined })}
+                                className="text-xs flex items-center gap-1" style={{ color: p.MUTED }}>
                                 <Icone path="M6 18L18 6M6 6l12 12" className="w-3 h-3" /> Ver todas
                             </button>
                         )}

@@ -73,6 +73,7 @@ export interface FiltrosAtivos {
     busca?: string | null;
     loja?: number | null;
     nivel?: Nivel | null;
+    status?: StatusNota | null;
 }
 
 export interface OpcoesSistema {

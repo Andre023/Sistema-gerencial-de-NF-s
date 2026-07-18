@@ -342,6 +342,36 @@ class FluxoNotaTest extends TestCase
                 ->where('liberadas.0.numero_nota', 'L1'));
     }
 
+    // ── Contador e filtro de "reconferir" (prontas p/ liberar) ────────────────
+
+    public function test_conta_e_filtra_notas_para_reconferir(): void
+    {
+        $this->nota(['numero_nota' => 'PEND']);                 // pendente (sem card)
+        $comDiv = $this->nota(['numero_nota' => 'DIV']);        // com divergência
+        $this->cardAberto($comDiv);
+        $recon = $this->nota(['numero_nota' => 'RECON']);       // reconferir (card resolvido)
+        $this->cardAberto($recon)->update([
+            'status' => Card::STATUS_RESOLVIDO, 'corrigido_por' => $this->compras->id, 'corrigido_em' => now(),
+        ]);
+
+        // Sem filtro: contador mostra 1 reconferir e a fila traz as 3
+        $this->actingAs($this->preLote)
+            ->get(route('notas.index'))
+            ->assertInertia(fn($page) => $page
+                ->where('totalReconferir', 1)
+                ->has('recebimento', 3));
+
+        // Filtrando: só a RECON aparece, mas o contador segue mostrando o todo
+        $this->actingAs($this->preLote)
+            ->get(route('notas.index', ['status' => 'reconferir']))
+            ->assertInertia(fn($page) => $page
+                ->where('totalReconferir', 1)
+                ->has('recebimento', 1)
+                ->where('recebimento.0.numero_nota', 'RECON')
+                ->where('recebimento.0.status', 'reconferir')
+                ->where('filtros.status', 'reconferir'));
+    }
+
     // ── Estatísticas continuam só de admin ────────────────────────────────────
 
     public function test_estatisticas_somente_admin(): void

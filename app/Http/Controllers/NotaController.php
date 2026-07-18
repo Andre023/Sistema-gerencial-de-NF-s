@@ -22,12 +22,17 @@ class NotaController extends Controller
     {
         $dataFiltro = $request->input('data', Carbon::today()->toDateString());
 
-        $busca = $request->input('busca');
-        $loja  = $request->input('loja');
-        $nivel = $request->input('nivel');
+        $busca  = $request->input('busca');
+        $loja   = $request->input('loja');
+        $nivel  = $request->input('nivel');
+        $status = $request->input('status');
 
         if (! in_array($nivel, Nota::NIVEIS_ALERTA, true)) {
             $nivel = null;
+        }
+        // Por ora só filtramos pela fase "reconferir" (prontas p/ liberar)
+        if ($status !== Nota::STATUS_RECONFERIR) {
+            $status = null;
         }
 
         $base = Nota::with(['fornecedor:id,nome', 'user:id,name', 'liberadaPor:id,name', 'cards'])
@@ -46,15 +51,19 @@ class NotaController extends Controller
             ->get()
             ->map(fn($n) => $this->formatNota($n, $dataFiltro));
 
-        // Contadores de envelhecimento antes do filtro de nível (mantém o panorama)
+        // Contadores antes dos filtros (mantêm o panorama do dia inteiro)
         $resumoAlertas = [
             Nota::NIVEL_CRITICO => $fila->where('nivel', Nota::NIVEL_CRITICO)->count(),
             Nota::NIVEL_ALERTA  => $fila->where('nivel', Nota::NIVEL_ALERTA)->count(),
             Nota::NIVEL_ATENCAO => $fila->where('nivel', Nota::NIVEL_ATENCAO)->count(),
         ];
+        $totalReconferir = $fila->where('status', Nota::STATUS_RECONFERIR)->count();
 
         if ($nivel) {
             $fila = $fila->where('nivel', $nivel)->values();
+        }
+        if ($status) {
+            $fila = $fila->where('status', $status)->values();
         }
 
         // A separação que a antiga tela de Cadastros fazia, agora em seções:
@@ -76,12 +85,14 @@ class NotaController extends Controller
             'preLote'       => $preLote,
             'liberadas'     => $liberadas,
             'fornecedores'  => $fornecedores,
-            'dataFiltro'    => $dataFiltro,
-            'resumoAlertas' => $resumoAlertas,
+            'dataFiltro'      => $dataFiltro,
+            'resumoAlertas'   => $resumoAlertas,
+            'totalReconferir' => $totalReconferir,
             'filtros'       => [
-                'busca' => $busca,
-                'loja'  => $loja,
-                'nivel' => $nivel,
+                'busca'  => $busca,
+                'loja'   => $loja,
+                'nivel'  => $nivel,
+                'status' => $status,
             ],
             'opcoes' => [
                 'lojas'        => Nota::LOJAS,
