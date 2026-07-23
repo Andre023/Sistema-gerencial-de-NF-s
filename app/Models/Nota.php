@@ -103,4 +103,37 @@ class Nota extends Model
         return $this->liberada_em === null &&
             ! $this->cards->contains(fn($c) => $c->status !== Card::STATUS_RESOLVIDO);
     }
+
+    /**
+     * Formato consumido pela tela (listagem e evento de tempo real). Requer as
+     * relações fornecedor/user/liberadaPor/cards e comentarios_count carregados.
+     */
+    public function paraTabela(string $dataFiltro): array
+    {
+        return [
+            'id'           => $this->id,
+            'numero_nota'  => $this->numero_nota,
+            'fornecedor'   => $this->fornecedor,
+            'user'         => $this->user,
+            'loja'         => $this->loja,
+            'origem'       => $this->origem,
+            'observacao'   => $this->observacao,
+            'status'       => $this->statusCalculado(),
+            'cards'        => $this->cards->map(fn($c) => [
+                'id'          => $c->id,
+                'tipo'        => $c->tipo,
+                'status'      => $c->status,
+                'detalhe'     => $c->detalhe,
+                'reaberturas' => $c->reaberturas,
+            ])->values(),
+            'liberada_por' => $this->liberadaPor,
+            'liberada_em'  => $this->liberada_em,
+            'comentarios_count' => $this->comentarios_count ?? 0,
+            'created_at'   => $this->created_at,
+            'atrasada'     => $this->isAtrasada($dataFiltro),
+            'dias_aberta'  => $this->diasEmAberto($dataFiltro),
+            'nivel'        => $this->nivelAlerta($dataFiltro),
+            'data_origem'  => $this->created_at->format('d/m'),
+        ];
+    }
 }

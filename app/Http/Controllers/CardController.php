@@ -50,7 +50,7 @@ class CardController extends Controller
             'aberto_por' => $request->user()->id,
         ]);
 
-        event(new NotaAtualizada());
+        event(new NotaAtualizada($nota));
 
         return back()->with('sucesso', 'Divergência registrada.');
     }
@@ -81,7 +81,7 @@ class CardController extends Controller
         ]);
 
         // O broadcast é a notificação: a tela do pré-lote atualiza na hora
-        event(new NotaAtualizada());
+        event(new NotaAtualizada($nota));
 
         return back()->with('sucesso', 'Card corrigido.');
     }
@@ -104,7 +104,7 @@ class CardController extends Controller
             'resolvido_em'  => now(),
         ]);
 
-        event(new NotaAtualizada());
+        event(new NotaAtualizada($nota));
 
         return back()->with('sucesso', 'Card resolvido.');
     }
@@ -130,7 +130,7 @@ class CardController extends Controller
             'reaberturas'   => $card->reaberturas + 1,
         ]);
 
-        event(new NotaAtualizada());
+        event(new NotaAtualizada($nota));
 
         return back()->with('sucesso', 'Card reaberto.');
     }
@@ -145,7 +145,7 @@ class CardController extends Controller
 
         $card->delete();
 
-        event(new NotaAtualizada());
+        event(new NotaAtualizada($nota));
 
         return back()->with('sucesso', 'Card removido.');
     }

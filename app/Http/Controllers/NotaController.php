@@ -49,7 +49,7 @@ class NotaController extends Controller
             ->whereDate('created_at', '<=', $dataFiltro)
             ->orderBy('created_at', 'asc')
             ->get()
-            ->map(fn($n) => $this->formatNota($n, $dataFiltro));
+            ->map(fn($n) => $n->paraTabela($dataFiltro));
 
         // Contadores antes dos filtros (mantêm o panorama do dia inteiro)
         $resumoAlertas = [
@@ -76,7 +76,7 @@ class NotaController extends Controller
             ->whereDate('liberada_em', $dataFiltro)
             ->orderBy('liberada_em', 'desc')
             ->get()
-            ->map(fn($n) => $this->formatNota($n, $dataFiltro));
+            ->map(fn($n) => $n->paraTabela($dataFiltro));
 
         $fornecedores = Fornecedor::select('id', 'nome')->orderBy('nome')->get();
 
@@ -128,7 +128,7 @@ class NotaController extends Controller
             'observacao'      => 'nullable|string|max:500',
         ]);
 
-        Nota::create([
+        $nota = Nota::create([
             'numero_nota'   => $dados['numero_nota'],
             'fornecedor_id' => $this->resolverFornecedorId($request),
             'loja'          => $dados['loja'],
@@ -137,7 +137,7 @@ class NotaController extends Controller
             'user_id'       => $request->user()->id,
         ]);
 
-        event(new NotaAtualizada());
+        event(new NotaAtualizada($nota));
 
         return back()->with('sucesso', 'Nota lançada.');
     }
@@ -169,7 +169,7 @@ class NotaController extends Controller
 
         $nota->update($dados);
 
-        event(new NotaAtualizada());
+        event(new NotaAtualizada($nota));
 
         return back()->with('sucesso', 'Nota atualizada.');
     }
@@ -195,7 +195,7 @@ class NotaController extends Controller
             'liberada_em'  => now(),
         ]);
 
-        event(new NotaAtualizada());
+        event(new NotaAtualizada($nota));
 
         return back()->with('sucesso', 'Nota liberada.');
     }
@@ -208,7 +208,7 @@ class NotaController extends Controller
 
         $nota->delete();
 
-        event(new NotaAtualizada());
+        event(new NotaAtualizada(removidaId: $nota->id));
 
         return back()->with('sucesso', 'Nota removida.');
     }
@@ -228,34 +228,5 @@ class NotaController extends Controller
         }
 
         return (int) $request->input('fornecedor_id');
-    }
-
-    private function formatNota(Nota $n, string $dataFiltro): array
-    {
-        return [
-            'id'           => $n->id,
-            'numero_nota'  => $n->numero_nota,
-            'fornecedor'   => $n->fornecedor,
-            'user'         => $n->user,
-            'loja'         => $n->loja,
-            'origem'       => $n->origem,
-            'observacao'   => $n->observacao,
-            'status'       => $n->statusCalculado(),
-            'cards'        => $n->cards->map(fn($c) => [
-                'id'            => $c->id,
-                'tipo'          => $c->tipo,
-                'status'        => $c->status,
-                'detalhe'       => $c->detalhe,
-                'reaberturas'   => $c->reaberturas,
-            ])->values(),
-            'liberada_por' => $n->liberadaPor,
-            'liberada_em'  => $n->liberada_em,
-            'comentarios_count' => $n->comentarios_count ?? 0,
-            'created_at'   => $n->created_at,
-            'atrasada'     => $n->isAtrasada($dataFiltro),
-            'dias_aberta'  => $n->diasEmAberto($dataFiltro),
-            'nivel'        => $n->nivelAlerta($dataFiltro),
-            'data_origem'  => $n->created_at->format('d/m'),
-        ];
     }
 }

@@ -424,6 +424,28 @@ class FluxoNotaTest extends TestCase
                 ->where('filtros.status', 'reconferir'));
     }
 
+    // ── Broadcast: o evento carrega a nota (para patch no cliente) ────────────
+
+    public function test_evento_carrega_a_nota_formatada(): void
+    {
+        $nota = $this->nota();
+        $this->cardAberto($nota, 'cadastro');
+
+        $payload = (new \App\Events\NotaAtualizada($nota))->broadcastWith();
+
+        $this->assertArrayHasKey('nota', $payload);
+        $this->assertSame($nota->id, $payload['nota']['id']);
+        $this->assertSame('com_divergencia', $payload['nota']['status']);
+        $this->assertCount(1, $payload['nota']['cards']);
+    }
+
+    public function test_evento_de_remocao_carrega_so_o_id(): void
+    {
+        $payload = (new \App\Events\NotaAtualizada(removidaId: 42))->broadcastWith();
+
+        $this->assertSame(['removida' => 42], $payload);
+    }
+
     // ── Estatísticas continuam só de admin ────────────────────────────────────
 
     public function test_estatisticas_somente_admin(): void

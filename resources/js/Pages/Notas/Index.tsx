@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 import { Head, router, usePage } from '@inertiajs/react';
 import { format, parseISO, addDays, subDays } from 'date-fns';
@@ -385,14 +385,6 @@ export default function Index({ recebimento, preLote, liberadas, fornecedores, d
     const p = isDark ? DARK : LIGHT;
     const { can, user } = usePage().props.auth;
 
-    useEffect(() => {
-        window.Echo.private('notas').listen('.NotaAtualizada', () => {
-            router.reload({ only: ['recebimento', 'preLote', 'liberadas', 'resumoAlertas', 'totalReconferir'] });
-            setEchoTick(t => t + 1);
-        });
-        return () => { window.Echo.leave('notas'); };
-    }, []);
-
     const [modalNova, setModalNova] = useState(false);
     const [modalEditar, setModalEditar] = useState<Nota | null>(null);
     const [cardsId, setCardsId] = useState<number | null>(null);
@@ -403,10 +395,80 @@ export default function Index({ recebimento, preLote, liberadas, fornecedores, d
     const [buscaLocal, setBuscaLocal] = useState(filtros.busca ?? '');
     const [lojaLocal, setLojaLocal] = useState(filtros.loja ? String(filtros.loja) : '');
 
+    // Listas em estado local — permitem atualizar só a linha que mudou (via evento),
+    // em vez de todo cliente recarregar a fila inteira a cada mudança.
+    const [recebimentoL, setRecebimentoL] = useState(recebimento);
+    const [preLoteL, setPreLoteL] = useState(preLote);
+    const [liberadasL, setLiberadasL] = useState(liberadas);
+    useEffect(() => setRecebimentoL(recebimento), [recebimento]);
+    useEffect(() => setPreLoteL(preLote), [preLote]);
+    useEffect(() => setLiberadasL(liberadas), [liberadas]);
+
     const isHoje = dataFiltro === hoje();
-    const todas = [...recebimento, ...preLote, ...liberadas];
-    // O modal de cards deriva das props a cada render — reflete o realtime na hora
+    // Visão "simples" (hoje, sem filtros): dá pra atualizar a linha no cliente com segurança
+    const visaoSimples = isHoje && !filtros.busca && !filtros.loja && !filtros.nivel && !filtros.status;
+    const visaoSimplesRef = useRef(visaoSimples);
+    visaoSimplesRef.current = visaoSimples;
+
+    // Reload de segurança (debounced) para os casos que não dá pra patchar no cliente
+    const reloadTimer = useRef<ReturnType<typeof setTimeout>>();
+    const reloadDebounced = () => {
+        clearTimeout(reloadTimer.current);
+        reloadTimer.current = setTimeout(() => {
+            router.reload({ only: ['recebimento', 'preLote', 'liberadas', 'resumoAlertas', 'totalReconferir'] });
+        }, 400);
+    };
+
+    // Reposiciona a nota que mudou na lista certa (ou remove) mantendo a ordem
+    const patch = (e: { nota?: Nota; removida?: number }) => {
+        if (e.removida) {
+            const id = e.removida;
+            setRecebimentoL(l => l.filter(n => n.id !== id));
+            setPreLoteL(l => l.filter(n => n.id !== id));
+            setLiberadasL(l => l.filter(n => n.id !== id));
+            return;
+        }
+        const nota = e.nota;
+        if (!nota) return;
+        const naFila = nota.status !== 'liberada';
+        // Liberadas mostra só as do dia; evita puxar p/ hoje uma nota liberada em dia passado
+        const liberadaHoje = !naFila && (nota.liberada_em ?? '').slice(0, 10) === hoje();
+        const sem = (l: Nota[]) => l.filter(n => n.id !== nota.id);
+        const asc = (l: Nota[]) => [...l].sort((a, b) => a.created_at.localeCompare(b.created_at));
+        const desc = (l: Nota[]) => [...l].sort((a, b) => (b.liberada_em ?? '').localeCompare(a.liberada_em ?? ''));
+        setRecebimentoL(l => naFila && nota.origem === 'recebimento' ? asc([...sem(l), nota]) : sem(l));
+        setPreLoteL(l => naFila && nota.origem === 'pre_lote' ? asc([...sem(l), nota]) : sem(l));
+        setLiberadasL(l => liberadaHoje ? desc([...sem(l), nota]) : sem(l));
+    };
+
+    useEffect(() => {
+        window.Echo.private('notas').listen('.NotaAtualizada', (e: { nota?: Nota; removida?: number }) => {
+            setEchoTick(t => t + 1); // recarrega a thread aberta de comentários
+            if (visaoSimplesRef.current && (e?.nota || e?.removida)) {
+                patch(e);            // atualiza só a linha
+            } else {
+                reloadDebounced();   // casos estruturais/filtrados: reload leve
+            }
+        });
+        return () => { window.Echo.leave('notas'); clearTimeout(reloadTimer.current); };
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
+
+    const todas = [...recebimentoL, ...preLoteL, ...liberadasL];
+    // O modal de cards deriva das listas locais — reflete o realtime na hora
     const notaCards = cardsId ? todas.find(n => n.id === cardsId) ?? null : null;
+
+    // Contadores: na visão simples derivam das listas locais (refletem os patches);
+    // com filtros ativos, vêm do servidor (as listas estão filtradas)
+    const filaLocal = [...recebimentoL, ...preLoteL];
+    const resumoEfetivo = visaoSimples ? {
+        critico: filaLocal.filter(n => n.nivel === 'critico').length,
+        alerta:  filaLocal.filter(n => n.nivel === 'alerta').length,
+        atencao: filaLocal.filter(n => n.nivel === 'atencao').length,
+    } : resumoAlertas;
+    const totalReconferirEfetivo = visaoSimples
+        ? filaLocal.filter(n => n.status === 'reconferir').length
+        : totalReconferir;
 
     const paramsAtuais = () => ({
         data: dataFiltro,
@@ -466,8 +528,8 @@ export default function Index({ recebimento, preLote, liberadas, fornecedores, d
         alerta: `${sla.alerta}–${sla.critico - 1} dias`,
         atencao: `${sla.atencao}–${sla.alerta - 1} dias`,
     };
-    const temAlertas = resumoAlertas.critico + resumoAlertas.alerta + resumoAlertas.atencao > 0;
-    const temFiltros = temAlertas || totalReconferir > 0;
+    const temAlertas = resumoEfetivo.critico + resumoEfetivo.alerta + resumoEfetivo.atencao > 0;
+    const temFiltros = temAlertas || totalReconferirEfetivo > 0;
     const filtrandoReconferir = filtros.status === 'reconferir';
 
     const COLS_FILA = ['Nota', 'Fornecedor', 'Divergências', 'Loja', 'Observação', 'Lançado', ''];
@@ -607,7 +669,7 @@ export default function Index({ recebimento, preLote, liberadas, fornecedores, d
                 {temFiltros && (
                     <div className="flex flex-wrap items-center gap-2">
                         {(['critico', 'alerta', 'atencao'] as const).map(n => {
-                            const qtd = resumoAlertas[n];
+                            const qtd = resumoEfetivo[n];
                             if (!qtd) return null;
                             const cor = nivelCor(n, p);
                             const ativo = filtros.nivel === n;
@@ -628,7 +690,7 @@ export default function Index({ recebimento, preLote, liberadas, fornecedores, d
                         })}
 
                         {/* Reconferir: tudo corrigido, esperando o pré-lote conferir e liberar */}
-                        {totalReconferir > 0 && (
+                        {totalReconferirEfetivo > 0 && (
                             <button onClick={() => filtrarStatus(filtrandoReconferir ? null : 'reconferir')}
                                 title={filtrandoReconferir ? 'Remover filtro' : 'Ver só as prontas p/ liberar'}
                                 className="flex items-center gap-1.5 text-sm px-3 py-1.5 rounded-lg transition"
@@ -637,7 +699,7 @@ export default function Index({ recebimento, preLote, liberadas, fornecedores, d
                                     border: `1px solid ${p.AMBER}${filtrandoReconferir ? 'aa' : '44'}`,
                                     color: p.AMBER,
                                 }}>
-                                <strong>{totalReconferir}</strong>
+                                <strong>{totalReconferirEfetivo}</strong>
                                 <span>reconferir</span>
                                 <span className="text-xs" style={{ opacity: 0.75 }}>(pronta p/ liberar)</span>
                             </button>
@@ -653,8 +715,8 @@ export default function Index({ recebimento, preLote, liberadas, fornecedores, d
                 )}
 
                 {/* ── Filas ───────────────────────────────────────────────────── */}
-                {secaoFila('Recebimento', 'caminhão na porta — prioridade', recebimento, p.RED)}
-                {secaoFila('Pré-lote', 'notas antecipadas', preLote, p.ACCENT)}
+                {secaoFila('Recebimento', 'caminhão na porta — prioridade', recebimentoL, p.RED)}
+                {secaoFila('Pré-lote', 'notas antecipadas', preLoteL, p.ACCENT)}
 
                 {/* ── Liberadas ───────────────────────────────────────────────── */}
                 <div className="rounded-xl overflow-hidden" style={{ background: p.SURFACE, border: `1px solid ${p.BORDER}` }}>
@@ -663,7 +725,7 @@ export default function Index({ recebimento, preLote, liberadas, fornecedores, d
                             Liberadas neste dia
                             <span className="text-xs font-medium px-2 py-0.5 rounded-full"
                                 style={{ background: p.GREEN + '22', color: p.GREEN, border: `1px solid ${p.GREEN}33` }}>
-                                {liberadas.length}
+                                {liberadasL.length}
                             </span>
                         </h2>
                     </div>
@@ -671,11 +733,11 @@ export default function Index({ recebimento, preLote, liberadas, fornecedores, d
                         <table className="min-w-full">
                             <THead colunas={COLS_LIBERADAS} p={p} />
                             <tbody>
-                                {liberadas.length === 0 ? (
+                                {liberadasL.length === 0 ? (
                                     <tr><td colSpan={6} className="px-4 py-8 text-center text-sm" style={{ color: p.MUTED }}>
                                         Nenhuma nota liberada neste dia.
                                     </td></tr>
-                                ) : liberadas.map(n => (
+                                ) : liberadasL.map(n => (
                                     <tr key={n.id} className="opacity-80 group" style={{ borderBottom: `1px solid ${p.BORDER}` }}>
                                         <td className="px-4 py-3 text-sm line-through" style={{ color: p.TEXT }}>{n.numero_nota}</td>
                                         <td className="px-4 py-3 text-sm max-w-[180px] truncate" style={{ color: p.TEXT }}>{n.fornecedor.nome}</td>

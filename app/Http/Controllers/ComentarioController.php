@@ -38,7 +38,7 @@ class ComentarioController extends Controller
             'texto'   => $dados['texto'],
         ]);
 
-        event(new NotaAtualizada());
+        event(new NotaAtualizada($nota));
 
         return response()->json([
             'timeline' => $this->timeline($nota->fresh(), $request->user()),
@@ -62,7 +62,7 @@ class ComentarioController extends Controller
 
         $comentario->delete();
 
-        event(new NotaAtualizada());
+        event(new NotaAtualizada($nota));
 
         return response()->json([
             'timeline' => $this->timeline($nota->fresh(), $request->user()),
