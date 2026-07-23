@@ -29,6 +29,7 @@ interface Props {
 interface DadosForm {
     numero_nota: string; fornecedor_id: number | '';
     fornecedor: { id: number | ''; nome: string };
+    fornecedor_novo: boolean; fornecedor_nome: string;
     loja: number | ''; origem: string; observacao: string;
 }
 
@@ -40,6 +41,7 @@ function FormNota({ fornecedores, opcoes, inicial, origemDefault, onSubmit, onCa
     const [form, setForm] = useState<DadosForm>({
         numero_nota: inicial?.numero_nota ?? '', fornecedor_id: inicial?.fornecedor?.id ?? '',
         fornecedor: { id: inicial?.fornecedor?.id ?? '', nome: inicial?.fornecedor?.nome ?? '' },
+        fornecedor_novo: false, fornecedor_nome: '', // checkbox sempre começa desmarcado
         loja: inicial?.loja ?? '', origem: inicial?.origem ?? origemDefault, observacao: inicial?.observacao ?? '',
     });
 
@@ -61,7 +63,13 @@ function FormNota({ fornecedores, opcoes, inicial, origemDefault, onSubmit, onCa
     );
 
     return (
-        <form onSubmit={e => { e.preventDefault(); onSubmit({ numero_nota: form.numero_nota, fornecedor_id: form.fornecedor.id, loja: form.loja, origem: form.origem, observacao: form.observacao }); }}
+        <form onSubmit={e => { e.preventDefault(); onSubmit({
+                numero_nota: form.numero_nota,
+                fornecedor_id: form.fornecedor_novo ? '' : form.fornecedor.id,
+                fornecedor_novo: form.fornecedor_novo,
+                fornecedor_nome: form.fornecedor_novo ? form.fornecedor_nome : '',
+                loja: form.loja, origem: form.origem, observacao: form.observacao,
+            }); }}
             className="space-y-4">
             {campo('Número da nota', true,
                 <input type="text" value={form.numero_nota} onChange={e => set('numero_nota', e.target.value)}
@@ -69,11 +77,31 @@ function FormNota({ fornecedores, opcoes, inicial, origemDefault, onSubmit, onCa
                     className="block w-full rounded-lg text-sm px-3 py-2 outline-none"
                     style={inputStyle(!!erros.numero_nota)} />, erros.numero_nota
             )}
-            {campo('Fornecedor', true,
-                <CampoFornecedor fornecedores={fornecedores} valor={form.fornecedor}
-                    onChange={v => setForm(prev => ({ ...prev, fornecedor: v, fornecedor_id: v.id }))}
-                    erro={erros.fornecedor_id} p={p} />
-            )}
+            <div>
+                <label className="block text-sm font-medium mb-1.5" style={{ color: p.MUTED }}>
+                    Fornecedor<span style={{ color: p.RED }} className="ml-0.5">*</span>
+                </label>
+                {form.fornecedor_novo ? (
+                    <>
+                        <input type="text" value={form.fornecedor_nome} autoComplete="off"
+                            onChange={e => set('fornecedor_nome', e.target.value)}
+                            placeholder="Nome do novo fornecedor"
+                            className="block w-full rounded-lg text-sm px-3 py-2 outline-none"
+                            style={inputStyle(!!erros.fornecedor_nome)} />
+                        {erros.fornecedor_nome && <p className="text-xs mt-1" style={{ color: p.RED }}>{erros.fornecedor_nome}</p>}
+                    </>
+                ) : (
+                    <CampoFornecedor fornecedores={fornecedores} valor={form.fornecedor}
+                        onChange={v => setForm(prev => ({ ...prev, fornecedor: v, fornecedor_id: v.id }))}
+                        erro={erros.fornecedor_id} p={p} />
+                )}
+                <label className="flex items-center gap-2 mt-2 cursor-pointer select-none">
+                    <input type="checkbox" checked={form.fornecedor_novo}
+                        onChange={e => set('fornecedor_novo', e.target.checked)}
+                        style={{ accentColor: p.ACCENT }} />
+                    <span className="text-sm" style={{ color: p.MUTED }}>Fornecedor novo — cadastra ao lançar</span>
+                </label>
+            </div>
             <div className="grid grid-cols-2 gap-3">
                 {campo('Loja', true,
                     <select value={form.loja} onChange={e => set('loja', Number(e.target.value) || '')}

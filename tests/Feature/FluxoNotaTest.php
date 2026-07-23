@@ -79,6 +79,58 @@ class FluxoNotaTest extends TestCase
         ])->assertForbidden();
     }
 
+    // ── Fornecedor novo (checkbox no lançamento) ──────────────────────────────
+
+    public function test_lanca_com_fornecedor_novo_cria_o_fornecedor(): void
+    {
+        $this->assertDatabaseMissing('fornecedores', ['nome' => 'PADARIA NOVA LTDA']);
+
+        $this->actingAs($this->recebimento)->post(route('notas.store'), [
+            'numero_nota'     => '5001',
+            'fornecedor_novo' => true,
+            'fornecedor_nome' => 'Padaria Nova Ltda',
+            'loja'            => 1,
+            'origem'          => 'recebimento',
+        ])->assertRedirect();
+
+        // Fornecedor foi cadastrado (em maiúsculas, padrão do sistema)
+        $forn = Fornecedor::where('nome', 'PADARIA NOVA LTDA')->first();
+        $this->assertNotNull($forn);
+        $this->assertDatabaseHas('notas', ['numero_nota' => '5001', 'fornecedor_id' => $forn->id]);
+    }
+
+    public function test_fornecedor_novo_reaproveita_existente_sem_duplicar(): void
+    {
+        $forn = Fornecedor::create(['nome' => 'JA EXISTE LTDA']);
+
+        // digita o mesmo nome (minúsculas) com "novo" marcado
+        $this->actingAs($this->recebimento)->post(route('notas.store'), [
+            'numero_nota'     => '5002',
+            'fornecedor_novo' => true,
+            'fornecedor_nome' => 'ja existe ltda',
+            'loja'            => 1,
+            'origem'          => 'recebimento',
+        ])->assertRedirect();
+
+        $this->assertSame(1, Fornecedor::where('nome', 'JA EXISTE LTDA')->count());
+        $this->assertDatabaseHas('notas', ['numero_nota' => '5002', 'fornecedor_id' => $forn->id]);
+    }
+
+    public function test_fornecedor_novo_exige_o_nome(): void
+    {
+        $this->actingAs($this->recebimento)
+            ->from(route('notas.index'))
+            ->post(route('notas.store'), [
+                'numero_nota'     => '5003',
+                'fornecedor_novo' => true,
+                'fornecedor_nome' => '',
+                'loja'            => 1,
+                'origem'          => 'recebimento',
+            ])->assertSessionHasErrors('fornecedor_nome');
+
+        $this->assertDatabaseMissing('notas', ['numero_nota' => '5003']);
+    }
+
     // ── Cards: abrir ──────────────────────────────────────────────────────────
 
     public function test_pre_lote_abre_card(): void

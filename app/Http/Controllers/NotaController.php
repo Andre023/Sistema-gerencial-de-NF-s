@@ -114,17 +114,28 @@ class NotaController extends Controller
     {
         Gate::authorize('lancar-nota');
 
+        $novo = $request->boolean('fornecedor_novo');
+        if ($novo) {
+            $request->merge(['fornecedor_id' => null]); // texto livre no lugar do id
+        }
+
         $dados = $request->validate([
-            'numero_nota'   => 'required|string|max:30',
-            'fornecedor_id' => 'required|exists:fornecedores,id',
-            'loja'          => ['required', 'integer', Rule::in(Nota::LOJAS)],
-            'origem'        => ['required', Rule::in(Nota::ORIGENS)],
-            'observacao'    => 'nullable|string|max:500',
+            'numero_nota'     => 'required|string|max:30',
+            'fornecedor_id'   => [Rule::requiredIf(! $novo), 'nullable', 'exists:fornecedores,id'],
+            'fornecedor_nome' => [Rule::requiredIf($novo), 'nullable', 'string', 'max:255'],
+            'loja'            => ['required', 'integer', Rule::in(Nota::LOJAS)],
+            'origem'          => ['required', Rule::in(Nota::ORIGENS)],
+            'observacao'      => 'nullable|string|max:500',
         ]);
 
-        $dados['user_id'] = $request->user()->id;
-
-        Nota::create($dados);
+        Nota::create([
+            'numero_nota'   => $dados['numero_nota'],
+            'fornecedor_id' => $this->resolverFornecedorId($request),
+            'loja'          => $dados['loja'],
+            'origem'        => $dados['origem'],
+            'observacao'    => $dados['observacao'] ?? null,
+            'user_id'       => $request->user()->id,
+        ]);
 
         event(new NotaAtualizada());
 
@@ -137,13 +148,24 @@ class NotaController extends Controller
     {
         Gate::authorize('gerenciar-notas');
 
+        $novo = $request->boolean('fornecedor_novo');
+        if ($novo) {
+            $request->merge(['fornecedor_id' => null]);
+        }
+
         $dados = $request->validate([
-            'numero_nota'   => 'sometimes|string|max:30',
-            'fornecedor_id' => 'sometimes|exists:fornecedores,id',
-            'loja'          => ['sometimes', 'integer', Rule::in(Nota::LOJAS)],
-            'origem'        => ['sometimes', Rule::in(Nota::ORIGENS)],
-            'observacao'    => 'nullable|string|max:500',
+            'numero_nota'     => 'sometimes|string|max:30',
+            'fornecedor_id'   => ['sometimes', 'nullable', 'exists:fornecedores,id'],
+            'fornecedor_nome' => [Rule::requiredIf($novo), 'nullable', 'string', 'max:255'],
+            'loja'            => ['sometimes', 'integer', Rule::in(Nota::LOJAS)],
+            'origem'          => ['sometimes', Rule::in(Nota::ORIGENS)],
+            'observacao'      => 'nullable|string|max:500',
         ]);
+
+        if ($novo) {
+            $dados['fornecedor_id'] = $this->resolverFornecedorId($request);
+        }
+        unset($dados['fornecedor_nome']); // não é coluna da nota
 
         $nota->update($dados);
 
@@ -192,6 +214,21 @@ class NotaController extends Controller
     }
 
     // ─── HELPERS ──────────────────────────────────────────────────────────────
+
+    /**
+     * Id do fornecedor. Com "fornecedor_novo" marcado, cria pelo nome (ou
+     * reaproveita um já existente, sem diferenciar maiúsculas) — assim o
+     * recebimento cadastra na hora, sem reimportar planilha.
+     */
+    private function resolverFornecedorId(Request $request): int
+    {
+        if ($request->boolean('fornecedor_novo')) {
+            $nome = mb_strtoupper(trim((string) $request->input('fornecedor_nome')));
+            return Fornecedor::firstOrCreate(['nome' => $nome])->id;
+        }
+
+        return (int) $request->input('fornecedor_id');
+    }
 
     private function formatNota(Nota $n, string $dataFiltro): array
     {
