@@ -1,0 +1,297 @@
+<?php
+
+namespace App\Services;
+
+use App\Events\NotificacoesAtualizadas;
+use App\Models\Card;
+use App\Models\Nota;
+use App\Models\Notificacao;
+use App\Models\User;
+use Illuminate\Support\Collection;
+
+/**
+ * Quem é avisado do quê. O ciclo do card já sabe o destinatário de cada salto —
+ * aqui só traduzimos isso em notificação:
+ *
+ *   pré-lote abre card   → compras            (users com papel compras)
+ *   compras corrige      → quem abriu o card  (cards.aberto_por)
+ *   pré-lote reabre      → compras de novo
+ *   pré-lote libera      → quem lançou a nota (notas.user_id)
+ *
+ * Três regras valem para todos os saltos:
+ *
+ *   1. Uma notificação viva por nota, não uma por card. Abrir a segunda
+ *      divergência acumula na mesma linha ("CUSTO, CADASTRO") em vez de
+ *      disparar um segundo aviso. Sem fila/worker no meio: o agrupamento
+ *      acontece na escrita, então nada depende de job atrasado para chegar.
+ *   2. Ninguém é avisado da própria ação.
+ *   3. A notificação morre quando o motivo morre. Se três pessoas de compras
+ *      foram avisadas e uma corrigiu, o aviso some para as outras duas.
+ */
+class Notificador
+{
+    // ─── SALTO 1: pré-lote abriu card → compras ────────────────────────────────
+
+    public static function cardAberto(Nota $nota, User $autor): void
+    {
+        self::sincronizarCompras($nota, $autor, Notificacao::TIPO_DIVERGENCIA);
+    }
+
+    // ─── SALTO 1b: pré-lote reconferiu e continua errado → compras de novo ─────
+
+    public static function cardReaberto(Nota $nota, User $autor): void
+    {
+        // A reconferência aconteceu: o "compras corrigiu" já cumpriu seu papel
+        self::encerrar($nota, [Notificacao::TIPO_CORRIGIDO]);
+
+        self::sincronizarCompras($nota, $autor, Notificacao::TIPO_REABERTO);
+    }
+
+    // ─── SALTO 2: compras corrigiu → quem abriu o card ─────────────────────────
+
+    public static function cardCorrigido(Nota $nota, Card $card, User $autor): void
+    {
+        $nota->load('cards');
+
+        // Some da fila de compras assim que não sobra nada para eles arrumarem
+        self::sincronizarCompras($nota, $autor, Notificacao::TIPO_DIVERGENCIA, semNovoAviso: true);
+
+        $destinatarios = self::quemAbriu($card);
+
+        $tipos = $nota->cards
+            ->filter(fn($c) => $c->status === Card::STATUS_RESOLVIDO && $c->corrigido_em !== null)
+            ->pluck('tipo');
+
+        self::entregar($destinatarios, $nota, Notificacao::TIPO_CORRIGIDO, $tipos, $autor);
+    }
+
+    // ─── Pré-lote resolveu direto (card de regra) ou apagou um aberto por engano ─
+
+    public static function cardResolvido(Nota $nota, User $autor): void
+    {
+        self::sincronizarCompras($nota, $autor, Notificacao::TIPO_DIVERGENCIA, semNovoAviso: true);
+    }
+
+    // ─── SALTO 3: nota liberada → quem lançou ──────────────────────────────────
+
+    public static function notaLiberada(Nota $nota, User $autor): void
+    {
+        // Nota liberada é fim de linha: nada mais na nota pede ação de ninguém
+        self::encerrar($nota, [
+            Notificacao::TIPO_DIVERGENCIA,
+            Notificacao::TIPO_REABERTO,
+            Notificacao::TIPO_CORRIGIDO,
+        ]);
+
+        $quemLancou = $nota->user_id ? User::find($nota->user_id) : null;
+
+        // Nota antecipada é lançada pelo próprio pré-lote, que costuma ser quem
+        // libera — mirar em quem lançou (e não no setor) cobre os dois casos.
+        self::entregar(
+            $quemLancou ? collect([$quemLancou]) : collect(),
+            $nota,
+            Notificacao::TIPO_LIBERADA,
+            collect(),
+            $autor,
+        );
+    }
+
+    // ─── Nota excluída: nada nela pede ação (o soft delete não cascateia) ──────
+
+    public static function notaRemovida(Nota $nota): void
+    {
+        self::encerrar($nota, Notificacao::TIPOS);
+    }
+
+    // ─── Leitura para a tela ───────────────────────────────────────────────────
+
+    /** Payload do sino: contador de pendentes + as últimas da lista. */
+    public static function paraUsuario(User $user): array
+    {
+        $itens = Notificacao::with(['nota:id,numero_nota,fornecedor_id,loja', 'nota.fornecedor:id,nome'])
+            ->where('user_id', $user->id)
+            ->viva()
+            ->orderByDesc('updated_at')
+            ->limit(Notificacao::LIMITE_LISTA)
+            ->get();
+
+        return [
+            'pendentes' => Notificacao::where('user_id', $user->id)->pendentes()->count(),
+            'itens'     => $itens->map(fn($n) => $n->paraTela())->values()->all(),
+            'ativas'    => (bool) $user->notificacoes_ativas,
+        ];
+    }
+
+    // ─── Motor ─────────────────────────────────────────────────────────────────
+
+    /**
+     * Recalcula o aviso de compras a partir do estado atual da nota. Se não há
+     * card aberto que seja de compras, encerra o que estiver vivo — é assim que
+     * o aviso some da tela dos outros compradores quando um deles corrige.
+     *
+     * @param bool $semNovoAviso a ação foi de resolução — atualiza ou encerra o
+     *                           que existe, mas não cria aviso nem pisca de novo
+     */
+    private static function sincronizarCompras(
+        Nota $nota,
+        User $autor,
+        string $tipo,
+        bool $semNovoAviso = false,
+    ): void {
+        $nota->load('cards');
+
+        // Card de "regra" é o pré-lote que resolve — avisar compras dele só
+        // ensina o comprador a ignorar o sino.
+        $tipos = $nota->cards
+            ->filter(fn($c) => $c->status === Card::STATUS_ABERTO)
+            ->filter(fn($c) => in_array($c->tipo, Card::TIPOS_COMPRAS, true))
+            ->pluck('tipo');
+
+        if ($tipos->isEmpty()) {
+            self::encerrar($nota, [Notificacao::TIPO_DIVERGENCIA, Notificacao::TIPO_REABERTO]);
+            return;
+        }
+
+        // Sobrou divergência, mas uma foi embora: o aviso de quem ainda não leu
+        // precisa parar de citar o que já foi corrigido.
+        if ($semNovoAviso) {
+            self::reduzirTipos($nota, $tipos);
+            return;
+        }
+
+        $compras = User::where('role', User::ROLE_COMPRAS)->get();
+
+        self::entregar($compras, $nota, $tipo, $tipos, $autor);
+    }
+
+    /**
+     * Reescreve a lista de tipos dos avisos vivos de compras sem mexer no
+     * lida_em — perder um item da lista não é notícia nova, não deve piscar.
+     *
+     * @param Collection<int,string> $tipos
+     */
+    private static function reduzirTipos(Nota $nota, Collection $tipos): void
+    {
+        $vivas = Notificacao::where('nota_id', $nota->id)
+            ->whereIn('tipo', [Notificacao::TIPO_DIVERGENCIA, Notificacao::TIPO_REABERTO])
+            ->viva()
+            ->get();
+
+        foreach ($vivas as $aviso) {
+            $aviso->update([
+                'dados' => [...$aviso->dados, 'tipos' => $tipos->unique()->sort()->values()->all()],
+            ]);
+        }
+
+        self::atualizarTelas($vivas->pluck('user_id')->all());
+    }
+
+    /**
+     * Cria ou atualiza o aviso de cada destinatário. Atualizar em vez de criar é
+     * o que mantém "uma notificação por nota"; zerar lida_em faz ela voltar a
+     * pesar no sino quando entra divergência nova numa nota já avisada.
+     *
+     * @param Collection<int,User> $destinatarios
+     * @param Collection<int,string> $tipos tipos de card citados no aviso
+     */
+    private static function entregar(
+        Collection $destinatarios,
+        Nota $nota,
+        string $tipo,
+        Collection $tipos,
+        User $autor,
+    ): void {
+        $dados = [
+            'tipos' => $tipos->unique()->sort()->values()->all(),
+            'autor' => $autor->name,
+        ];
+
+        // Família "compras precisa agir": divergência e reabertura compartilham a
+        // mesma linha, senão o comprador vê dois avisos da mesma nota.
+        $familia = in_array($tipo, [Notificacao::TIPO_DIVERGENCIA, Notificacao::TIPO_REABERTO], true)
+            ? [Notificacao::TIPO_DIVERGENCIA, Notificacao::TIPO_REABERTO]
+            : [$tipo];
+
+        $afetados = [];
+
+        foreach ($destinatarios as $destinatario) {
+            // Ninguém precisa de aviso do que acabou de fazer
+            if ($destinatario->id === $autor->id) {
+                continue;
+            }
+
+            if (! $destinatario->notificacoes_ativas) {
+                continue;
+            }
+
+            $viva = Notificacao::where('user_id', $destinatario->id)
+                ->where('nota_id', $nota->id)
+                ->whereIn('tipo', $familia)
+                ->viva()
+                ->first();
+
+            if ($viva) {
+                $viva->update(['tipo' => $tipo, 'dados' => $dados, 'lida_em' => null]);
+            } else {
+                Notificacao::create([
+                    'user_id' => $destinatario->id,
+                    'nota_id' => $nota->id,
+                    'tipo'    => $tipo,
+                    'dados'   => $dados,
+                ]);
+            }
+
+            $afetados[] = $destinatario->id;
+        }
+
+        self::atualizarTelas($afetados);
+    }
+
+    /** Marca como encerradas as vivas da nota nos tipos dados (o motivo sumiu). */
+    private static function encerrar(Nota $nota, array $tipos): void
+    {
+        $alvos = Notificacao::where('nota_id', $nota->id)
+            ->whereIn('tipo', $tipos)
+            ->viva()
+            ->get();
+
+        if ($alvos->isEmpty()) {
+            return;
+        }
+
+        Notificacao::whereIn('id', $alvos->pluck('id'))->update(['encerrada_em' => now()]);
+
+        self::atualizarTelas($alvos->pluck('user_id')->all());
+    }
+
+    /** Empurra o novo estado do sino para os navegadores dos envolvidos. */
+    private static function atualizarTelas(array $userIds): void
+    {
+        foreach (array_unique($userIds) as $id) {
+            $user = User::find($id);
+
+            if ($user) {
+                event(new NotificacoesAtualizadas($user));
+            }
+        }
+    }
+
+    /**
+     * Quem abriu o card. Se a conta foi removida (aberto_por vira null), o aviso
+     * vai para o pré-lote inteiro em vez de se perder.
+     *
+     * @return Collection<int,User>
+     */
+    private static function quemAbriu(Card $card): Collection
+    {
+        if ($card->aberto_por) {
+            $autor = User::find($card->aberto_por);
+
+            if ($autor) {
+                return collect([$autor]);
+            }
+        }
+
+        return User::where('role', User::ROLE_PRE_LOTE)->get();
+    }
+}

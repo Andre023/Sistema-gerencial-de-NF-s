@@ -41,6 +41,21 @@ class ProfileController extends Controller
     }
 
     /**
+     * Liga/desliga o sino. Só vale daqui para frente: os avisos que já chegaram
+     * continuam na lista, senão desligar apagaria pendência real sem querer.
+     */
+    public function notificacoes(Request $request): RedirectResponse
+    {
+        $dados = $request->validate([
+            'notificacoes_ativas' => ['required', 'boolean'],
+        ]);
+
+        $request->user()->update($dados);
+
+        return Redirect::route('profile.edit');
+    }
+
+    /**
      * Delete the user's account.
      */
     public function destroy(Request $request): RedirectResponse

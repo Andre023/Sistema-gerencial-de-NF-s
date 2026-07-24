@@ -14,3 +14,8 @@ Broadcast::channel('presenca.sistema', function (User $user) {
 Broadcast::channel('notas', function ($user) {
     return true;
 });
+
+// Sino: cada um só escuta o próprio canal
+Broadcast::channel('usuario.{id}', function (User $user, int $id) {
+    return $user->id === $id;
+});

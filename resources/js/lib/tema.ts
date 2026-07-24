@@ -76,6 +76,27 @@ export const STATUS_NOTA_LABEL: Record<string, string> = {
     liberada: 'Liberada',
 };
 
+// ─── Sino (tipos vêm do backend — Notificacao::TIPOS) ──────────────────────────
+
+/** O que a notificação está pedindo de quem recebeu. */
+export const NOTIFICACAO_LABEL: Record<string, string> = {
+    divergencia: 'Divergência para corrigir',
+    reaberto: 'Reaberta — continua errada',
+    corrigido: 'Compras corrigiu — reconferir',
+    liberada: 'Nota liberada',
+};
+
+/** Cor da barra lateral do aviso: vermelho pede ação, verde é conclusão. */
+export function notificacaoCor(tipo: string, p: Palette): string {
+    switch (tipo) {
+        case 'divergencia': return p.AMBER;
+        case 'reaberto':    return p.RED;
+        case 'corrigido':   return p.ACCENT;
+        case 'liberada':    return p.GREEN;
+        default:            return p.MUTED;
+    }
+}
+
 export const PAPEL_LABEL: Record<string, string> = {
     recebimento: 'Recebimento',
     pre_lote: 'Pré-lote',

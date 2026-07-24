@@ -3,6 +3,7 @@ import Dropdown from '@/Components/Dropdown';
 import NavLink from '@/Components/NavLink';
 import ResponsiveNavLink from '@/Components/ResponsiveNavLink';
 import OnlineSidebar from '@/Components/OnlineSidebar';
+import SinoNotificacoes from '@/Components/painel/SinoNotificacoes';
 import { Link, usePage } from '@inertiajs/react';
 import { PropsWithChildren, ReactNode, useState, useEffect } from 'react';
 import { User, Permissoes } from '@/types';
@@ -89,8 +90,10 @@ export default function AuthenticatedLayout({
                             </div>
                         </div>
 
-                        {/* Direita: toggle + usuário */}
+                        {/* Direita: sino + toggle + usuário */}
                         <div className="hidden sm:flex items-center gap-3">
+
+                            <SinoNotificacoes userId={user.id} />
 
                             {/* Botão Dark/Light */}
                             <button
@@ -137,6 +140,7 @@ export default function AuthenticatedLayout({
 
                         {/* Mobile menu button */}
                         <div className="sm:hidden flex items-center gap-2">
+                            <SinoNotificacoes userId={user.id} />
                             <button
                                 onClick={toggleTheme}
                                 className={`flex items-center justify-center w-8 h-8 rounded-lg transition ${isDark ? 'bg-[#21262d] text-yellow-400' : 'bg-gray-100 text-gray-600'}`}

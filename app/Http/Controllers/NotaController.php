@@ -6,6 +6,7 @@ use App\Events\NotaAtualizada;
 use App\Models\Card;
 use App\Models\Fornecedor;
 use App\Models\Nota;
+use App\Services\Notificador;
 use Carbon\Carbon;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -196,6 +197,7 @@ class NotaController extends Controller
         ]);
 
         event(new NotaAtualizada($nota));
+        Notificador::notaLiberada($nota, $request->user());
 
         return back()->with('sucesso', 'Nota liberada.');
     }
@@ -205,6 +207,8 @@ class NotaController extends Controller
     public function destroy(Request $request, Nota $nota): RedirectResponse
     {
         Gate::authorize('gerenciar-notas');
+
+        Notificador::notaRemovida($nota);
 
         $nota->delete();
 

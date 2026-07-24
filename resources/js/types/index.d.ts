@@ -7,6 +7,7 @@ export interface User {
     name: string;
     email: string;
     role: Papel;
+    notificacoes_ativas?: boolean;
     email_verified_at?: string;
 }
 
@@ -86,7 +87,36 @@ export interface OpcoesSistema {
     sla?: { atencao: number; alerta: number; critico: number };
 }
 
+// ─── Sino ────────────────────────────────────────────────────────────────────
+
+export type TipoNotificacao = 'divergencia' | 'corrigido' | 'reaberto' | 'liberada';
+
+export interface Notificacao {
+    id: number;
+    tipo: TipoNotificacao;
+    nota_id: number;
+    numero_nota: string | null;
+    fornecedor: string | null;
+    loja: number | null;
+    /** Tipos de card citados no aviso ("CUSTO, CADASTRO") */
+    tipos: TipoCard[];
+    /** Quem fez a ação que gerou o aviso */
+    autor: string | null;
+    lida: boolean;
+    encerrada: boolean;
+    created_at: string;
+    updated_at: string;
+}
+
+/** Estado do sino — vem nos props compartilhados e pelo canal privado do usuário */
+export interface EstadoSino {
+    pendentes: number;
+    itens: Notificacao[];
+    ativas: boolean;
+}
+
 export type PageProps<T extends Record<string, unknown> = Record<string, unknown>> = T & {
     auth: { user: User; can: Permissoes };
     flash?: { sucesso?: string; erro?: string };
+    notificacoes?: EstadoSino | null;
 };

@@ -2,6 +2,7 @@
 
 namespace App\Http\Middleware;
 
+use App\Services\Notificador;
 use Illuminate\Http\Request;
 use Inertia\Middleware;
 
@@ -46,6 +47,9 @@ class HandleInertiaRequests extends Middleware
                     'gerenciarUsuarios' => $user->podeGerenciarUsuarios(),
                 ] : null,
             ],
+            // O sino: estado inicial da lista. Depois disso quem mantém ao vivo
+            // é o evento NotificacoesAtualizadas no canal privado do usuário.
+            'notificacoes' => $user ? Notificador::paraUsuario($user) : null,
         ];
     }
 }

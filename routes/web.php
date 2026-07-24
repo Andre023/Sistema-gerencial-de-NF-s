@@ -5,6 +5,7 @@ use App\Http\Controllers\ComentarioController;
 use App\Http\Controllers\EstatisticaController;
 use App\Http\Controllers\FornecedorController;
 use App\Http\Controllers\NotaController;
+use App\Http\Controllers\NotificacaoController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\UserController;
 use Illuminate\Foundation\Application;
@@ -33,6 +34,14 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('/profile',    [ProfileController::class, 'edit'])->name('profile.edit');
     Route::patch('/profile',  [ProfileController::class, 'update'])->name('profile.update');
     Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');
+    Route::patch('/profile/notificacoes', [ProfileController::class, 'notificacoes'])
+         ->name('profile.notificacoes');
+
+    // ── Sino ───────────────────────────────────────────────────────────────────
+    Route::prefix('notificacoes')->name('notificacoes.')->group(function () {
+        Route::post('/{notificacao}/abrir', [NotificacaoController::class, 'abrir'])->name('abrir');
+        Route::post('/ler-todas',           [NotificacaoController::class, 'lerTodas'])->name('lerTodas');
+    });
 
     // ── Notas (a fila do dia) ──────────────────────────────────────────────────
     Route::prefix('notas')->name('notas.')->group(function () {

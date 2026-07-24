@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Events\NotaAtualizada;
 use App\Models\Card;
 use App\Models\Nota;
+use App\Services\Notificador;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
@@ -51,6 +52,7 @@ class CardController extends Controller
         ]);
 
         event(new NotaAtualizada($nota));
+        Notificador::cardAberto($nota, $request->user());
 
         return back()->with('sucesso', 'Divergência registrada.');
     }
@@ -80,8 +82,10 @@ class CardController extends Controller
             'corrigido_em'  => now(),
         ]);
 
-        // O broadcast é a notificação: a tela do pré-lote atualiza na hora
+        // O broadcast atualiza a fila de quem está com a tela aberta; a
+        // notificação é o que alcança quem não está olhando agora.
         event(new NotaAtualizada($nota));
+        Notificador::cardCorrigido($nota, $card, $request->user());
 
         return back()->with('sucesso', 'Card corrigido.');
     }
@@ -105,6 +109,7 @@ class CardController extends Controller
         ]);
 
         event(new NotaAtualizada($nota));
+        Notificador::cardResolvido($nota, $request->user());
 
         return back()->with('sucesso', 'Card resolvido.');
     }
@@ -131,6 +136,7 @@ class CardController extends Controller
         ]);
 
         event(new NotaAtualizada($nota));
+        Notificador::cardReaberto($nota, $request->user());
 
         return back()->with('sucesso', 'Card reaberto.');
     }
@@ -146,6 +152,8 @@ class CardController extends Controller
         $card->delete();
 
         event(new NotaAtualizada($nota));
+        // Card aberto por engano: se era o único de compras, o aviso deles some
+        Notificador::cardResolvido($nota, $request->user());
 
         return back()->with('sucesso', 'Card removido.');
     }
