@@ -29,7 +29,7 @@ export interface Fornecedor {
     cnpj?: string | null;
 }
 
-export type TipoCard = 'cadastro' | 'regra' | 'custo' | 'quantidade';
+export type TipoCard = 'cadastro' | 'regra' | 'custo' | 'quantidade' | 'sem_pedido';
 export type StatusCard = 'aberto' | 'resolvido';
 
 export interface Card {

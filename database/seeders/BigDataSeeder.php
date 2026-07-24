@@ -25,10 +25,11 @@ class BigDataSeeder extends Seeder
 
     // Peso por tipo de divergência (cadastro é o campeão no fluxo real)
     const PESO_TIPO = [
-        'cadastro'   => 40,
-        'custo'      => 25,
-        'regra'      => 20,
-        'quantidade' => 15,
+        'cadastro'   => 38,
+        'custo'      => 24,
+        'regra'      => 18,
+        'quantidade' => 12,
+        'sem_pedido' => 8,
     ];
 
     const PESO_LOJA = [1 => 25, 2 => 20, 3 => 18, 9 => 15, 11 => 12, 12 => 10];
@@ -309,6 +310,7 @@ class BigDataSeeder extends Seeder
             'regra'      => ['Regra fiscal divergente', 'NCM incorreto na nota', 'CFOP não confere'],
             'custo'      => ['Custo diferente do negociado', 'Preço tabela desatualizado', 'Desconto não aplicado'],
             'quantidade' => ['Quantidade da NF difere do pedido', 'Volume a menos na carga', 'Item faltando'],
+            'sem_pedido' => ['Nota chegou sem pedido de compra', 'Pedido não lançado no ERP', 'Sem ordem de compra correspondente'],
         ];
         $lista = $detalhes[$tipo];
         return $lista[array_rand($lista)];

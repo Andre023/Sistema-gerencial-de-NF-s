@@ -34,13 +34,15 @@ class Card extends Model
         'reaberturas'  => 'integer',
     ];
 
-    public const TIPOS = ['cadastro', 'regra', 'custo', 'quantidade'];
+    public const TIPOS = ['cadastro', 'regra', 'custo', 'quantidade', 'sem_pedido'];
 
     /**
      * Tipos que o comprador corrige no ERP e marca aqui.
      * "Regra" fica de fora: é o pré-lote que resolve direto quando estiver acertada.
+     * "Sem pedido" (nota chegou sem o pedido de compra) é de compras: quem lança
+     * o pedido no ERP é o setor de compras.
      */
-    public const TIPOS_COMPRAS = ['cadastro', 'custo', 'quantidade'];
+    public const TIPOS_COMPRAS = ['cadastro', 'custo', 'quantidade', 'sem_pedido'];
 
     // Corrigir (compras) já resolve o card — não há estado intermediário.
     public const STATUS_ABERTO    = 'aberto';

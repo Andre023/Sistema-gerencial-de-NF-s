@@ -281,7 +281,7 @@ function ModalCards({ nota, onFechar, can, tiposCompras, isDark, p }: {
 /** Tipos que ainda não têm card ativo nesta nota. */
 function opcoesTipos(nota: Nota): TipoCard[] {
     const ativos = nota.cards.filter(c => c.status !== 'resolvido').map(c => c.tipo);
-    return (['cadastro', 'regra', 'custo', 'quantidade'] as TipoCard[]).filter(t => !ativos.includes(t));
+    return (['cadastro', 'regra', 'custo', 'quantidade', 'sem_pedido'] as TipoCard[]).filter(t => !ativos.includes(t));
 }
 
 // ─── Linha da fila ──────────────────────────────────────────────────────────────

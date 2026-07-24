@@ -106,6 +106,19 @@ class NotificacaoTest extends TestCase
         $this->assertCount(0, $this->pendentesDe($this->compras));
     }
 
+    public function test_card_sem_pedido_avisa_compras(): void
+    {
+        $nota = $this->nota();
+
+        $this->abreCard($nota, 'sem_pedido');
+
+        $aviso = $this->pendentesDe($this->compras)->first();
+
+        $this->assertNotNull($aviso, 'sem pedido é de compras — deveria avisar');
+        $this->assertSame(Notificacao::TIPO_DIVERGENCIA, $aviso->tipo);
+        $this->assertSame(['sem_pedido'], $aviso->dados['tipos']);
+    }
+
     public function test_aviso_lido_volta_a_pesar_quando_entra_divergencia_nova(): void
     {
         $nota = $this->nota();
