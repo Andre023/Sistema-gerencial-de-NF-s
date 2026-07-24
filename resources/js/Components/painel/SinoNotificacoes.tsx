@@ -35,6 +35,52 @@ export default function SinoNotificacoes({ userId }: { userId: number }) {
         return () => { window.Echo.leave(`usuario.${userId}`); };
     }, [userId]);
 
+    // ── Aviso nativo do sistema (card no canto + central de notificações) ──────
+    // Exige HTTPS; o navegador bloqueia a API em HTTP puro.
+    const suportado = typeof window !== 'undefined' && 'Notification' in window;
+    const [permissao, setPermissao] = useState<NotificationPermission>(
+        suportado ? Notification.permission : 'denied'
+    );
+    // null = ainda não sabemos o que já existia (não avisar o histórico no load)
+    const vistos = useRef<Set<number> | null>(null);
+
+    const pedirPermissao = async () => {
+        if (!suportado) return;
+        setPermissao(await Notification.requestPermission());
+    };
+
+    useEffect(() => {
+        const ids = new Set(estado.itens.map(i => i.id));
+
+        // Primeira passada: só memoriza o que já estava lá
+        if (vistos.current === null) { vistos.current = ids; return; }
+
+        const novas = estado.itens.filter(i => !i.lida && !vistos.current!.has(i.id));
+        vistos.current = ids;
+
+        if (!novas.length || !estado.ativas || permissao !== 'granted') return;
+        // Se a pessoa está olhando a tela, o sino já basta — não enche de card
+        if (!document.hidden && document.hasFocus()) return;
+
+        novas.slice(0, 3).forEach(n => {
+            const tipos = n.tipos.length
+                ? n.tipos.map(t => (TIPO_CARD_LABEL[t] ?? t).toUpperCase()).join(', ')
+                : NOTIFICACAO_LABEL[n.tipo];
+
+            const aviso = new Notification(n.fornecedor ?? 'Nota fiscal', {
+                body: `NF ${n.numero_nota}${n.loja != null ? ` · ${lojaNome(n.loja)}` : ''}\n${tipos}`,
+                tag: `nota-${n.id}`, // atualiza o card em vez de empilhar vários
+                icon: '/favicon.ico',
+            });
+
+            aviso.onclick = () => {
+                window.focus();
+                aviso.close();
+                router.post(route('notificacoes.abrir', n.id), {}, { preserveScroll: true });
+            };
+        });
+    }, [estado, permissao]);
+
     // Fecha ao clicar fora
     useEffect(() => {
         if (!aberto) return;
@@ -104,6 +150,31 @@ export default function SinoNotificacoes({ userId }: { userId: number }) {
                             </button>
                         )}
                     </div>
+
+                    {/* Avisos na área de trabalho: o navegador exige autorização do usuário */}
+                    {suportado && permissao === 'default' && (
+                        <button
+                            type="button"
+                            onClick={pedirPermissao}
+                            className="w-full text-left px-4 py-2.5 text-xs leading-snug transition hover:underline"
+                            style={{ background: p.ACCENT + '14', color: p.ACCENT, borderBottom: `1px solid ${p.BORDER}` }}
+                        >
+                            Ativar avisos na área de trabalho
+                            <span className="block text-[11px] opacity-80 no-underline">
+                                Aparecem no canto da tela mesmo com o sistema em outra janela
+                            </span>
+                        </button>
+                    )}
+
+                    {suportado && permissao === 'denied' && (
+                        <p
+                            className="px-4 py-2.5 text-[11px] leading-snug"
+                            style={{ color: p.MUTED, borderBottom: `1px solid ${p.BORDER}` }}
+                        >
+                            Avisos na área de trabalho bloqueados. Para liberar, clique no cadeado
+                            na barra de endereços do navegador e permita as notificações.
+                        </p>
+                    )}
 
                     <div className="max-h-[26rem] overflow-y-auto">
                         {estado.itens.length === 0 ? (
