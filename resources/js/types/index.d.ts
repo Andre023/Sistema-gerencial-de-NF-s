@@ -77,7 +77,12 @@ export interface FiltrosAtivos {
     loja?: number | null;
     nivel?: Nivel | null;
     status?: StatusNota | null;
+    /** Tipo de divergência ainda em aberto (cadastro, custo, ...) */
+    tipo?: TipoCard | null;
 }
+
+/** Quantas notas da fila têm cada tipo de divergência em aberto */
+export type ResumoTipos = Record<TipoCard, number>;
 
 export interface OpcoesSistema {
     lojas: number[];

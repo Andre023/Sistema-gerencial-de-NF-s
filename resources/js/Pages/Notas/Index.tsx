@@ -2,9 +2,9 @@ import React, { useState, useEffect, useRef } from 'react';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 import { Head, router, usePage } from '@inertiajs/react';
 import { format, parseISO, addDays, subDays } from 'date-fns';
-import { Nota, Card, Fornecedor, FiltrosAtivos, OpcoesSistema, Nivel, ResumoAlertas, Permissoes, TipoCard } from '@/types';
+import { Nota, Card, Fornecedor, FiltrosAtivos, OpcoesSistema, Nivel, ResumoAlertas, ResumoTipos, Permissoes, TipoCard } from '@/types';
 import { useTheme } from '@/Contexts/ThemeContext';
-import { DARK, LIGHT, Palette, lojaNome, hoje, nivelCor, NIVEL_LABEL, idadeTexto, TIPO_CARD_LABEL, STATUS_NOTA_LABEL } from '@/lib/tema';
+import { DARK, LIGHT, Palette, lojaNome, hoje, nivelCor, NIVEL_LABEL, idadeTexto, TIPO_CARD_LABEL, STATUS_NOTA_LABEL, CARD_COR_DARK, CARD_COR_LIGHT } from '@/lib/tema';
 import Icone from '@/Components/painel/Icone';
 import Modal from '@/Components/painel/Modal';
 import THead from '@/Components/painel/THead';
@@ -19,6 +19,7 @@ interface Props {
     fornecedores: Fornecedor[];
     dataFiltro: string;
     resumoAlertas: ResumoAlertas;
+    resumoTipos: ResumoTipos;
     totalReconferir: number;
     filtros: FiltrosAtivos;
     opcoes: OpcoesSistema;
@@ -380,7 +381,7 @@ function LinhaFila({ nota, onCards, onComentar, onEditar, onExcluir, onLiberar, 
 
 // ─── Página ─────────────────────────────────────────────────────────────────────
 
-export default function Index({ recebimento, preLote, liberadas, fornecedores, dataFiltro, resumoAlertas, totalReconferir, filtros, opcoes }: Props) {
+export default function Index({ recebimento, preLote, liberadas, fornecedores, dataFiltro, resumoAlertas, resumoTipos, totalReconferir, filtros, opcoes }: Props) {
     const { isDark } = useTheme();
     const p = isDark ? DARK : LIGHT;
     const { can, user } = usePage().props.auth;
@@ -406,7 +407,7 @@ export default function Index({ recebimento, preLote, liberadas, fornecedores, d
 
     const isHoje = dataFiltro === hoje();
     // Visão "simples" (hoje, sem filtros): dá pra atualizar a linha no cliente com segurança
-    const visaoSimples = isHoje && !filtros.busca && !filtros.loja && !filtros.nivel && !filtros.status;
+    const visaoSimples = isHoje && !filtros.busca && !filtros.loja && !filtros.nivel && !filtros.status && !filtros.tipo;
     const visaoSimplesRef = useRef(visaoSimples);
     visaoSimplesRef.current = visaoSimples;
 
@@ -415,7 +416,7 @@ export default function Index({ recebimento, preLote, liberadas, fornecedores, d
     const reloadDebounced = () => {
         clearTimeout(reloadTimer.current);
         reloadTimer.current = setTimeout(() => {
-            router.reload({ only: ['recebimento', 'preLote', 'liberadas', 'resumoAlertas', 'totalReconferir'] });
+            router.reload({ only: ['recebimento', 'preLote', 'liberadas', 'resumoAlertas', 'resumoTipos', 'totalReconferir'] });
         }, 400);
     };
 
@@ -470,12 +471,24 @@ export default function Index({ recebimento, preLote, liberadas, fornecedores, d
         ? filaLocal.filter(n => n.status === 'reconferir').length
         : totalReconferir;
 
+    // Idem para os tipos de divergência: card resolvido não conta, só o que pede ação
+    const temCardAtivo = (n: Nota, tipo: TipoCard) =>
+        n.cards.some(c => c.tipo === tipo && c.status !== 'resolvido');
+
+    const resumoTiposEfetivo: ResumoTipos = visaoSimples
+        ? (opcoes.tipos.reduce((acc, t) => {
+            acc[t] = filaLocal.filter(n => temCardAtivo(n, t)).length;
+            return acc;
+        }, {} as ResumoTipos))
+        : resumoTipos;
+
     const paramsAtuais = () => ({
         data: dataFiltro,
         busca: buscaLocal || undefined,
         loja: lojaLocal || undefined,
         nivel: filtros.nivel || undefined,
         status: filtros.status || undefined,
+        tipo: filtros.tipo || undefined,
     });
 
     const irPara = (extras: Record<string, unknown> = {}) =>
@@ -484,6 +497,7 @@ export default function Index({ recebimento, preLote, liberadas, fornecedores, d
     const mudarData = (d: string) => irPara({ data: d });
     const filtrarNivel = (n: Nivel | null) => irPara({ nivel: n ?? undefined });
     const filtrarStatus = (s: string | null) => irPara({ status: s ?? undefined });
+    const filtrarTipo = (t: TipoCard | null) => irPara({ tipo: t ?? undefined });
     const diaAnterior = () => mudarData(format(subDays(parseISO(dataFiltro), 1), 'yyyy-MM-dd'));
     const diaSeguinte = () => mudarData(format(addDays(parseISO(dataFiltro), 1), 'yyyy-MM-dd'));
     const aplicarFiltros = () => irPara();
@@ -491,7 +505,7 @@ export default function Index({ recebimento, preLote, liberadas, fornecedores, d
         setBuscaLocal(''); setLojaLocal('');
         router.get(route('notas.index'), { data: dataFiltro }, { preserveState: true, replace: true });
     };
-    const filtrosAtivos = !!(filtros.busca || filtros.loja || filtros.nivel || filtros.status);
+    const filtrosAtivos = !!(filtros.busca || filtros.loja || filtros.nivel || filtros.status || filtros.tipo);
 
     const criar = (dados: any) => {
         setSubmetendo(true);
@@ -534,7 +548,8 @@ export default function Index({ recebimento, preLote, liberadas, fornecedores, d
         atencao: `${sla.atencao}–${sla.alerta - 1} dias`,
     };
     const temAlertas = resumoEfetivo.critico + resumoEfetivo.alerta + resumoEfetivo.atencao > 0;
-    const temFiltros = temAlertas || totalReconferirEfetivo > 0;
+    const tiposComPendencia = opcoes.tipos.filter(t => (resumoTiposEfetivo[t] ?? 0) > 0);
+    const temFiltros = temAlertas || totalReconferirEfetivo > 0 || tiposComPendencia.length > 0;
     const filtrandoReconferir = filtros.status === 'reconferir';
 
     const COLS_FILA = ['Nota', 'Fornecedor', 'Divergências', 'Loja', 'Observação', 'Lançado', ''];
@@ -710,8 +725,32 @@ export default function Index({ recebimento, preLote, liberadas, fornecedores, d
                             </button>
                         )}
 
-                        {(filtros.nivel || filtros.status) && (
-                            <button onClick={() => irPara({ nivel: undefined, status: undefined })}
+                        {/* Divergências em aberto: "quais notas estão travadas no custo?" */}
+                        {tiposComPendencia.length > 0 && (
+                            <span className="w-px h-5 mx-0.5" style={{ background: p.BORDER }} />
+                        )}
+
+                        {tiposComPendencia.map(t => {
+                            const cor = (isDark ? CARD_COR_DARK : CARD_COR_LIGHT)[t];
+                            const ativo = filtros.tipo === t;
+                            return (
+                                <button key={t} onClick={() => filtrarTipo(ativo ? null : t)}
+                                    title={ativo ? 'Remover filtro' : `Ver só as notas com divergência de ${(TIPO_CARD_LABEL[t] ?? t).toLowerCase()} em aberto`}
+                                    className="flex items-center gap-1.5 text-sm px-3 py-1.5 rounded-lg transition"
+                                    style={{
+                                        background: ativo ? cor.bg : 'transparent',
+                                        border: `1px solid ${cor.border}`,
+                                        color: cor.text,
+                                        opacity: ativo ? 1 : 0.85,
+                                    }}>
+                                    <strong>{resumoTiposEfetivo[t]}</strong>
+                                    <span>{TIPO_CARD_LABEL[t] ?? t}</span>
+                                </button>
+                            );
+                        })}
+
+                        {(filtros.nivel || filtros.status || filtros.tipo) && (
+                            <button onClick={() => irPara({ nivel: undefined, status: undefined, tipo: undefined })}
                                 className="text-xs flex items-center gap-1" style={{ color: p.MUTED }}>
                                 <Icone path="M6 18L18 6M6 6l12 12" className="w-3 h-3" /> Ver todas
                             </button>

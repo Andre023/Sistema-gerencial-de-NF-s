@@ -27,6 +27,7 @@ class NotaController extends Controller
         $loja   = $request->input('loja');
         $nivel  = $request->input('nivel');
         $status = $request->input('status');
+        $tipo   = $request->input('tipo');
 
         if (! in_array($nivel, Nota::NIVEIS_ALERTA, true)) {
             $nivel = null;
@@ -34,6 +35,9 @@ class NotaController extends Controller
         // Por ora só filtramos pela fase "reconferir" (prontas p/ liberar)
         if ($status !== Nota::STATUS_RECONFERIR) {
             $status = null;
+        }
+        if (! in_array($tipo, Card::TIPOS, true)) {
+            $tipo = null;
         }
 
         $base = Nota::with(['fornecedor:id,nome', 'user:id,name', 'liberadaPor:id,name', 'cards'])
@@ -60,11 +64,19 @@ class NotaController extends Controller
         ];
         $totalReconferir = $fila->where('status', Nota::STATUS_RECONFERIR)->count();
 
+        // Quantas notas da fila têm cada tipo de divergência em aberto
+        $resumoTipos = collect(Card::TIPOS)
+            ->mapWithKeys(fn($t) => [$t => $fila->filter(fn($n) => $this->temCardAtivo($n, $t))->count()])
+            ->all();
+
         if ($nivel) {
             $fila = $fila->where('nivel', $nivel)->values();
         }
         if ($status) {
             $fila = $fila->where('status', $status)->values();
+        }
+        if ($tipo) {
+            $fila = $fila->filter(fn($n) => $this->temCardAtivo($n, $tipo))->values();
         }
 
         // A separação que a antiga tela de Cadastros fazia, agora em seções:
@@ -88,12 +100,14 @@ class NotaController extends Controller
             'fornecedores'  => $fornecedores,
             'dataFiltro'      => $dataFiltro,
             'resumoAlertas'   => $resumoAlertas,
+            'resumoTipos'     => $resumoTipos,
             'totalReconferir' => $totalReconferir,
             'filtros'       => [
                 'busca'  => $busca,
                 'loja'   => $loja,
                 'nivel'  => $nivel,
                 'status' => $status,
+                'tipo'   => $tipo,
             ],
             'opcoes' => [
                 'lojas'        => Nota::LOJAS,
@@ -107,6 +121,21 @@ class NotaController extends Controller
                 ],
             ],
         ]);
+    }
+
+    /**
+     * A nota tem divergência DESTE tipo ainda em aberto?
+     *
+     * O que importa para o filtro é o que ainda pede ação: card já resolvido é
+     * histórico e não deve trazer a nota de volta para a lista de "custo".
+     *
+     * @param  array<string, mixed>  $nota  linha no formato de Nota::paraTabela()
+     */
+    private function temCardAtivo(array $nota, string $tipo): bool
+    {
+        return collect($nota['cards'])->contains(
+            fn($c) => $c['tipo'] === $tipo && $c['status'] !== Card::STATUS_RESOLVIDO
+        );
     }
 
     // ─── STORE ────────────────────────────────────────────────────────────────
