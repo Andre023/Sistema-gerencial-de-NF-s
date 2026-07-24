@@ -4,6 +4,7 @@ import NavLink from '@/Components/NavLink';
 import ResponsiveNavLink from '@/Components/ResponsiveNavLink';
 import OnlineSidebar from '@/Components/OnlineSidebar';
 import SinoNotificacoes from '@/Components/painel/SinoNotificacoes';
+import NotificacoesProvider from '@/Components/painel/NotificacoesProvider';
 import { Link, usePage } from '@inertiajs/react';
 import { PropsWithChildren, ReactNode, useState, useEffect } from 'react';
 import { User, Permissoes } from '@/types';
@@ -60,6 +61,7 @@ export default function AuthenticatedLayout({
     const pageBg    = isDark ? 'bg-[#0d1117]'   : 'bg-gray-100';
 
     return (
+        <NotificacoesProvider userId={user.id}>
         <div className={`min-h-screen flex flex-col transition-colors duration-200 ${pageBg}`}>
 
             {/* ── NAVBAR ── */}
@@ -93,7 +95,7 @@ export default function AuthenticatedLayout({
                         {/* Direita: sino + toggle + usuário */}
                         <div className="hidden sm:flex items-center gap-3">
 
-                            <SinoNotificacoes userId={user.id} />
+                            <SinoNotificacoes />
 
                             {/* Botão Dark/Light */}
                             <button
@@ -140,7 +142,7 @@ export default function AuthenticatedLayout({
 
                         {/* Mobile menu button */}
                         <div className="sm:hidden flex items-center gap-2">
-                            <SinoNotificacoes userId={user.id} />
+                            <SinoNotificacoes />
                             <button
                                 onClick={toggleTheme}
                                 className={`flex items-center justify-center w-8 h-8 rounded-lg transition ${isDark ? 'bg-[#21262d] text-yellow-400' : 'bg-gray-100 text-gray-600'}`}
@@ -217,5 +219,6 @@ export default function AuthenticatedLayout({
                 <OnlineSidebar currentUserId={user.id} />
             </div>
         </div>
+        </NotificacoesProvider>
     );
 }

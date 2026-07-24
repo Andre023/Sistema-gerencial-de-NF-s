@@ -1,105 +1,24 @@
 import { useEffect, useRef, useState } from 'react';
-import { router, usePage } from '@inertiajs/react';
 import { formatDistanceToNowStrict } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import { EstadoSino, Notificacao, PageProps } from '@/types';
-import { NOTIFICACAO_LABEL, TIPO_CARD_LABEL, notificacaoCor, usePaleta, lojaNome } from '@/lib/tema';
+import { Notificacao } from '@/types';
+import { NOTIFICACAO_LABEL, notificacaoCor, usePaleta, lojaNome } from '@/lib/tema';
+import { useNotificacoes, resumoTipos } from './NotificacoesProvider';
 import Icone from './Icone';
 
 const SINO = 'M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9';
 
-const VAZIO: EstadoSino = { pendentes: 0, itens: [], ativas: true };
-
 /**
- * O sino. O estado inicial vem dos props compartilhados; depois disso quem
- * manda é o canal privado do usuário — inclusive para BAIXAR o contador quando
- * outra pessoa resolve o que gerou o aviso.
+ * O sino. É só a vitrine: quem escuta o canal, decide como avisar e guarda o
+ * estado é o NotificacoesProvider — este componente aparece duas vezes na tela
+ * (desktop e mobile) e não pode ter lógica própria.
  */
-export default function SinoNotificacoes({ userId }: { userId: number }) {
+export default function SinoNotificacoes() {
     const { isDark, p } = usePaleta();
-    const { notificacoes } = usePage<PageProps>().props;
+    const { estado, suportado, permissao, pedirPermissao, abrirNota, lerTodas } = useNotificacoes();
 
-    const [estado, setEstado] = useState<EstadoSino>(notificacoes ?? VAZIO);
     const [aberto, setAberto] = useState(false);
     const caixaRef = useRef<HTMLDivElement>(null);
-
-    // Navegação normal do Inertia também traz o estado novo
-    useEffect(() => {
-        if (notificacoes) setEstado(notificacoes);
-    }, [notificacoes]);
-
-    useEffect(() => {
-        window.Echo.private(`usuario.${userId}`)
-            .listen('.NotificacoesAtualizadas', (e: EstadoSino) => setEstado(e));
-
-        return () => { window.Echo.leave(`usuario.${userId}`); };
-    }, [userId]);
-
-    // ── Aviso nativo do sistema (card no canto + central de notificações) ──────
-    // Exige HTTPS; o navegador bloqueia a API em HTTP puro.
-    const suportado = typeof window !== 'undefined' && 'Notification' in window;
-    const [permissao, setPermissao] = useState<NotificationPermission>(
-        suportado ? Notification.permission : 'denied'
-    );
-    // id → updated_at do que já foi avisado. Comparamos o updated_at (e não só o
-    // id) porque existe UMA notificação viva por nota: quando chega outra
-    // divergência, a mesma linha é atualizada — e isso também precisa avisar.
-    // null = ainda não sabemos o que já existia (não avisar o histórico no load)
-    const vistos = useRef<Map<number, string> | null>(null);
-
-    const pedirPermissao = async () => {
-        if (!suportado) return;
-        setPermissao(await Notification.requestPermission());
-    };
-
-    // Pede a permissão logo ao entrar no sistema. Só tenta uma vez por navegador:
-    // se a pessoa dispensar, o botão dentro do sino continua disponível.
-    useEffect(() => {
-        if (!suportado || permissao !== 'default') return;
-        if (localStorage.getItem('nfs_permissao_pedida')) return;
-
-        localStorage.setItem('nfs_permissao_pedida', '1');
-        Notification.requestPermission().then(setPermissao).catch(() => {});
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, []);
-
-    useEffect(() => {
-        const atual = new Map(estado.itens.map(i => [i.id, i.updated_at] as const));
-
-        // Primeira passada: só memoriza o que já estava lá
-        if (vistos.current === null) { vistos.current = atual; return; }
-
-        // Nova OU atualizada (mesma nota que recebeu mais uma divergência)
-        const novas = estado.itens.filter(
-            i => !i.lida && vistos.current!.get(i.id) !== i.updated_at
-        );
-        vistos.current = atual;
-
-        if (!novas.length || !estado.ativas || permissao !== 'granted') return;
-        // Se a pessoa está olhando a tela, o sino já basta — não enche de card
-        if (!document.hidden && document.hasFocus()) return;
-
-        novas.forEach(n => {
-            const tipos = n.tipos.length
-                ? n.tipos.map(t => (TIPO_CARD_LABEL[t] ?? t).toUpperCase()).join(', ')
-                : NOTIFICACAO_LABEL[n.tipo];
-
-            const aviso = new Notification(n.fornecedor ?? 'Nota fiscal', {
-                body: `NF ${n.numero_nota}${n.loja != null ? ` · ${lojaNome(n.loja)}` : ''}\n${tipos}`,
-                // O updated_at entra na tag de propósito: cada atualização vira um
-                // card NOVO (sempre alerta). Só uma reentrega idêntica do mesmo
-                // evento é descartada — que é o que a tag deve evitar.
-                tag: `nota-${n.id}-${n.updated_at}`,
-                icon: '/favicon.ico',
-            });
-
-            aviso.onclick = () => {
-                window.focus();
-                aviso.close();
-                router.post(route('notificacoes.abrir', n.id), {}, { preserveScroll: true });
-            };
-        });
-    }, [estado, permissao]);
 
     // Fecha ao clicar fora
     useEffect(() => {
@@ -115,13 +34,9 @@ export default function SinoNotificacoes({ userId }: { userId: number }) {
         return () => document.removeEventListener('mousedown', fora);
     }, [aberto]);
 
-    const abrirNota = (n: Notificacao) => {
+    const abrir = (n: Notificacao) => {
         setAberto(false);
-        router.post(route('notificacoes.abrir', n.id), {}, { preserveScroll: true });
-    };
-
-    const lerTodas = () => {
-        router.post(route('notificacoes.lerTodas'), {}, { preserveScroll: true, preserveState: true });
+        abrirNota(n);
     };
 
     return (
@@ -204,7 +119,7 @@ export default function SinoNotificacoes({ userId }: { userId: number }) {
                                     : 'Notificações desligadas no seu perfil.'}
                             </p>
                         ) : (
-                            estado.itens.map(n => <Item key={n.id} n={n} onClick={() => abrirNota(n)} />)
+                            estado.itens.map(n => <Item key={n.id} n={n} onClick={() => abrir(n)} />)
                         )}
                     </div>
                 </div>
@@ -251,9 +166,7 @@ function Item({ n, onClick }: { n: Notificacao; onClick: () => void }) {
             </div>
 
             <div className="text-xs font-medium mt-1" style={{ color: cor }}>
-                {n.tipos.length > 0
-                    ? n.tipos.map(t => (TIPO_CARD_LABEL[t] ?? t).toUpperCase()).join(', ')
-                    : NOTIFICACAO_LABEL[n.tipo]}
+                {resumoTipos(n)}
             </div>
 
             {/* Quando há tipos, o rótulo do salto vira a legenda embaixo */}
