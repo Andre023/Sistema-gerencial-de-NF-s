@@ -25,12 +25,15 @@ class Nota extends Model
         'liberada_por',
         'liberada_em',
         'recebida_em',
+        'visualizando_por',
+        'visualizando_em',
     ];
 
     protected $casts = [
-        'loja'        => 'integer',
-        'liberada_em' => 'datetime',
-        'recebida_em' => 'datetime',
+        'loja'            => 'integer',
+        'liberada_em'     => 'datetime',
+        'recebida_em'     => 'datetime',
+        'visualizando_em' => 'datetime',
     ];
 
     public const LOJAS = [1, 2, 3, 9, 11, 12];
@@ -65,6 +68,20 @@ class Nota extends Model
     public function liberadaPor(): BelongsTo
     {
         return $this->belongsTo(User::class, 'liberada_por');
+    }
+
+    /** Quem está "olhando" a nota agora (o 🙋‍♂️). */
+    public function visualizadaPor(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'visualizando_por');
+    }
+
+    /** Solta a reserva (o 🙋‍♂️ some). Chamado quando a pessoa age na nota. */
+    public function limparVisualizacao(): void
+    {
+        if ($this->visualizando_por !== null) {
+            $this->update(['visualizando_por' => null, 'visualizando_em' => null]);
+        }
     }
 
     public function cards(): HasMany
@@ -137,6 +154,10 @@ class Nota extends Model
             'liberada_por' => $this->liberadaPor,
             'liberada_em'  => $this->liberada_em,
             'recebida_em'  => $this->recebida_em,
+            'visualizando_por' => $this->visualizadaPor
+                ? ['id' => $this->visualizadaPor->id, 'name' => $this->visualizadaPor->name]
+                : null,
+            'visualizando_em'  => $this->visualizando_em,
             'comentarios_count' => $this->comentarios_count ?? 0,
             'created_at'   => $this->created_at,
             'atrasada'     => $this->isAtrasada($dataFiltro),

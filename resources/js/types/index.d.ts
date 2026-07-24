@@ -57,6 +57,9 @@ export interface Nota {
     liberada_em: string | null;
     /** Chegada física de uma nota já liberada (o caminhão trouxe depois) */
     recebida_em: string | null;
+    /** Quem está "olhando" a nota agora (o 🙋‍♂️) — null se ninguém reservou */
+    visualizando_por: Pick<User, 'id' | 'name'> | null;
+    visualizando_em: string | null;
     comentarios_count: number;
     created_at: string;
     atrasada: boolean;

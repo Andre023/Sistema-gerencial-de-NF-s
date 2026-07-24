@@ -51,6 +51,7 @@ class CardController extends Controller
             'aberto_por' => $request->user()->id,
         ]);
 
+        $nota->limparVisualizacao(); // agiu na nota → solta o 🙋‍♂️
         event(new NotaAtualizada($nota));
         Notificador::cardAberto($nota, $request->user());
 
@@ -82,6 +83,7 @@ class CardController extends Controller
             'corrigido_em'  => now(),
         ]);
 
+        $nota->limparVisualizacao(); // agiu na nota → solta o 🙋‍♂️
         // O broadcast atualiza a fila de quem está com a tela aberta; a
         // notificação é o que alcança quem não está olhando agora.
         event(new NotaAtualizada($nota));
@@ -108,6 +110,7 @@ class CardController extends Controller
             'resolvido_em'  => now(),
         ]);
 
+        $nota->limparVisualizacao(); // agiu na nota → solta o 🙋‍♂️
         event(new NotaAtualizada($nota));
         Notificador::cardResolvido($nota, $request->user());
 
@@ -135,6 +138,7 @@ class CardController extends Controller
             'reaberturas'   => $card->reaberturas + 1,
         ]);
 
+        $nota->limparVisualizacao(); // agiu na nota → solta o 🙋‍♂️
         event(new NotaAtualizada($nota));
         Notificador::cardReaberto($nota, $request->user());
 
@@ -151,6 +155,7 @@ class CardController extends Controller
 
         $card->delete();
 
+        $nota->limparVisualizacao(); // agiu na nota → solta o 🙋‍♂️
         event(new NotaAtualizada($nota));
         // Card aberto por engano: se era o único de compras, o aviso deles some
         Notificador::cardResolvido($nota, $request->user());

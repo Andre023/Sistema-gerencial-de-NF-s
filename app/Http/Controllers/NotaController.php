@@ -41,7 +41,7 @@ class NotaController extends Controller
             $tipo = null;
         }
 
-        $base = Nota::with(['fornecedor:id,nome', 'user:id,name', 'liberadaPor:id,name', 'cards'])
+        $base = Nota::with(['fornecedor:id,nome', 'user:id,name', 'liberadaPor:id,name', 'visualizadaPor:id,name', 'cards'])
             ->withCount('comentarios')
             ->when($loja, fn($q) => $q->where('loja', $loja))
             ->when($busca, fn($q) => $q->where(function ($q) use ($busca) {
@@ -296,12 +296,57 @@ class NotaController extends Controller
         $nota->update([
             'liberada_por' => $request->user()->id,
             'liberada_em'  => now(),
+            // Liberou: a nota sai da fila e a reserva (🙋‍♂️) já não faz sentido
+            'visualizando_por' => null,
+            'visualizando_em'  => null,
         ]);
 
         event(new NotaAtualizada($nota));
         Notificador::notaLiberada($nota, $request->user());
 
         return back()->with('sucesso', 'Nota liberada.');
+    }
+
+    // ─── VISUALIZAR (o 🙋‍♂️: "estou olhando esta nota") ───────────────────────
+    //
+    // Reserva soft: sinaliza que alguém já está na nota, para dois não pegarem
+    // a mesma ao mesmo tempo. Um único dono por vez (o primeiro a clicar);
+    // clicar de novo (sendo o dono) solta. Quem clica numa nota já reservada
+    // por outra pessoa só recebe o aviso de quem está nela.
+
+    public function visualizar(Request $request, Nota $nota): RedirectResponse
+    {
+        $eu = $request->user();
+
+        if ($nota->visualizando_por === null) {
+            // Reivindica de forma atômica: só grava se ainda estiver livre —
+            // se dois clicam ao mesmo tempo, só o primeiro leva.
+            $reservou = Nota::whereKey($nota->id)
+                ->whereNull('visualizando_por')
+                ->update(['visualizando_por' => $eu->id, 'visualizando_em' => now()]);
+
+            if (! $reservou) {
+                return back()->with('erro', $this->quemOlha($nota->fresh()) . ' está olhando esta nota.');
+            }
+        } elseif ($nota->visualizando_por === $eu->id) {
+            // É minha reserva → solta
+            $nota->update(['visualizando_por' => null, 'visualizando_em' => null]);
+        } else {
+            // De outra pessoa → só avisa, não mexe na reserva dela
+            return back()->with('erro', $this->quemOlha($nota) . ' está olhando esta nota.');
+        }
+
+        event(new NotaAtualizada($nota));
+
+        return back();
+    }
+
+    /** Primeiro nome de quem está com a reserva da nota (para as mensagens). */
+    private function quemOlha(Nota $nota): string
+    {
+        $nome = optional($nota->visualizadaPor)->name ?? 'Outra pessoa';
+
+        return explode(' ', trim($nome))[0];
     }
 
     // ─── DESTROY (soft delete) ────────────────────────────────────────────────

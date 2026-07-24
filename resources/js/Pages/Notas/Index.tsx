@@ -286,14 +286,25 @@ function opcoesTipos(nota: Nota): TipoCard[] {
 
 // ─── Linha da fila ──────────────────────────────────────────────────────────────
 
-function LinhaFila({ nota, onCards, onComentar, onEditar, onExcluir, onLiberar, can, isDark, p }: {
+function LinhaFila({ nota, onCards, onComentar, onEditar, onExcluir, onLiberar, onVisualizar, usuarioId, can, isDark, p }: {
     nota: Nota; onCards: (n: Nota) => void; onComentar: (n: Nota) => void;
     onEditar: (n: Nota) => void; onExcluir: (n: Nota) => void; onLiberar: (n: Nota) => void;
+    onVisualizar: (n: Nota) => void; usuarioId: number;
     can: Permissoes; isDark: boolean; p: Palette;
 }) {
     const cor = nivelCor(nota.nivel, p);
     const rowBg = nota.nivel === 'normal' ? 'transparent' : cor + (nota.nivel === 'critico' ? '1f' : '12');
     const ativos = nota.cards.filter(c => c.status !== 'resolvido');
+
+    // Reserva (🙋‍♂️): se ninguém pegou, só aparece no hover; reservada, fica fixa.
+    const olhando = nota.visualizando_por;
+    const reservaMinha = olhando?.id === usuarioId;
+    const reservaCor = reservaMinha ? p.GREEN : olhando ? p.AMBER : p.MUTED;
+    const reservaTitulo = reservaMinha
+        ? 'Você está olhando esta nota — clique para liberar'
+        : olhando
+            ? `${olhando.name.split(' ')[0]} está olhando esta nota`
+            : 'Avisar que você está olhando esta nota';
 
     return (
         <tr className="group transition-colors"
@@ -332,6 +343,18 @@ function LinhaFila({ nota, onCards, onComentar, onEditar, onExcluir, onLiberar, 
             <td className="px-4 py-3 text-sm whitespace-nowrap" style={{ color: p.TEXT }}>{nota.user.name.split(' ')[0]}</td>
             <td className="px-4 py-3 text-right">
                 <div className="flex items-center justify-end gap-0.5">
+                    {/* 🙋‍♂️ Reserva: fixa quando alguém pegou, hover-only quando livre */}
+                    <button onClick={() => onVisualizar(nota)} title={reservaTitulo}
+                        className={`flex items-center p-1.5 rounded-lg transition ${olhando ? '' : 'opacity-0 group-hover:opacity-100'}`}
+                        style={{ background: olhando ? reservaCor + '22' : 'transparent' }}
+                        onMouseEnter={e => !olhando && (e.currentTarget.style.background = p.HOVER_ROW)}
+                        onMouseLeave={e => !olhando && (e.currentTarget.style.background = 'transparent')}>
+                        <span className="text-base leading-none"
+                            style={{ filter: olhando ? 'none' : 'grayscale(0.7)', opacity: olhando ? 1 : 0.75 }}>
+                            🙋‍♂️
+                        </span>
+                    </button>
+
                     <button onClick={() => onComentar(nota)} title="Comentários"
                         className={`flex items-center gap-1 p-1.5 rounded-lg transition ${nota.comentarios_count > 0 ? '' : 'opacity-0 group-hover:opacity-100'}`}
                         style={{ color: nota.comentarios_count > 0 ? p.ACCENT : p.MUTED }}
@@ -549,6 +572,12 @@ export default function Index({ recebimento, preLote, liberadas, fornecedores, d
         router.post(route('notas.liberar', n.id), {}, { preserveScroll: true });
     };
 
+    // 🙋‍♂️ "estou olhando esta nota". O servidor decide: reserva, solta (se já é
+    // minha) ou avisa quem está nela (volta em flash.erro, que vira toast).
+    const visualizar = (n: Nota) => {
+        router.post(route('notas.visualizar', n.id), {}, { preserveScroll: true, preserveState: true });
+    };
+
     const excluir = (n: Nota) => {
         // A nota liberada já foi concluída: vale um aviso mais explícito
         const aviso = n.status === 'liberada'
@@ -598,7 +627,8 @@ export default function Index({ recebimento, preLote, liberadas, fornecedores, d
                         ) : notas.map(n => (
                             <LinhaFila key={n.id} nota={n} can={can} isDark={isDark} p={p}
                                 onCards={x => setCardsId(x.id)} onComentar={setComentariosNota}
-                                onEditar={setModalEditar} onExcluir={excluir} onLiberar={liberarRapido} />
+                                onEditar={setModalEditar} onExcluir={excluir} onLiberar={liberarRapido}
+                                onVisualizar={visualizar} usuarioId={user.id} />
                         ))}
                     </tbody>
                 </table>
