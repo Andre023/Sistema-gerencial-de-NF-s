@@ -107,6 +107,12 @@ export const PAPEL_LABEL: Record<string, string> = {
     admin: 'Admin',
 };
 
+/** Nome de cada fila (origem da nota), usado em mensagens ao usuário */
+export const ORIGEM_LABEL: Record<string, string> = {
+    recebimento: 'Caminhão na porta',
+    pre_lote: 'Pré-lote',
+};
+
 // ─── Severidade de pendência (níveis vêm do backend — trait TemIdade) ──────────
 
 export type Nivel = 'normal' | 'atencao' | 'alerta' | 'critico';

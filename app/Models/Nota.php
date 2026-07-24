@@ -24,17 +24,25 @@ class Nota extends Model
         'observacao',
         'liberada_por',
         'liberada_em',
+        'recebida_em',
     ];
 
     protected $casts = [
         'loja'        => 'integer',
         'liberada_em' => 'datetime',
+        'recebida_em' => 'datetime',
     ];
 
     public const LOJAS = [1, 2, 3, 9, 11, 12];
 
     /** recebimento = caminhão na porta (prioridade) | pre_lote = antecipada */
     public const ORIGENS = ['recebimento', 'pre_lote'];
+
+    /** Como cada fila aparece para o usuário (mensagens de duplicidade, etc.) */
+    public const ORIGEM_LABEL = [
+        'recebimento' => 'Caminhão na porta',
+        'pre_lote'    => 'Pré-lote',
+    ];
 
     // Estados derivados dos cards — nunca gravados, sempre calculados
     public const STATUS_PENDENTE    = 'pendente';        // aguardando análise do pré-lote
@@ -128,6 +136,7 @@ class Nota extends Model
             ])->values(),
             'liberada_por' => $this->liberadaPor,
             'liberada_em'  => $this->liberada_em,
+            'recebida_em'  => $this->recebida_em,
             'comentarios_count' => $this->comentarios_count ?? 0,
             'created_at'   => $this->created_at,
             'atrasada'     => $this->isAtrasada($dataFiltro),

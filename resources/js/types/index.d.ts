@@ -55,6 +55,8 @@ export interface Nota {
     cards: Card[];
     liberada_por: Pick<User, 'id' | 'name'> | null;
     liberada_em: string | null;
+    /** Chegada física de uma nota já liberada (o caminhão trouxe depois) */
+    recebida_em: string | null;
     comentarios_count: number;
     created_at: string;
     atrasada: boolean;

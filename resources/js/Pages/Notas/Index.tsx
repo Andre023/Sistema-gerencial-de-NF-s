@@ -4,7 +4,7 @@ import { Head, router, usePage } from '@inertiajs/react';
 import { format, parseISO, addDays, subDays } from 'date-fns';
 import { Nota, Card, Fornecedor, FiltrosAtivos, OpcoesSistema, Nivel, ResumoAlertas, ResumoTipos, Permissoes, TipoCard } from '@/types';
 import { useTheme } from '@/Contexts/ThemeContext';
-import { DARK, LIGHT, Palette, lojaNome, hoje, nivelCor, NIVEL_LABEL, idadeTexto, TIPO_CARD_LABEL, STATUS_NOTA_LABEL, CARD_COR_DARK, CARD_COR_LIGHT } from '@/lib/tema';
+import { DARK, LIGHT, Palette, lojaNome, hoje, nivelCor, NIVEL_LABEL, idadeTexto, TIPO_CARD_LABEL, STATUS_NOTA_LABEL, CARD_COR_DARK, CARD_COR_LIGHT, ORIGEM_LABEL } from '@/lib/tema';
 import Icone from '@/Components/painel/Icone';
 import Modal from '@/Components/painel/Modal';
 import THead from '@/Components/painel/THead';
@@ -432,8 +432,12 @@ export default function Index({ recebimento, preLote, liberadas, fornecedores, d
         const nota = e.nota;
         if (!nota) return;
         const naFila = nota.status !== 'liberada';
-        // Liberadas mostra só as do dia; evita puxar p/ hoje uma nota liberada em dia passado
-        const liberadaHoje = !naFila && (nota.liberada_em ?? '').slice(0, 10) === hoje();
+        // Liberadas mostra as do dia; evita puxar p/ hoje uma liberada em dia passado
+        // — salvo se o caminhão a trouxe hoje (recebida_em), aí ela entra na lista.
+        const liberadaHoje = !naFila && (
+            (nota.liberada_em ?? '').slice(0, 10) === hoje() ||
+            (nota.recebida_em ?? '').slice(0, 10) === hoje()
+        );
         const sem = (l: Nota[]) => l.filter(n => n.id !== nota.id);
         const asc = (l: Nota[]) => [...l].sort((a, b) => a.created_at.localeCompare(b.created_at));
         const desc = (l: Nota[]) => [...l].sort((a, b) => (b.liberada_em ?? '').localeCompare(a.liberada_em ?? ''));
@@ -507,11 +511,25 @@ export default function Index({ recebimento, preLote, liberadas, fornecedores, d
     };
     const filtrosAtivos = !!(filtros.busca || filtros.loja || filtros.nivel || filtros.status || filtros.tipo);
 
-    const criar = (dados: any) => {
+    const criar = (dados: any, confirmarMover = false) => {
         setSubmetendo(true);
-        router.post(route('notas.store'), dados, {
+        router.post(route('notas.store'), { ...dados, confirmar_mover: confirmarMover }, {
+            preserveScroll: true,
             onSuccess: () => { setModalNova(false); setErros({}); },
-            onError: e => setErros(e),
+            onError: e => {
+                // A nota já existe na outra fila: o backend devolve a fila atual
+                // em "duplicada" e espera a confirmação para mover.
+                if (e.duplicada) {
+                    setErros({});
+                    const atual = ORIGEM_LABEL[e.duplicada] ?? e.duplicada;
+                    const nova = ORIGEM_LABEL[dados.origem] ?? dados.origem;
+                    if (confirm(`Esta nota já está em "${atual}". Deseja mover para "${nova}"?`)) {
+                        criar(dados, true);
+                    }
+                    return;
+                }
+                setErros(e);
+            },
             onFinish: () => setSubmetendo(false),
         });
     };
@@ -783,7 +801,17 @@ export default function Index({ recebimento, preLote, liberadas, fornecedores, d
                                     </td></tr>
                                 ) : liberadasL.map(n => (
                                     <tr key={n.id} className="opacity-80 group" style={{ borderBottom: `1px solid ${p.BORDER}` }}>
-                                        <td className="px-4 py-3 text-sm line-through" style={{ color: p.TEXT }}>{n.numero_nota}</td>
+                                        <td className="px-4 py-3 text-sm whitespace-nowrap" style={{ color: p.TEXT }}>
+                                            <span className="line-through">{n.numero_nota}</span>
+                                            {/* Liberada em outro dia, mas o caminhão trouxe hoje */}
+                                            {n.recebida_em?.slice(0, 10) === hoje() && n.liberada_em?.slice(0, 10) !== hoje() && (
+                                                <span className="ml-2 text-[11px] font-medium px-1.5 py-0.5 rounded no-underline"
+                                                    style={{ background: p.GREEN + '22', color: p.GREEN }}
+                                                    title={`Liberada no pré-lote em ${n.liberada_em ? new Date(n.liberada_em).toLocaleDateString('pt-BR') : '—'}`}>
+                                                    recebida hoje
+                                                </span>
+                                            )}
+                                        </td>
                                         <td className="px-4 py-3 text-sm max-w-[180px] truncate" style={{ color: p.TEXT }}>{n.fornecedor.nome}</td>
                                         <td className="px-4 py-3">
                                             <button onClick={() => setCardsId(n.id)} className="flex flex-wrap items-center gap-1" title="Ver histórico de cards">

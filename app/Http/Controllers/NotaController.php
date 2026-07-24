@@ -12,6 +12,7 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -84,9 +85,13 @@ class NotaController extends Controller
         $recebimento = $fila->where('origem', 'recebimento')->values();
         $preLote     = $fila->where('origem', 'pre_lote')->values();
 
-        // LIBERADAS: somente as liberadas no dia exato
+        // LIBERADAS: liberadas no dia exato, MAIS as já liberadas que o caminhão
+        // trouxe hoje (recebida_em) — a nota fechada no pré-lote que chegou agora.
         $liberadas = (clone $base)
-            ->whereDate('liberada_em', $dataFiltro)
+            ->whereNotNull('liberada_em')
+            ->where(fn($q) => $q
+                ->whereDate('liberada_em', $dataFiltro)
+                ->orWhereDate('recebida_em', $dataFiltro))
             ->orderBy('liberada_em', 'desc')
             ->get()
             ->map(fn($n) => $n->paraTabela($dataFiltro));
@@ -158,9 +163,21 @@ class NotaController extends Controller
             'observacao'      => 'nullable|string|max:500',
         ]);
 
+        $fornecedorId = $this->resolverFornecedorId($request);
+
+        // Não pode haver notas duplicadas: uma NF é única por fornecedor
+        // (número + fornecedor). Se já existe, tratamos em vez de criar de novo.
+        $existente = Nota::where('numero_nota', $dados['numero_nota'])
+            ->where('fornecedor_id', $fornecedorId)
+            ->first();
+
+        if ($existente) {
+            return $this->tratarDuplicada($request, $existente, $dados);
+        }
+
         $nota = Nota::create([
             'numero_nota'   => $dados['numero_nota'],
-            'fornecedor_id' => $this->resolverFornecedorId($request),
+            'fornecedor_id' => $fornecedorId,
             'loja'          => $dados['loja'],
             'origem'        => $dados['origem'],
             'observacao'    => $dados['observacao'] ?? null,
@@ -170,6 +187,48 @@ class NotaController extends Controller
         event(new NotaAtualizada($nota));
 
         return back()->with('sucesso', 'Nota lançada.');
+    }
+
+    /**
+     * A nota que se tentou lançar já existe. Três caminhos, nunca duplicar:
+     *
+     *   1. Já liberada no pré-lote → registra a chegada de hoje (recebida_em) e
+     *      ela passa a aparecer em "liberadas neste dia". Não reabre nada.
+     *   2. Mesma fila → é a mesma nota já lançada ali. Bloqueia.
+     *   3. Fila diferente e ainda não liberada → pede confirmação para MOVER de
+     *      fila (o frontend pergunta; ao confirmar, reenvia com confirmar_mover).
+     *      Ao mover, os cards/divergências vão junto — é a mesma nota.
+     */
+    private function tratarDuplicada(Request $request, Nota $existente, array $dados): RedirectResponse
+    {
+        if ($existente->liberada_em) {
+            $existente->update(['recebida_em' => now()]);
+            event(new NotaAtualizada($existente));
+
+            return back()->with('sucesso', sprintf(
+                'Esta nota já foi liberada no pré-lote em %s — marcada como recebida hoje.',
+                $existente->liberada_em->format('d/m'),
+            ));
+        }
+
+        if ($existente->origem === $dados['origem']) {
+            throw ValidationException::withMessages([
+                'numero_nota' => 'Esta nota já está lançada em ' . Nota::ORIGEM_LABEL[$existente->origem] . '.',
+            ]);
+        }
+
+        // Fila diferente: só move mediante confirmação explícita do usuário
+        if (! $request->boolean('confirmar_mover')) {
+            throw ValidationException::withMessages([
+                // O frontend usa a fila atual para montar a pergunta e reenviar
+                'duplicada' => $existente->origem,
+            ]);
+        }
+
+        $existente->update(['origem' => $dados['origem']]);
+        event(new NotaAtualizada($existente));
+
+        return back()->with('sucesso', 'Nota movida para ' . Nota::ORIGEM_LABEL[$dados['origem']] . '.');
     }
 
     // ─── UPDATE ───────────────────────────────────────────────────────────────
@@ -196,6 +255,20 @@ class NotaController extends Controller
             $dados['fornecedor_id'] = $this->resolverFornecedorId($request);
         }
         unset($dados['fornecedor_nome']); // não é coluna da nota
+
+        // Editar não pode criar duplicata: número + fornecedor tem de ser único
+        $numero = $dados['numero_nota']   ?? $nota->numero_nota;
+        $fornId = $dados['fornecedor_id'] ?? $nota->fornecedor_id;
+        $colide = Nota::where('numero_nota', $numero)
+            ->where('fornecedor_id', $fornId)
+            ->whereKeyNot($nota->id)
+            ->exists();
+
+        if ($colide) {
+            throw ValidationException::withMessages([
+                'numero_nota' => 'Já existe outra nota com esse número e fornecedor.',
+            ]);
+        }
 
         $nota->update($dados);
 

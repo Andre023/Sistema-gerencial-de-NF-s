@@ -51,6 +51,13 @@ class HandleInertiaRequests extends Middleware
             // O sino: estado inicial da lista. Depois disso quem mantém ao vivo
             // é o evento NotificacoesAtualizadas no canal privado do usuário.
             'notificacoes' => $user ? Notificador::paraUsuario($user) : null,
+
+            // Mensagens de uma ação (ex.: "Nota movida.") — o layout mostra como
+            // toast. Sem isto, o ->with('sucesso', ...) dos controllers se perde.
+            'flash' => [
+                'sucesso' => fn() => $request->session()->get('sucesso'),
+                'erro'    => fn() => $request->session()->get('erro'),
+            ],
         ];
     }
 }
