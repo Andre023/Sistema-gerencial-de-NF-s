@@ -518,7 +518,12 @@ export default function Index({ recebimento, preLote, liberadas, fornecedores, d
     };
 
     const excluir = (n: Nota) => {
-        if (!confirm(`Excluir a nota ${n.numero_nota}? Esta ação pode ser revertida pelo administrador.`)) return;
+        // A nota liberada já foi concluída: vale um aviso mais explícito
+        const aviso = n.status === 'liberada'
+            ? `Excluir a nota ${n.numero_nota}, que JÁ FOI LIBERADA? Ela sai do histórico do dia. Esta ação pode ser revertida pelo administrador.`
+            : `Excluir a nota ${n.numero_nota}? Esta ação pode ser revertida pelo administrador.`;
+
+        if (!confirm(aviso)) return;
         router.delete(route('notas.destroy', n.id));
     };
 
@@ -757,6 +762,17 @@ export default function Index({ recebimento, preLote, liberadas, fornecedores, d
                                                 <Icone path="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.8 9.8 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
                                                 {n.comentarios_count > 0 && <span className="text-xs font-medium">{n.comentarios_count}</span>}
                                             </button>
+
+                                            {/* Apagar o que já foi liberado é ato de admin — some para os outros papéis */}
+                                            {can.excluirNotaLiberada && (
+                                                <button onClick={() => excluir(n)} title="Excluir nota liberada"
+                                                    className="inline-flex items-center p-1.5 rounded-lg transition opacity-0 group-hover:opacity-100"
+                                                    style={{ color: p.RED }}
+                                                    onMouseEnter={e => (e.currentTarget.style.background = p.RED + '1a')}
+                                                    onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}>
+                                                    <Icone path="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                                </button>
+                                            )}
                                         </td>
                                     </tr>
                                 ))}

@@ -208,6 +208,11 @@ class NotaController extends Controller
     {
         Gate::authorize('gerenciar-notas');
 
+        // Nota já liberada é histórico fechado — desfazer isso é ato de admin
+        if ($nota->liberada_em) {
+            Gate::authorize('excluir-nota-liberada');
+        }
+
         Notificador::notaRemovida($nota);
 
         $nota->delete();

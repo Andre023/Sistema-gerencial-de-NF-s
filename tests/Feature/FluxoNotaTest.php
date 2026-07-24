@@ -355,6 +355,73 @@ class FluxoNotaTest extends TestCase
         $this->actingAs($this->compras)->post(route('notas.liberar', $nota))->assertForbidden();
     }
 
+    // ── Excluir ───────────────────────────────────────────────────────────────
+
+    private function liberada(): Nota
+    {
+        $nota = $this->nota();
+        $nota->update(['liberada_em' => now(), 'liberada_por' => $this->preLote->id]);
+
+        return $nota;
+    }
+
+    public function test_pre_lote_exclui_nota_da_fila(): void
+    {
+        $nota = $this->nota();
+
+        $this->actingAs($this->preLote)
+            ->delete(route('notas.destroy', $nota))
+            ->assertRedirect();
+
+        $this->assertSoftDeleted('notas', ['id' => $nota->id]);
+    }
+
+    public function test_admin_exclui_nota_ja_liberada(): void
+    {
+        $admin = User::factory()->create(['role' => User::ROLE_ADMIN]);
+        $nota  = $this->liberada();
+
+        $this->actingAs($admin)
+            ->delete(route('notas.destroy', $nota))
+            ->assertRedirect();
+
+        $this->assertSoftDeleted('notas', ['id' => $nota->id]);
+    }
+
+    public function test_admin_exclui_nota_da_fila_de_recebimento(): void
+    {
+        $admin = User::factory()->create(['role' => User::ROLE_ADMIN]);
+        $nota  = $this->nota(['origem' => 'recebimento']);
+
+        $this->actingAs($admin)
+            ->delete(route('notas.destroy', $nota))
+            ->assertRedirect();
+
+        $this->assertSoftDeleted('notas', ['id' => $nota->id]);
+    }
+
+    /** Histórico fechado não é do pré-lote — desfazer liberação é ato de admin */
+    public function test_pre_lote_nao_exclui_nota_liberada(): void
+    {
+        $nota = $this->liberada();
+
+        $this->actingAs($this->preLote)
+            ->delete(route('notas.destroy', $nota))
+            ->assertForbidden();
+
+        $this->assertNotSoftDeleted('notas', ['id' => $nota->id]);
+    }
+
+    public function test_recebimento_e_compras_nao_excluem_nota(): void
+    {
+        $nota = $this->nota();
+
+        $this->actingAs($this->recebimento)->delete(route('notas.destroy', $nota))->assertForbidden();
+        $this->actingAs($this->compras)->delete(route('notas.destroy', $nota))->assertForbidden();
+
+        $this->assertNotSoftDeleted('notas', ['id' => $nota->id]);
+    }
+
     // ── Status derivado ───────────────────────────────────────────────────────
 
     public function test_status_deriva_do_ciclo_dos_cards(): void

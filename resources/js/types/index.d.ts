@@ -17,6 +17,8 @@ export interface Permissoes {
     corrigirCard: boolean;
     liberarNota: boolean;
     gerenciarNotas: boolean;
+    /** Excluir nota já liberada (histórico fechado) — só admin */
+    excluirNotaLiberada: boolean;
     verEstatisticas: boolean;
     gerenciarUsuarios: boolean;
 }

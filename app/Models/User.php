@@ -115,6 +115,18 @@ class User extends Authenticatable
         return $this->ehUmDe(self::ROLE_PRE_LOTE);
     }
 
+    /**
+     * Excluir nota JÁ LIBERADA — só admin.
+     *
+     * A nota liberada é histórico fechado: o pré-lote pode apagar o que ainda
+     * está na fila (lançado errado), mas desfazer o que já foi concluído é ato
+     * de administração.
+     */
+    public function podeExcluirNotaLiberada(): bool
+    {
+        return $this->isAdmin();
+    }
+
     /** Ver Estatísticas — só admin */
     public function podeVerEstatisticas(): bool
     {
