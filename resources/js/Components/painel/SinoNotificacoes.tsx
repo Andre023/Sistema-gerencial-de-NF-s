@@ -49,6 +49,17 @@ export default function SinoNotificacoes({ userId }: { userId: number }) {
         setPermissao(await Notification.requestPermission());
     };
 
+    // Pede a permissão logo ao entrar no sistema. Só tenta uma vez por navegador:
+    // se a pessoa dispensar, o botão dentro do sino continua disponível.
+    useEffect(() => {
+        if (!suportado || permissao !== 'default') return;
+        if (localStorage.getItem('nfs_permissao_pedida')) return;
+
+        localStorage.setItem('nfs_permissao_pedida', '1');
+        Notification.requestPermission().then(setPermissao).catch(() => {});
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
+
     useEffect(() => {
         const ids = new Set(estado.itens.map(i => i.id));
 
