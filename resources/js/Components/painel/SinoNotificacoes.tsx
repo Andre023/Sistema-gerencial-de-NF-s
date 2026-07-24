@@ -41,8 +41,11 @@ export default function SinoNotificacoes({ userId }: { userId: number }) {
     const [permissao, setPermissao] = useState<NotificationPermission>(
         suportado ? Notification.permission : 'denied'
     );
+    // id → updated_at do que já foi avisado. Comparamos o updated_at (e não só o
+    // id) porque existe UMA notificação viva por nota: quando chega outra
+    // divergência, a mesma linha é atualizada — e isso também precisa avisar.
     // null = ainda não sabemos o que já existia (não avisar o histórico no load)
-    const vistos = useRef<Set<number> | null>(null);
+    const vistos = useRef<Map<number, string> | null>(null);
 
     const pedirPermissao = async () => {
         if (!suportado) return;
@@ -61,26 +64,32 @@ export default function SinoNotificacoes({ userId }: { userId: number }) {
     }, []);
 
     useEffect(() => {
-        const ids = new Set(estado.itens.map(i => i.id));
+        const atual = new Map(estado.itens.map(i => [i.id, i.updated_at] as const));
 
         // Primeira passada: só memoriza o que já estava lá
-        if (vistos.current === null) { vistos.current = ids; return; }
+        if (vistos.current === null) { vistos.current = atual; return; }
 
-        const novas = estado.itens.filter(i => !i.lida && !vistos.current!.has(i.id));
-        vistos.current = ids;
+        // Nova OU atualizada (mesma nota que recebeu mais uma divergência)
+        const novas = estado.itens.filter(
+            i => !i.lida && vistos.current!.get(i.id) !== i.updated_at
+        );
+        vistos.current = atual;
 
         if (!novas.length || !estado.ativas || permissao !== 'granted') return;
         // Se a pessoa está olhando a tela, o sino já basta — não enche de card
         if (!document.hidden && document.hasFocus()) return;
 
-        novas.slice(0, 3).forEach(n => {
+        novas.forEach(n => {
             const tipos = n.tipos.length
                 ? n.tipos.map(t => (TIPO_CARD_LABEL[t] ?? t).toUpperCase()).join(', ')
                 : NOTIFICACAO_LABEL[n.tipo];
 
             const aviso = new Notification(n.fornecedor ?? 'Nota fiscal', {
                 body: `NF ${n.numero_nota}${n.loja != null ? ` · ${lojaNome(n.loja)}` : ''}\n${tipos}`,
-                tag: `nota-${n.id}`, // atualiza o card em vez de empilhar vários
+                // O updated_at entra na tag de propósito: cada atualização vira um
+                // card NOVO (sempre alerta). Só uma reentrega idêntica do mesmo
+                // evento é descartada — que é o que a tag deve evitar.
+                tag: `nota-${n.id}-${n.updated_at}`,
                 icon: '/favicon.ico',
             });
 
