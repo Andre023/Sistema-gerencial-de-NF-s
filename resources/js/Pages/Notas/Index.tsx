@@ -31,7 +31,7 @@ interface DadosForm {
     numero_nota: string; fornecedor_id: number | '';
     fornecedor: { id: number | ''; nome: string };
     fornecedor_novo: boolean; fornecedor_nome: string;
-    loja: number | ''; origem: string; observacao: string;
+    loja: number | ''; origem: string; ceasa: boolean; observacao: string;
 }
 
 function FormNota({ fornecedores, opcoes, inicial, origemDefault, onSubmit, onCancelar, carregando, erros, labelSubmit, p }: {
@@ -43,7 +43,8 @@ function FormNota({ fornecedores, opcoes, inicial, origemDefault, onSubmit, onCa
         numero_nota: inicial?.numero_nota ?? '', fornecedor_id: inicial?.fornecedor?.id ?? '',
         fornecedor: { id: inicial?.fornecedor?.id ?? '', nome: inicial?.fornecedor?.nome ?? '' },
         fornecedor_novo: false, fornecedor_nome: '', // checkbox sempre começa desmarcado
-        loja: inicial?.loja ?? '', origem: inicial?.origem ?? origemDefault, observacao: inicial?.observacao ?? '',
+        loja: inicial?.loja ?? '', origem: inicial?.origem ?? origemDefault,
+        ceasa: inicial?.ceasa ?? false, observacao: inicial?.observacao ?? '',
     });
 
     const set = <K extends keyof DadosForm>(k: K, v: DadosForm[K]) => setForm(prev => ({ ...prev, [k]: v }));
@@ -69,7 +70,7 @@ function FormNota({ fornecedores, opcoes, inicial, origemDefault, onSubmit, onCa
                 fornecedor_id: form.fornecedor_novo ? '' : form.fornecedor.id,
                 fornecedor_novo: form.fornecedor_novo,
                 fornecedor_nome: form.fornecedor_novo ? form.fornecedor_nome : '',
-                loja: form.loja, origem: form.origem, observacao: form.observacao,
+                loja: form.loja, origem: form.origem, ceasa: form.ceasa, observacao: form.observacao,
             }); }}
             className="space-y-4">
             {campo('Número da nota', true,
@@ -121,6 +122,14 @@ function FormNota({ fornecedores, opcoes, inicial, origemDefault, onSubmit, onCa
                     </select>, erros.origem
                 )}
             </div>
+            <label className="flex items-center gap-2 cursor-pointer select-none">
+                <input type="checkbox" checked={form.ceasa}
+                    onChange={e => set('ceasa', e.target.checked)}
+                    style={{ accentColor: p.ACCENT }} />
+                <span className="text-sm" style={{ color: p.MUTED }}>
+                    Nota de CEASA — o setor de compras também pode abrir cards
+                </span>
+            </label>
             {campo('Observação', false,
                 <textarea value={form.observacao} onChange={e => set('observacao', e.target.value)}
                     rows={3} placeholder="Detalhes adicionais..."
@@ -239,8 +248,8 @@ function ModalCards({ nota, onFechar, can, tiposCompras, isDark, p }: {
                     ))}
                 </div>
 
-                {/* ── Abrir novo card (pré-lote) ── */}
-                {!liberada && can.gerirCards && (
+                {/* ── Abrir novo card (pré-lote; e compras quando a nota é de CEASA) ── */}
+                {!liberada && (can.gerirCards || (nota.ceasa && ehCompras)) && (
                     <form onSubmit={abrirCard} className="flex items-center gap-2 pt-3" style={{ borderTop: `1px solid ${p.BORDER}` }}>
                         <select value={tipoNovo} onChange={e => setTipoNovo(e.target.value as TipoCard)}
                             className="rounded-lg text-sm px-2.5 py-1.5 outline-none"
@@ -314,6 +323,13 @@ function LinhaFila({ nota, onCards, onComentar, onEditar, onExcluir, onLiberar, 
             <td className="px-4 py-3 text-sm">
                 <div className="flex items-center gap-2">
                     <span className="font-medium" style={{ color: p.TEXT }}>{nota.numero_nota}</span>
+                    {nota.ceasa && (
+                        <span className="inline-flex items-center rounded px-1.5 py-0.5 text-[10px] font-bold tracking-wide"
+                            style={{ background: p.PURPLE + '22', color: p.PURPLE, border: `1px solid ${p.PURPLE}44` }}
+                            title="Nota de CEASA — compras pode abrir cards">
+                            CEASA
+                        </span>
+                    )}
                     {nota.nivel !== 'normal' && (
                         <span className="inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-xs font-semibold whitespace-nowrap"
                             style={{ background: cor + '22', color: cor, border: `1px solid ${cor}44` }}
@@ -379,21 +395,21 @@ function LinhaFila({ nota, onCards, onComentar, onEditar, onExcluir, onLiberar, 
                                 <Icone path="M5 13l4 4L19 7" />
                             </button>
                         )}
+                        {can.editarNotas && (
+                            <button onClick={() => onEditar(nota)} title="Editar"
+                                className="p-1.5 rounded-lg transition" style={{ color: p.ACCENT }}
+                                onMouseEnter={e => (e.currentTarget.style.background = p.ACCENT + '1a')}
+                                onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}>
+                                <Icone path="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                            </button>
+                        )}
                         {can.gerenciarNotas && (
-                            <>
-                                <button onClick={() => onEditar(nota)} title="Editar"
-                                    className="p-1.5 rounded-lg transition" style={{ color: p.ACCENT }}
-                                    onMouseEnter={e => (e.currentTarget.style.background = p.ACCENT + '1a')}
-                                    onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}>
-                                    <Icone path="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                                </button>
-                                <button onClick={() => onExcluir(nota)} title="Excluir"
-                                    className="p-1.5 rounded-lg transition" style={{ color: p.RED }}
-                                    onMouseEnter={e => (e.currentTarget.style.background = p.RED + '1a')}
-                                    onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}>
-                                    <Icone path="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                                </button>
-                            </>
+                            <button onClick={() => onExcluir(nota)} title="Excluir"
+                                className="p-1.5 rounded-lg transition" style={{ color: p.RED }}
+                                onMouseEnter={e => (e.currentTarget.style.background = p.RED + '1a')}
+                                onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}>
+                                <Icone path="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                            </button>
                         )}
                     </div>
                 </div>
@@ -600,7 +616,7 @@ export default function Index({ recebimento, preLote, liberadas, fornecedores, d
     const filtrandoReconferir = filtros.status === 'reconferir';
 
     const COLS_FILA = ['Nota', 'Fornecedor', 'Divergências', 'Loja', 'Observação', 'Lançado', ''];
-    const COLS_LIBERADAS = ['Nota', 'Fornecedor', 'Divergências', 'Loja', 'Liberada por', ''];
+    const COLS_LIBERADAS = ['Nota', 'Fornecedor', 'Divergências', 'Loja', 'Observação', 'Liberada por', ''];
 
     const inputCtrl = { background: p.INPUT_BG, color: p.TEXT, border: `1px solid ${p.INPUT_BORDER}` };
 
@@ -826,7 +842,7 @@ export default function Index({ recebimento, preLote, liberadas, fornecedores, d
                             <THead colunas={COLS_LIBERADAS} p={p} />
                             <tbody>
                                 {liberadasL.length === 0 ? (
-                                    <tr><td colSpan={6} className="px-4 py-8 text-center text-sm" style={{ color: p.MUTED }}>
+                                    <tr><td colSpan={7} className="px-4 py-8 text-center text-sm" style={{ color: p.MUTED }}>
                                         Nenhuma nota liberada neste dia.
                                     </td></tr>
                                 ) : liberadasL.map(n => (
@@ -851,6 +867,9 @@ export default function Index({ recebimento, preLote, liberadas, fornecedores, d
                                             </button>
                                         </td>
                                         <td className="px-4 py-3 text-sm whitespace-nowrap" style={{ color: p.TEXT }}>{lojaNome(n.loja)}</td>
+                                        <td className="px-4 py-3 text-sm max-w-[180px] truncate" style={{ color: p.TEXT }} title={n.observacao ?? ''}>
+                                            {n.observacao || <span style={{ color: p.MUTED }}>—</span>}
+                                        </td>
                                         <td className="px-4 py-3 text-sm" style={{ color: p.TEXT }}>{n.liberada_por?.name.split(' ')[0] ?? '—'}</td>
                                         <td className="px-4 py-3 text-right">
                                             <button onClick={() => setComentariosNota(n)} title="Comentários"

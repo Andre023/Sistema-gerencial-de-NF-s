@@ -23,7 +23,11 @@ class CardController extends Controller
 
     public function store(Request $request, Nota $nota): RedirectResponse
     {
-        Gate::authorize('gerir-cards');
+        // Em geral só o pré-lote abre card. Exceção: nota de CEASA, em que o
+        // setor de compras também pode abrir.
+        $user = $request->user();
+        $podeAbrir = $user->podeGerirCards() || ($nota->ceasa && $user->podeCorrigirCard());
+        abort_unless($podeAbrir, 403);
 
         if ($nota->liberada_em) {
             return back()->withErrors(['card' => 'A nota já foi liberada — não é possível abrir divergência.']);

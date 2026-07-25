@@ -160,6 +160,7 @@ class NotaController extends Controller
             'fornecedor_nome' => [Rule::requiredIf($novo), 'nullable', 'string', 'max:255'],
             'loja'            => ['required', 'integer', Rule::in(Nota::LOJAS)],
             'origem'          => ['required', Rule::in(Nota::ORIGENS)],
+            'ceasa'           => 'sometimes|boolean',
             'observacao'      => 'nullable|string|max:500',
         ]);
 
@@ -180,6 +181,7 @@ class NotaController extends Controller
             'fornecedor_id' => $fornecedorId,
             'loja'          => $dados['loja'],
             'origem'        => $dados['origem'],
+            'ceasa'         => $request->boolean('ceasa'),
             'observacao'    => $dados['observacao'] ?? null,
             'user_id'       => $request->user()->id,
         ]);
@@ -235,7 +237,7 @@ class NotaController extends Controller
 
     public function update(Request $request, Nota $nota): RedirectResponse
     {
-        Gate::authorize('gerenciar-notas');
+        Gate::authorize('editar-notas');
 
         $novo = $request->boolean('fornecedor_novo');
         if ($novo) {
@@ -248,6 +250,7 @@ class NotaController extends Controller
             'fornecedor_nome' => [Rule::requiredIf($novo), 'nullable', 'string', 'max:255'],
             'loja'            => ['sometimes', 'integer', Rule::in(Nota::LOJAS)],
             'origem'          => ['sometimes', Rule::in(Nota::ORIGENS)],
+            'ceasa'           => 'sometimes|boolean',
             'observacao'      => 'nullable|string|max:500',
         ]);
 

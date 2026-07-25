@@ -109,7 +109,13 @@ class User extends Authenticatable
         return $this->ehUmDe(self::ROLE_PRE_LOTE);
     }
 
-    /** Editar campos e excluir notas */
+    /** Editar os campos da nota — pré-lote e recebimento (quem lança) */
+    public function podeEditarNotas(): bool
+    {
+        return $this->ehUmDe(self::ROLE_PRE_LOTE, self::ROLE_RECEBIMENTO);
+    }
+
+    /** Excluir notas da fila — pré-lote (excluir liberada é só admin) */
     public function podeGerenciarNotas(): bool
     {
         return $this->ehUmDe(self::ROLE_PRE_LOTE);

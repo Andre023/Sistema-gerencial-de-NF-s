@@ -16,6 +16,7 @@ export interface Permissoes {
     gerirCards: boolean;
     corrigirCard: boolean;
     liberarNota: boolean;
+    editarNotas: boolean;
     gerenciarNotas: boolean;
     /** Excluir nota já liberada (histórico fechado) — só admin */
     excluirNotaLiberada: boolean;
@@ -50,6 +51,8 @@ export interface Nota {
     user: User;
     loja: number;
     origem: OrigemNota;
+    /** Nota de CEASA — nela o setor de compras também pode abrir cards */
+    ceasa: boolean;
     observacao: string | null;
     status: StatusNota;
     cards: Card[];

@@ -30,6 +30,7 @@ class AppServiceProvider extends ServiceProvider
         Gate::define('gerir-cards',        fn(User $u) => $u->podeGerirCards());
         Gate::define('corrigir-card',      fn(User $u) => $u->podeCorrigirCard());
         Gate::define('liberar-nota',       fn(User $u) => $u->podeLiberarNota());
+        Gate::define('editar-notas',       fn(User $u) => $u->podeEditarNotas());
         Gate::define('gerenciar-notas',    fn(User $u) => $u->podeGerenciarNotas());
         Gate::define('excluir-nota-liberada', fn(User $u) => $u->podeExcluirNotaLiberada());
         Gate::define('ver-estatisticas',   fn(User $u) => $u->podeVerEstatisticas());
