@@ -594,6 +594,12 @@ export default function Index({ recebimento, preLote, liberadas, fornecedores, d
         router.post(route('notas.visualizar', n.id), {}, { preserveScroll: true, preserveState: true });
     };
 
+    // Estorna a liberação: tira das liberadas e volta a nota para o recebimento
+    const devolver = (n: Nota) => {
+        if (!confirm(`Devolver a nota ${n.numero_nota} ao recebimento? Ela sai das liberadas e volta para a fila para reajuste.`)) return;
+        router.post(route('notas.devolver', n.id), {}, { preserveScroll: true });
+    };
+
     const excluir = (n: Nota) => {
         // A nota liberada já foi concluída: vale um aviso mais explícito
         const aviso = n.status === 'liberada'
@@ -878,6 +884,17 @@ export default function Index({ recebimento, preLote, liberadas, fornecedores, d
                                                 <Icone path="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.8 9.8 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
                                                 {n.comentarios_count > 0 && <span className="text-xs font-medium">{n.comentarios_count}</span>}
                                             </button>
+
+                                            {/* Conferiu errado: devolve ao recebimento para reajuste (pré-lote/recebimento) */}
+                                            {can.devolverNota && (
+                                                <button onClick={() => devolver(n)} title="Devolver ao recebimento (conferido errado)"
+                                                    className="inline-flex items-center p-1.5 rounded-lg transition opacity-0 group-hover:opacity-100"
+                                                    style={{ color: p.AMBER }}
+                                                    onMouseEnter={e => (e.currentTarget.style.background = p.AMBER + '1a')}
+                                                    onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}>
+                                                    <Icone path="M9 15L3 9m0 0l6-6M3 9h12a6 6 0 010 12h-3" />
+                                                </button>
+                                            )}
 
                                             {/* Apagar o que já foi liberado é ato de admin — some para os outros papéis */}
                                             {can.excluirNotaLiberada && (

@@ -49,6 +49,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::post('/',             [NotaController::class, 'store'])->name('store');
         Route::patch('/{nota}',      [NotaController::class, 'update'])->name('update');
         Route::post('/{nota}/liberar', [NotaController::class, 'liberar'])->name('liberar');
+        Route::post('/{nota}/devolver', [NotaController::class, 'devolver'])->name('devolver');
         Route::post('/{nota}/visualizar', [NotaController::class, 'visualizar'])->name('visualizar');
         Route::delete('/{nota}',     [NotaController::class, 'destroy'])->name('destroy');
 

@@ -310,6 +310,32 @@ class NotaController extends Controller
         return back()->with('sucesso', 'Nota liberada.');
     }
 
+    // ─── DEVOLVER (estorno da liberação → volta para o recebimento) ────────────
+    //
+    // Conferiram errado e liberaram, mas a nota segue com erro. Pré-lote e
+    // recebimento podem trazê-la de volta à fila para reajustar. Os cards ficam
+    // como estão (resolvidos) — quem reabre uma divergência é o pré-lote.
+
+    public function devolver(Request $request, Nota $nota): RedirectResponse
+    {
+        Gate::authorize('devolver-nota');
+
+        if (! $nota->liberada_em) {
+            return back()->withErrors(['nota' => 'Esta nota não está liberada.']);
+        }
+
+        $nota->update([
+            'liberada_por' => null,
+            'liberada_em'  => null,
+            'recebida_em'  => null,          // some das "liberadas neste dia"
+            'origem'       => 'recebimento', // volta para o caminhão na porta
+        ]);
+
+        event(new NotaAtualizada($nota));
+
+        return back()->with('sucesso', 'Nota devolvida ao recebimento para reajuste.');
+    }
+
     // ─── VISUALIZAR (o 🙋‍♂️: "estou olhando esta nota") ───────────────────────
     //
     // Reserva soft: sinaliza que alguém já está na nota, para dois não pegarem

@@ -122,6 +122,16 @@ class User extends Authenticatable
     }
 
     /**
+     * Devolver uma nota liberada de volta ao recebimento — pré-lote e recebimento.
+     * Para o caso de terem conferido errado e liberado, mas a nota segue com erro
+     * e precisa ser reajustada.
+     */
+    public function podeDevolverNota(): bool
+    {
+        return $this->ehUmDe(self::ROLE_PRE_LOTE, self::ROLE_RECEBIMENTO);
+    }
+
+    /**
      * Excluir nota JÁ LIBERADA — só admin.
      *
      * A nota liberada é histórico fechado: o pré-lote pode apagar o que ainda
