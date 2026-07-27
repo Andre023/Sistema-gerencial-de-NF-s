@@ -211,20 +211,25 @@ export default function AuthenticatedLayout({
                 </div>
             )}
 
-            {/* ── HEADER ── */}
-            {header && (
-                <header className={`${isDark ? 'bg-[#161b22] border-b border-[#21262d]' : 'bg-white shadow-sm'}`}>
-                    <div className="mx-auto max-w-screen-2xl px-4 py-5 sm:px-6 lg:px-8">
-                        {header}
-                    </div>
-                </header>
-            )}
-
-            {/* ── CONTEÚDO + SIDEBAR ── */}
+            {/* ── CONTEÚDO + SIDEBAR ──
+                Header e main ficam numa COLUNA, e a barra de online fica ao lado
+                dela ocupando toda a altura (começa logo abaixo da navbar). Assim
+                o `h-[calc(100vh-4rem)]` da barra bate certo mesmo com header na
+                tela — antes o header empurrava a barra pra baixo e o fim dela
+                era cortado em telas menores. */}
             <div className="flex flex-1 relative">
-                <main className="flex-1 min-w-0 overflow-auto">
-                    {children}
-                </main>
+                <div className="flex-1 min-w-0 flex flex-col">
+                    {header && (
+                        <header className={`${isDark ? 'bg-[#161b22] border-b border-[#21262d]' : 'bg-white shadow-sm'}`}>
+                            <div className="mx-auto max-w-screen-2xl px-4 py-5 sm:px-6 lg:px-8">
+                                {header}
+                            </div>
+                        </header>
+                    )}
+                    <main className="flex-1 min-w-0 overflow-auto">
+                        {children}
+                    </main>
+                </div>
                 <OnlineSidebar currentUserId={user.id} />
             </div>
         </div>
