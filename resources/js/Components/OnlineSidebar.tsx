@@ -38,7 +38,7 @@ export default function OnlineSidebar({ currentUserId }: Props) {
                 </svg>
             </button>
 
-            <div className="flex-1 overflow-y-auto py-3 px-2 space-y-2">
+            <div className="flex-1 overflow-y-auto overflow-x-hidden scrollbar-oculta py-3 px-2 space-y-2">
                 {expandida && (
                     <p className={`text-xs font-semibold uppercase tracking-wider px-1 mb-2 ${textMuted}`}>
                         Online ({usuariosOnline.length})
