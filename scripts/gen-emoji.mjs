@@ -13,12 +13,16 @@ import { mkdirSync, writeFileSync, rmSync, readdirSync } from 'node:fs';
 // ── ESPELHO de resources/js/lib/avatares.ts (mantenha em sincronia) ──
 const EMOJIS_BASE = [
     '🙋', '🙋‍♀️', '🙋‍♂️', '🙆‍♀️', '🙆‍♂️', '💁‍♀️', '💁‍♂️', '🤷‍♀️', '🤷‍♂️',
+    '🧑‍🦰', '🧑‍🦱', '🧑‍🦳', '🧑‍🦲',
     '🧑‍💼', '👨‍💼', '👩‍💼', '👷', '👷‍♀️', '🧑‍🔧', '🧑‍🍳', '🧑‍🌾', '🧑‍🏫',
-    '🧑‍💻', '🧑‍🔬', '🧑‍⚕️', '🕵️', '👮', '💂', '🧑‍✈️', '🧑‍🚀', '🤵',
+    '🧑‍💻', '🧑‍🔬', '🧑‍⚕️', '🕵️', '👮', '💂', '🧑‍✈️', '🧑‍🚀',
+    '🧑‍🚒', '🧑‍🎨', '🧑‍⚖️', '🧑‍🎤', '🧑‍🏭', '🧑‍🎓',
+    '🤵', '👰', '🤴', '👸', '🫅', '👳', '🧕', '👲', '💃', '🕺',
     '🦸', '🦸‍♀️', '🦹', '🧙', '🧙‍♀️', '🧛', '🧝', '🧚', '🧞', '🥷',
+    '🎅', '🤶', '🧑‍🎄', '🧜', '🧟', '🧌',
 ];
 const TONS_PELE = ['', '🏻', '🏼', '🏽', '🏾', '🏿'];
-const SEM_TOM = new Set(['🧞']);
+const SEM_TOM = new Set(['🧞', '🧟', '🧌']);
 function aplicarTom(base, tomIdx) {
     if (tomIdx <= 0 || SEM_TOM.has(base)) return base;
     const cps = Array.from(base);

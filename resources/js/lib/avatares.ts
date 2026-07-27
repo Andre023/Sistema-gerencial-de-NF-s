@@ -1,14 +1,24 @@
 // Dados e helpers do avatar personalizado (emoji com tom de pele, monograma, foto).
 
 // ─── Emojis de pessoas (a grade do seletor) ────────────────────────────────────
-// 37 personagens escolhidos com o André. Cada um rende 6 variações (padrão + 5
-// tons de pele), menos os que o Unicode não define tom (o gênio).
+// Personagens agrupados por gesto / cabelo / profissão (roupa de trabalho) /
+// trajes e realeza / fantasia. Cada um rende 6 variações (padrão + 5 tons de
+// pele), menos os que o Unicode não define tom (gênio, zumbi, troll).
 
 export const EMOJIS_BASE: string[] = [
+    // Gestos
     '🙋', '🙋‍♀️', '🙋‍♂️', '🙆‍♀️', '🙆‍♂️', '💁‍♀️', '💁‍♂️', '🤷‍♀️', '🤷‍♂️',
+    // Cabelos (cortes e cores)
+    '🧑‍🦰', '🧑‍🦱', '🧑‍🦳', '🧑‍🦲',
+    // Profissões (roupa de trabalho)
     '🧑‍💼', '👨‍💼', '👩‍💼', '👷', '👷‍♀️', '🧑‍🔧', '🧑‍🍳', '🧑‍🌾', '🧑‍🏫',
-    '🧑‍💻', '🧑‍🔬', '🧑‍⚕️', '🕵️', '👮', '💂', '🧑‍✈️', '🧑‍🚀', '🤵',
+    '🧑‍💻', '🧑‍🔬', '🧑‍⚕️', '🕵️', '👮', '💂', '🧑‍✈️', '🧑‍🚀',
+    '🧑‍🚒', '🧑‍🎨', '🧑‍⚖️', '🧑‍🎤', '🧑‍🏭', '🧑‍🎓',
+    // Trajes e realeza
+    '🤵', '👰', '🤴', '👸', '🫅', '👳', '🧕', '👲', '💃', '🕺',
+    // Fantasia e personagens
     '🦸', '🦸‍♀️', '🦹', '🧙', '🧙‍♀️', '🧛', '🧝', '🧚', '🧞', '🥷',
+    '🎅', '🤶', '🧑‍🎄', '🧜', '🧟', '🧌',
 ];
 
 /** Modificadores Fitzpatrick de tom de pele (índice 0 = sem tom). */
@@ -17,7 +27,7 @@ export const TONS_PELE = ['', '🏻', '🏼', '🏽', '🏾', '🏿'];
 export const TONS_LABEL = ['Padrão', 'Clara', 'Média-clara', 'Parda', 'Média-escura', 'Escura'];
 
 /** Emojis que NÃO aceitam tom de pele (o Unicode não define pele pra eles). */
-const SEM_TOM = new Set(['🧞']);
+const SEM_TOM = new Set(['🧞', '🧟', '🧌']);
 
 export const aceitaTom = (base: string) => !SEM_TOM.has(base);
 
