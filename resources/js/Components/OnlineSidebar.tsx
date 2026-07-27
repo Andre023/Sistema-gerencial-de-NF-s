@@ -1,26 +1,10 @@
 import { useState, useEffect } from 'react';
 import { useTheme } from '@/Contexts/ThemeContext';
+import { Avatar as AvatarTipo } from '@/types';
+import Avatar from '@/Components/painel/Avatar';
 
-interface UsuarioOnline { id: number; name: string }
+interface UsuarioOnline { id: number; name: string; avatar?: AvatarTipo | null }
 interface Props { currentUserId: number }
-
-function corAvatar(nome: string): string {
-    const cores = ['bg-blue-500', 'bg-purple-500', 'bg-green-500', 'bg-orange-500', 'bg-rose-500', 'bg-teal-500', 'bg-indigo-500'];
-    let hash = 0;
-    for (let i = 0; i < nome.length; i++) hash += nome.charCodeAt(i);
-    return cores[hash % cores.length];
-}
-
-function Iniciais({ nome, cor, isDark }: { nome: string; cor: string; isDark: boolean }) {
-    return (
-        <span
-            title={nome}
-            className={`w-8 h-8 rounded-full ${cor} text-white text-xs font-bold flex items-center justify-center shrink-0 ring-2 ${isDark ? 'ring-[#161b22]' : 'ring-white'}`}
-        >
-            {nome.slice(0, 2).toUpperCase()}
-        </span>
-    );
-}
 
 export default function OnlineSidebar({ currentUserId }: Props) {
     const [expandida, setExpandida] = useState(false);
@@ -61,12 +45,16 @@ export default function OnlineSidebar({ currentUserId }: Props) {
                     </p>
                 )}
                 {usuariosOnline.map((u) => {
-                    const cor = corAvatar(u.name);
                     const isMe = u.id === currentUserId;
                     return (
                         <div key={u.id} className="flex items-center gap-2.5 relative">
                             <div className="relative shrink-0">
-                                <Iniciais nome={isMe ? 'Você' : u.name} cor={cor} isDark={isDark} />
+                                <Avatar
+                                    user={{ name: u.name, avatar: u.avatar }}
+                                    size={32}
+                                    ring={isDark ? '#161b22' : '#ffffff'}
+                                    title={isMe ? 'Você' : u.name}
+                                />
                                 <span className={`absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 bg-green-400 border-2 ${isDark ? 'border-[#161b22]' : 'border-white'} rounded-full`} />
                             </div>
                             {expandida && (

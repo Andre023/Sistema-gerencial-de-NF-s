@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { router, usePage } from '@inertiajs/react';
 import { PageProps, Avatar as AvatarTipo, TipoAvatar } from '@/types';
 import Avatar from '@/Components/painel/Avatar';
+import Twemoji from '@/Components/painel/Twemoji';
 import {
     EMOJIS_BASE, TONS_PELE, TONS_LABEL, aplicarTom, aceitaTom, CORES_MONOGRAMA,
 } from '@/lib/avatares';
@@ -93,10 +94,10 @@ export default function AvatarForm({ className = '' }: { className?: string }) {
                             {TONS_PELE.map((_, i) => (
                                 <button key={i} type="button" onClick={() => escolherTom(i)}
                                     title={TONS_LABEL[i]}
-                                    className={`w-9 h-9 rounded-lg border text-lg flex items-center justify-center transition ${
+                                    className={`w-9 h-9 rounded-lg border flex items-center justify-center transition ${
                                         tomIdx === i ? 'border-blue-500 bg-blue-50' : 'border-gray-200 hover:bg-gray-50'
                                     }`}>
-                                    {aplicarTom('🙋', i)}
+                                    <Twemoji emoji={aplicarTom('🙋', i)} size={20} />
                                 </button>
                             ))}
                         </div>
@@ -107,10 +108,10 @@ export default function AvatarForm({ className = '' }: { className?: string }) {
                             const sel = baseEmoji === base;
                             return (
                                 <button key={base} type="button" onClick={() => escolherBase(base)}
-                                    className={`aspect-square rounded-lg border text-xl flex items-center justify-center transition ${
+                                    className={`aspect-square rounded-lg border flex items-center justify-center transition ${
                                         sel ? 'border-blue-500 bg-blue-50' : 'border-gray-200 hover:bg-gray-50'
                                     }`}>
-                                    {mostra}
+                                    <Twemoji emoji={mostra} size={24} />
                                 </button>
                             );
                         })}

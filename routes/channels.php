@@ -4,10 +4,12 @@ use App\Models\User;
 use Illuminate\Support\Facades\Broadcast;
 
 Broadcast::channel('presenca.sistema', function (User $user) {
-    // Retornamos os dados que queremos que os outros vejam
+    // Retornamos os dados que queremos que os outros vejam (inclui o avatar,
+    // para a barra lateral mostrar a identidade de cada um).
     return [
-        'id'   => $user->id,
-        'name' => $user->name,
+        'id'     => $user->id,
+        'name'   => $user->name,
+        'avatar' => $user->avatar,
     ];
 });
 
