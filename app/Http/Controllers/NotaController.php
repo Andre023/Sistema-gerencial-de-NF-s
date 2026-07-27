@@ -364,6 +364,7 @@ class NotaController extends Controller
 
     public function visualizar(Request $request, Nota $nota): RedirectResponse
     {
+        Gate::authorize('interagir'); // reservar é ação — visitante é só leitura
         $eu = $request->user();
 
         if ($nota->visualizando_por === null) {

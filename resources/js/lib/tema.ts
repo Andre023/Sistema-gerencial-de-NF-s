@@ -104,6 +104,7 @@ export const PAPEL_LABEL: Record<string, string> = {
     recebimento: 'Recebimento',
     pre_lote: 'Pré-lote',
     compras: 'Compras',
+    visitante: 'Visitante',
     admin: 'Admin',
 };
 

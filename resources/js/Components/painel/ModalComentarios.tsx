@@ -18,7 +18,7 @@ const quando = (iso: string) => {
 
 const iniciais = (nome: string) => nome.trim().slice(0, 2).toUpperCase();
 
-export default function ModalComentarios({ aberto, onFechar, baseUrl, titulo, onMudou, recarregarToken, p }: {
+export default function ModalComentarios({ aberto, onFechar, baseUrl, titulo, onMudou, recarregarToken, podeComentar = true, p }: {
     aberto: boolean;
     onFechar: () => void;
     /** Ex.: "/requisicoes/12/comentarios" */
@@ -28,6 +28,8 @@ export default function ModalComentarios({ aberto, onFechar, baseUrl, titulo, on
     onMudou?: () => void;
     /** Muda de valor quando chega evento do Echo — refaz a busca (comentário de outro usuário). */
     recarregarToken?: number;
+    /** Quando false (visitante), a thread é só leitura — sem campo de postar. */
+    podeComentar?: boolean;
     p: Palette;
 }) {
     const [timeline, setTimeline] = useState<ItemTimeline[]>([]);
@@ -148,22 +150,28 @@ export default function ModalComentarios({ aberto, onFechar, baseUrl, titulo, on
 
                 {erro && <p className="text-xs" style={{ color: p.RED }}>{erro}</p>}
 
-                {/* ── Novo comentário ── */}
-                <form onSubmit={enviar} className="space-y-2 pt-3" style={{ borderTop: `1px solid ${p.BORDER}` }}>
-                    <textarea value={texto} onChange={e => setTexto(e.target.value)} rows={2} maxLength={1000}
-                        placeholder="Escreva um comentário..."
-                        onKeyDown={e => { if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) enviar(e); }}
-                        className="block w-full rounded-lg text-sm px-3 py-2 outline-none resize-none"
-                        style={{ background: p.INPUT_BG, color: p.TEXT, border: `1px solid ${p.INPUT_BORDER}` }} />
-                    <div className="flex items-center justify-between">
-                        <span className="text-xs" style={{ color: p.MUTED }}>Ctrl+Enter para enviar</span>
-                        <button type="submit" disabled={enviando || !texto.trim()}
-                            className="px-4 py-1.5 text-sm font-medium text-white rounded-lg transition disabled:opacity-40"
-                            style={{ background: p.ACCENT }}>
-                            {enviando ? 'Enviando...' : 'Comentar'}
-                        </button>
-                    </div>
-                </form>
+                {/* ── Novo comentário (escondido para o visitante) ── */}
+                {podeComentar ? (
+                    <form onSubmit={enviar} className="space-y-2 pt-3" style={{ borderTop: `1px solid ${p.BORDER}` }}>
+                        <textarea value={texto} onChange={e => setTexto(e.target.value)} rows={2} maxLength={1000}
+                            placeholder="Escreva um comentário..."
+                            onKeyDown={e => { if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) enviar(e); }}
+                            className="block w-full rounded-lg text-sm px-3 py-2 outline-none resize-none"
+                            style={{ background: p.INPUT_BG, color: p.TEXT, border: `1px solid ${p.INPUT_BORDER}` }} />
+                        <div className="flex items-center justify-between">
+                            <span className="text-xs" style={{ color: p.MUTED }}>Ctrl+Enter para enviar</span>
+                            <button type="submit" disabled={enviando || !texto.trim()}
+                                className="px-4 py-1.5 text-sm font-medium text-white rounded-lg transition disabled:opacity-40"
+                                style={{ background: p.ACCENT }}>
+                                {enviando ? 'Enviando...' : 'Comentar'}
+                            </button>
+                        </div>
+                    </form>
+                ) : (
+                    <p className="text-xs text-center pt-3" style={{ borderTop: `1px solid ${p.BORDER}`, color: p.MUTED }}>
+                        Somente leitura
+                    </p>
+                )}
             </div>
         </Modal>
     );

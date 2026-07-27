@@ -8,6 +8,7 @@ use App\Models\Comentario;
 use App\Models\Nota;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Gate;
 
 class ComentarioController extends Controller
 {
@@ -27,8 +28,10 @@ class ComentarioController extends Controller
 
     public function store(Request $request, Nota $nota): JsonResponse
     {
-        // Comentar é liberado a todos os papéis — é o canal de contexto entre
-        // recebimento, pré-lote e compras (substitui a conversa do grupo).
+        // Comentar é o canal de contexto entre recebimento, pré-lote e compras.
+        // Liberado a todos os papéis operacionais; o visitante é só leitura.
+        Gate::authorize('interagir');
+
         $dados = $request->validate([
             'texto' => 'required|string|max:1000',
         ]);

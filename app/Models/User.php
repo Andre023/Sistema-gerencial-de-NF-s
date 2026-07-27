@@ -18,12 +18,14 @@ class User extends Authenticatable
     public const ROLE_RECEBIMENTO = 'recebimento'; // lança a nota quando o caminhão chega
     public const ROLE_PRE_LOTE    = 'pre_lote';    // analisa, abre/fecha cards, libera
     public const ROLE_COMPRAS     = 'compras';     // corrige no ERP, marca o card
+    public const ROLE_VISITANTE   = 'visitante';   // só leitura: vê as notas, não age
     public const ROLE_ADMIN       = 'admin';
 
     public const ROLES = [
         self::ROLE_RECEBIMENTO,
         self::ROLE_PRE_LOTE,
         self::ROLE_COMPRAS,
+        self::ROLE_VISITANTE,
         self::ROLE_ADMIN,
     ];
 
@@ -108,6 +110,12 @@ class User extends Authenticatable
         return $this->isAdmin() || in_array($this->role, $roles, true);
     }
 
+    /** Visitante: acesso só-leitura — vê as notas, mas não executa nenhuma ação. */
+    public function ehVisitante(): bool
+    {
+        return $this->role === self::ROLE_VISITANTE;
+    }
+
     // ─── Permissões por ação (fonte única, usada por Gates e frontend) ──────────
 
     /** Lançar nota — recebimento (caminhão na porta) e pré-lote (antecipada) */
@@ -184,5 +192,14 @@ class User extends Authenticatable
     public function podeGerenciarPrioridades(): bool
     {
         return $this->isAdmin();
+    }
+
+    /**
+     * Ações leves na tela de notas — comentar e reservar ("estou olhando").
+     * Todos os papéis operacionais podem; o visitante é só leitura.
+     */
+    public function podeInteragir(): bool
+    {
+        return ! $this->ehVisitante();
     }
 }

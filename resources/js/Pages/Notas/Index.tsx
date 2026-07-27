@@ -365,18 +365,24 @@ function LinhaFila({ nota, onCards, onComentar, onEditar, onExcluir, onLiberar, 
             <td className="px-4 py-3 text-sm whitespace-nowrap" style={{ color: p.TEXT }}>{nota.user.name.split(' ')[0]}</td>
             <td className="px-4 py-3 text-right">
                 <div className="flex items-center justify-end gap-0.5">
-                    {/* Reserva: avatar de quem pegou (fixo); olho neutro quando livre (hover) */}
-                    <button onClick={() => onVisualizar(nota)} title={reservaTitulo}
-                        className={`flex items-center p-1.5 rounded-lg transition ${olhando ? '' : 'opacity-0 group-hover:opacity-100'}`}
-                        style={{ background: olhando ? reservaCor + '22' : 'transparent' }}
-                        onMouseEnter={e => !olhando && (e.currentTarget.style.background = p.HOVER_ROW)}
-                        onMouseLeave={e => !olhando && (e.currentTarget.style.background = 'transparent')}>
-                        {olhando
-                            ? <Avatar user={olhando} size={22} ring={reservaCor} />
-                            : <span style={{ color: p.MUTED }}>
-                                <Icone path="M2.036 12.322a1.012 1.012 0 010-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178z M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                              </span>}
-                    </button>
+                    {/* Reserva: clicável só p/ papéis operacionais; visitante só vê o indicador */}
+                    {can.interagir ? (
+                        <button onClick={() => onVisualizar(nota)} title={reservaTitulo}
+                            className={`flex items-center p-1.5 rounded-lg transition ${olhando ? '' : 'opacity-0 group-hover:opacity-100'}`}
+                            style={{ background: olhando ? reservaCor + '22' : 'transparent' }}
+                            onMouseEnter={e => !olhando && (e.currentTarget.style.background = p.HOVER_ROW)}
+                            onMouseLeave={e => !olhando && (e.currentTarget.style.background = 'transparent')}>
+                            {olhando
+                                ? <Avatar user={olhando} size={22} ring={reservaCor} />
+                                : <span style={{ color: p.MUTED }}>
+                                    <Icone path="M2.036 12.322a1.012 1.012 0 010-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178z M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                                  </span>}
+                        </button>
+                    ) : olhando ? (
+                        <span className="flex items-center p-1.5" title={reservaTitulo}>
+                            <Avatar user={olhando} size={22} ring={reservaCor} />
+                        </span>
+                    ) : null}
 
                     <button onClick={() => onComentar(nota)} title="Comentários"
                         className={`flex items-center gap-1 p-1.5 rounded-lg transition ${nota.comentarios_count > 0 ? '' : 'opacity-0 group-hover:opacity-100'}`}
@@ -703,6 +709,7 @@ export default function Index({ recebimento, preLote, liberadas, fornecedores, d
                 titulo={comentariosNota ? `Nota ${comentariosNota.numero_nota} — ${comentariosNota.fornecedor.nome}` : ''}
                 onMudou={() => router.reload({ only: ['recebimento', 'preLote', 'liberadas'] })}
                 recarregarToken={echoTick}
+                podeComentar={can.interagir}
                 p={p} />
 
             <div className="min-h-screen py-6 px-4 sm:px-6 lg:px-8 max-w-screen-2xl mx-auto space-y-4 transition-colors duration-200"

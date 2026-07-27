@@ -1,6 +1,6 @@
 // Tipos globais do sistema
 
-export type Papel = 'recebimento' | 'pre_lote' | 'compras' | 'admin';
+export type Papel = 'recebimento' | 'pre_lote' | 'compras' | 'visitante' | 'admin';
 
 export type TipoAvatar = 'emoji' | 'monograma';
 
@@ -35,6 +35,8 @@ export interface Permissoes {
     gerenciarUsuarios: boolean;
     /** Gerenciar a aba Prioridades (fornecedores prioritários) — só admin */
     gerenciarPrioridades: boolean;
+    /** Ações leves na fila (comentar, reservar) — todos menos o visitante */
+    interagir: boolean;
 }
 
 export interface Fornecedor {

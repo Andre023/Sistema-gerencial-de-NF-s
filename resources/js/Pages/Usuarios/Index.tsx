@@ -24,6 +24,7 @@ const PAPEL_LABEL: Record<Papel, string> = {
     recebimento: 'Recebimento',
     pre_lote: 'Pré-lote',
     compras: 'Compras',
+    visitante: 'Visitante',
     admin: 'Admin',
 };
 
@@ -31,6 +32,7 @@ function papelCor(papel: Papel, p: Palette): string {
     if (papel === 'admin') return p.GREEN;
     if (papel === 'pre_lote') return p.PURPLE;
     if (papel === 'compras') return p.AMBER;
+    if (papel === 'visitante') return p.MUTED;
     return p.ACCENT;
 }
 
