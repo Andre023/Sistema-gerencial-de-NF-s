@@ -176,9 +176,10 @@ export default function NotificacoesProvider({ userId, children }: PropsWithChil
                 // evento é descartada — que é o que a tag deve evitar.
                 tag: `nota-${n.id}-${n.updated_at}`,
                 icon: '/favicon.ico',
-                // Mantém a faixa na tela até a pessoa interagir, em vez de sumir
-                // sozinha em ~5s (que faz o aviso passar despercebido)
-                requireInteraction: true,
+                // Fecha sozinha após 5s (pedido do André): requireInteraction=false
+                // deixa o próprio SO poder dispensar, e o timer abaixo garante o
+                // fechamento mesmo onde o sistema mantém a faixa parada.
+                requireInteraction: false,
             });
 
             aviso.onclick = () => {
@@ -186,6 +187,9 @@ export default function NotificacoesProvider({ userId, children }: PropsWithChil
                 aviso.close();
                 abrirNota(n);
             };
+
+            // Some sozinha em 5s se a pessoa não interagir
+            setTimeout(() => aviso.close(), 5000);
         });
     }, [estado, permissao, bipar, abrirNota]);
 
