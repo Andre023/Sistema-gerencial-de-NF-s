@@ -11,6 +11,7 @@ import THead from '@/Components/painel/THead';
 import CampoFornecedor from '@/Components/painel/CampoFornecedor';
 import CardBadge from '@/Components/painel/CardBadge';
 import ModalComentarios from '@/Components/painel/ModalComentarios';
+import Avatar from '@/Components/painel/Avatar';
 
 interface Props {
     recebimento: Nota[];
@@ -339,7 +340,12 @@ function LinhaFila({ nota, onCards, onComentar, onEditar, onExcluir, onLiberar, 
                     )}
                 </div>
             </td>
-            <td className="px-4 py-3 text-sm max-w-[180px] truncate" style={{ color: p.TEXT }}>{nota.fornecedor.nome}</td>
+            <td className="px-4 py-3 text-sm max-w-[180px] truncate" style={{ color: p.TEXT }}>
+                {nota.fornecedor.prioridade && (
+                    <span title="Fornecedor prioritário" className="mr-1" style={{ color: p.AMBER }}>★</span>
+                )}
+                {nota.fornecedor.nome}
+            </td>
             <td className="px-4 py-3">
                 <button onClick={() => onCards(nota)} className="flex flex-wrap items-center gap-1" title="Abrir cards da nota">
                     {ativos.length > 0
@@ -359,16 +365,17 @@ function LinhaFila({ nota, onCards, onComentar, onEditar, onExcluir, onLiberar, 
             <td className="px-4 py-3 text-sm whitespace-nowrap" style={{ color: p.TEXT }}>{nota.user.name.split(' ')[0]}</td>
             <td className="px-4 py-3 text-right">
                 <div className="flex items-center justify-end gap-0.5">
-                    {/* 🙋‍♂️ Reserva: fixa quando alguém pegou, hover-only quando livre */}
+                    {/* Reserva: avatar de quem pegou (fixo); olho neutro quando livre (hover) */}
                     <button onClick={() => onVisualizar(nota)} title={reservaTitulo}
                         className={`flex items-center p-1.5 rounded-lg transition ${olhando ? '' : 'opacity-0 group-hover:opacity-100'}`}
                         style={{ background: olhando ? reservaCor + '22' : 'transparent' }}
                         onMouseEnter={e => !olhando && (e.currentTarget.style.background = p.HOVER_ROW)}
                         onMouseLeave={e => !olhando && (e.currentTarget.style.background = 'transparent')}>
-                        <span className="text-base leading-none"
-                            style={{ filter: olhando ? 'none' : 'grayscale(0.7)', opacity: olhando ? 1 : 0.75 }}>
-                            🙋‍♂️
-                        </span>
+                        {olhando
+                            ? <Avatar user={olhando} size={22} ring={reservaCor} />
+                            : <span style={{ color: p.MUTED }}>
+                                <Icone path="M2.036 12.322a1.012 1.012 0 010-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178z M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                              </span>}
                     </button>
 
                     <button onClick={() => onComentar(nota)} title="Comentários"
@@ -433,7 +440,7 @@ export default function Index({ recebimento, preLote, liberadas, fornecedores, d
     const [erros, setErros] = useState<Record<string, string>>({});
     const [submetendo, setSubmetendo] = useState(false);
     const [buscaLocal, setBuscaLocal] = useState(filtros.busca ?? '');
-    const [lojaLocal, setLojaLocal] = useState(filtros.loja ? String(filtros.loja) : '');
+    const [lojasSel, setLojasSel] = useState<number[]>(filtros.loja ?? []);
 
     // Listas em estado local — permitem atualizar só a linha que mudou (via evento),
     // em vez de todo cliente recarregar a fila inteira a cada mudança.
@@ -446,7 +453,7 @@ export default function Index({ recebimento, preLote, liberadas, fornecedores, d
 
     const isHoje = dataFiltro === hoje();
     // Visão "simples" (hoje, sem filtros): dá pra atualizar a linha no cliente com segurança
-    const visaoSimples = isHoje && !filtros.busca && !filtros.loja && !filtros.nivel && !filtros.status && !filtros.tipo;
+    const visaoSimples = isHoje && !filtros.busca && !filtros.loja?.length && !filtros.nivel && !filtros.status && !filtros.tipo;
     const visaoSimplesRef = useRef(visaoSimples);
     visaoSimplesRef.current = visaoSimples;
 
@@ -479,9 +486,12 @@ export default function Index({ recebimento, preLote, liberadas, fornecedores, d
         );
         const sem = (l: Nota[]) => l.filter(n => n.id !== nota.id);
         const asc = (l: Nota[]) => [...l].sort((a, b) => a.created_at.localeCompare(b.created_at));
+        // Pré-lote: fornecedor prioritário no topo; dentro do grupo, por data.
+        const prio = (n: Nota) => (n.fornecedor.prioridade ? 0 : 1);
+        const ascPrio = (l: Nota[]) => [...l].sort((a, b) => prio(a) - prio(b) || a.created_at.localeCompare(b.created_at));
         const desc = (l: Nota[]) => [...l].sort((a, b) => (b.liberada_em ?? '').localeCompare(a.liberada_em ?? ''));
         setRecebimentoL(l => naFila && nota.origem === 'recebimento' ? asc([...sem(l), nota]) : sem(l));
-        setPreLoteL(l => naFila && nota.origem === 'pre_lote' ? asc([...sem(l), nota]) : sem(l));
+        setPreLoteL(l => naFila && nota.origem === 'pre_lote' ? ascPrio([...sem(l), nota]) : sem(l));
         setLiberadasL(l => liberadaHoje ? desc([...sem(l), nota]) : sem(l));
     };
 
@@ -528,7 +538,7 @@ export default function Index({ recebimento, preLote, liberadas, fornecedores, d
     const paramsAtuais = () => ({
         data: dataFiltro,
         busca: buscaLocal || undefined,
-        loja: lojaLocal || undefined,
+        loja: lojasSel.length ? lojasSel : undefined,
         nivel: filtros.nivel || undefined,
         status: filtros.status || undefined,
         tipo: filtros.tipo || undefined,
@@ -541,14 +551,19 @@ export default function Index({ recebimento, preLote, liberadas, fornecedores, d
     const filtrarNivel = (n: Nivel | null) => irPara({ nivel: n ?? undefined });
     const filtrarStatus = (s: string | null) => irPara({ status: s ?? undefined });
     const filtrarTipo = (t: TipoCard | null) => irPara({ tipo: t ?? undefined });
+    const alternarLoja = (l: number) => {
+        const novo = lojasSel.includes(l) ? lojasSel.filter(x => x !== l) : [...lojasSel, l];
+        setLojasSel(novo);
+        irPara({ loja: novo.length ? novo : undefined });
+    };
     const diaAnterior = () => mudarData(format(subDays(parseISO(dataFiltro), 1), 'yyyy-MM-dd'));
     const diaSeguinte = () => mudarData(format(addDays(parseISO(dataFiltro), 1), 'yyyy-MM-dd'));
     const aplicarFiltros = () => irPara();
     const limparFiltros = () => {
-        setBuscaLocal(''); setLojaLocal('');
+        setBuscaLocal(''); setLojasSel([]);
         router.get(route('notas.index'), { data: dataFiltro }, { preserveState: true, replace: true });
     };
-    const filtrosAtivos = !!(filtros.busca || filtros.loja || filtros.nivel || filtros.status || filtros.tipo);
+    const filtrosAtivos = !!(filtros.busca || filtros.loja?.length || filtros.nivel || filtros.status || filtros.tipo);
 
     const criar = (dados: any, confirmarMover = false) => {
         setSubmetendo(true);
@@ -726,11 +741,24 @@ export default function Index({ recebimento, preLote, liberadas, fornecedores, d
                         </span>
                     </div>
 
-                    <select value={lojaLocal} onChange={e => setLojaLocal(e.target.value)}
-                        className="rounded-lg text-sm px-3 py-2 outline-none" style={inputCtrl}>
-                        <option value="">Todas as lojas</option>
-                        {opcoes.lojas.map(l => <option key={l} value={l}>{lojaNome(l)}</option>)}
-                    </select>
+                    <div className="flex items-center gap-1.5">
+                        <span className="text-sm" style={{ color: p.MUTED }}>Lojas:</span>
+                        {opcoes.lojas.map(l => {
+                            const ativo = lojasSel.includes(l);
+                            return (
+                                <button key={l} onClick={() => alternarLoja(l)}
+                                    title={ativo ? `Desmarcar loja ${String(l).padStart(2, '0')}` : `Mostrar só as lojas marcadas`}
+                                    className="text-sm px-2.5 py-2 rounded-lg transition font-medium"
+                                    style={{
+                                        background: ativo ? p.ACCENT + '22' : 'transparent',
+                                        border: `1px solid ${ativo ? p.ACCENT : p.BORDER}`,
+                                        color: ativo ? p.ACCENT : p.TEXT,
+                                    }}>
+                                    {String(l).padStart(2, '0')}
+                                </button>
+                            );
+                        })}
+                    </div>
 
                     <button onClick={aplicarFiltros}
                         className="px-3.5 py-2 text-sm font-medium rounded-lg transition"

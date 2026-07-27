@@ -38,6 +38,9 @@ class User extends Authenticatable
         'password',
         'role',
         'notificacoes_ativas',
+        // Avatar: o tipo ('emoji'|'monograma') e o valor (emoji com tom, ou cor).
+        'avatar_tipo',
+        'avatar_valor',
     ];
 
     /**
@@ -48,7 +51,14 @@ class User extends Authenticatable
     protected $hidden = [
         'password',
         'remember_token',
+        // As colunas cruas do avatar não vão pro JSON — o front consome só o
+        // objeto normalizado `avatar` (getAvatarAttribute), anexado via $appends.
+        'avatar_tipo',
+        'avatar_valor',
     ];
+
+    /** Sempre expõe o avatar montado, mesmo em relação carregada só com id/name. */
+    protected $appends = ['avatar'];
 
     /**
      * Get the attributes that should be cast.
@@ -61,6 +71,21 @@ class User extends Authenticatable
             'email_verified_at'   => 'datetime',
             'password'            => 'hashed',
             'notificacoes_ativas' => 'boolean',
+        ];
+    }
+
+    // ─── Avatar ─────────────────────────────────────────────────────────────────
+
+    /**
+     * Avatar normalizado para o frontend: {tipo, valor}. Se a relação veio
+     * carregada sem as colunas do avatar (ex.: user:id,name), o tipo cai em
+     * 'monograma' e o componente <Avatar> deriva a cor a partir do nome.
+     */
+    public function getAvatarAttribute(): array
+    {
+        return [
+            'tipo'  => $this->avatar_tipo ?? 'monograma',
+            'valor' => $this->avatar_valor,
         ];
     }
 
@@ -151,6 +176,12 @@ class User extends Authenticatable
 
     /** Gerenciar usuários — só admin */
     public function podeGerenciarUsuarios(): bool
+    {
+        return $this->isAdmin();
+    }
+
+    /** Gerenciar fornecedores prioritários (a aba Prioridades) — só admin */
+    public function podeGerenciarPrioridades(): bool
     {
         return $this->isAdmin();
     }

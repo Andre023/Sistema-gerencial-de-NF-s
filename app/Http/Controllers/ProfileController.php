@@ -56,6 +56,25 @@ class ProfileController extends Controller
     }
 
     /**
+     * Salva o avatar do usuário: emoji (o valor é o emoji já com tom de pele) ou
+     * monograma (o valor é a cor, ou null para a cor automática derivada do nome).
+     */
+    public function avatar(Request $request): RedirectResponse
+    {
+        $dados = $request->validate([
+            'tipo'  => ['required', 'in:emoji,monograma'],
+            'valor' => ['nullable', 'string', 'max:32'],
+        ]);
+
+        $request->user()->update([
+            'avatar_tipo'  => $dados['tipo'],
+            'avatar_valor' => $dados['valor'] ?? null,
+        ]);
+
+        return Redirect::route('profile.edit');
+    }
+
+    /**
      * Delete the user's account.
      */
     public function destroy(Request $request): RedirectResponse

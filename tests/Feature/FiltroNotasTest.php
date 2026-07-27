@@ -81,6 +81,17 @@ class FiltroNotasTest extends TestCase
         $this->assertSame(['L2'], $this->numerosNaFila(['loja' => 2]));
     }
 
+    public function test_filtra_por_varias_lojas(): void
+    {
+        $this->nota(['numero_nota' => 'L1', 'loja' => 1]);
+        $this->nota(['numero_nota' => 'L2', 'loja' => 2]);
+        $this->nota(['numero_nota' => 'L3', 'loja' => 3]);
+        $this->nota(['numero_nota' => 'L9', 'loja' => 9]);
+
+        // Marcando 2, 3 e 9 → só essas aparecem (a 1 fica de fora)
+        $this->assertSame(['L2', 'L3', 'L9'], $this->numerosNaFila(['loja' => [2, 3, 9]]));
+    }
+
     public function test_busca_por_numero_e_por_fornecedor(): void
     {
         $this->nota(['numero_nota' => '5001'], 'CHUA ALIMENTOS');

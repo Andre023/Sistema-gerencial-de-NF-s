@@ -5,6 +5,7 @@ import ResponsiveNavLink from '@/Components/ResponsiveNavLink';
 import OnlineSidebar from '@/Components/OnlineSidebar';
 import SinoNotificacoes from '@/Components/painel/SinoNotificacoes';
 import NotificacoesProvider from '@/Components/painel/NotificacoesProvider';
+import Avatar from '@/Components/painel/Avatar';
 import { Link, usePage } from '@inertiajs/react';
 import { PropsWithChildren, ReactNode, useState, useEffect } from 'react';
 import { User, Permissoes } from '@/types';
@@ -84,6 +85,11 @@ export default function AuthenticatedLayout({
                                         Estatísticas
                                     </NavLink>
                                 )}
+                                {can.gerenciarPrioridades && (
+                                    <NavLink href={route('prioridades.index')} active={route().current('prioridades.*')}>
+                                        Prioridades
+                                    </NavLink>
+                                )}
                                 {can.gerenciarUsuarios && (
                                     <NavLink href={route('usuarios.index')} active={route().current('usuarios.*')}>
                                         Usuários
@@ -122,9 +128,7 @@ export default function AuthenticatedLayout({
                                         type="button"
                                         className="flex items-center gap-2 rounded-full bg-blue-600 text-white px-3 py-1.5 text-sm font-medium hover:bg-blue-700 transition"
                                     >
-                                        <span className="w-6 h-6 rounded-full bg-white text-blue-700 text-xs font-bold flex items-center justify-center">
-                                            {user.name.slice(0, 2).toUpperCase()}
-                                        </span>
+                                        <Avatar user={user} size={24} ring="rgba(255,255,255,0.9)" />
                                         {user.name.split(' ')[0]}
                                         <svg className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
                                             <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
@@ -172,6 +176,11 @@ export default function AuthenticatedLayout({
                         {can.verEstatisticas && (
                             <ResponsiveNavLink href={route('estatisticas.index')} active={route().current('estatisticas.*')}>
                                 Estatísticas
+                            </ResponsiveNavLink>
+                        )}
+                        {can.gerenciarPrioridades && (
+                            <ResponsiveNavLink href={route('prioridades.index')} active={route().current('prioridades.*')}>
+                                Prioridades
                             </ResponsiveNavLink>
                         )}
                         {can.gerenciarUsuarios && (

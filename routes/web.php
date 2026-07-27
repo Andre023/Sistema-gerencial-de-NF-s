@@ -6,6 +6,7 @@ use App\Http\Controllers\EstatisticaController;
 use App\Http\Controllers\FornecedorController;
 use App\Http\Controllers\NotaController;
 use App\Http\Controllers\NotificacaoController;
+use App\Http\Controllers\PrioridadeController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\UserController;
 use Illuminate\Foundation\Application;
@@ -36,6 +37,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');
     Route::patch('/profile/notificacoes', [ProfileController::class, 'notificacoes'])
          ->name('profile.notificacoes');
+    Route::patch('/profile/avatar', [ProfileController::class, 'avatar'])->name('profile.avatar');
 
     // ── Sino ───────────────────────────────────────────────────────────────────
     Route::prefix('notificacoes')->name('notificacoes.')->group(function () {
@@ -79,6 +81,12 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('/estatisticas', [EstatisticaController::class, 'index'])
         ->middleware('can:ver-estatisticas')
         ->name('estatisticas.index');
+
+    // ── Prioridades (só admin) ─────────────────────────────────────────────────
+    Route::middleware('can:gerenciar-prioridades')->prefix('prioridades')->name('prioridades.')->group(function () {
+        Route::get('/',               [PrioridadeController::class, 'index'])->name('index');
+        Route::patch('/{fornecedor}', [PrioridadeController::class, 'alternar'])->name('alternar');
+    });
 
     // ── Usuários (só admin) ────────────────────────────────────────────────────
     Route::middleware('can:gerenciar-usuarios')->prefix('usuarios')->name('usuarios.')->group(function () {

@@ -48,6 +48,7 @@ class HandleInertiaRequests extends Middleware
                     'excluirNotaLiberada' => $user->podeExcluirNotaLiberada(),
                     'verEstatisticas'   => $user->podeVerEstatisticas(),
                     'gerenciarUsuarios' => $user->podeGerenciarUsuarios(),
+                    'gerenciarPrioridades' => $user->podeGerenciarPrioridades(),
                 ] : null,
             ],
             // O sino: estado inicial da lista. Depois disso quem mantém ao vivo

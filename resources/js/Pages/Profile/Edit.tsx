@@ -1,6 +1,7 @@
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 import { PageProps } from '@/types';
 import { Head } from '@inertiajs/react';
+import AvatarForm from './Partials/AvatarForm';
 import DeleteUserForm from './Partials/DeleteUserForm';
 import NotificacoesForm from './Partials/NotificacoesForm';
 import UpdatePasswordForm from './Partials/UpdatePasswordForm';
@@ -28,6 +29,10 @@ export default function Edit({
                             status={status}
                             className="max-w-xl"
                         />
+                    </div>
+
+                    <div className="bg-white p-4 shadow sm:rounded-lg sm:p-8">
+                        <AvatarForm className="max-w-xl" />
                     </div>
 
                     <div className="bg-white p-4 shadow sm:rounded-lg sm:p-8">

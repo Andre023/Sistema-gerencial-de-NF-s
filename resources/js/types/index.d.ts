@@ -2,6 +2,15 @@
 
 export type Papel = 'recebimento' | 'pre_lote' | 'compras' | 'admin';
 
+export type TipoAvatar = 'emoji' | 'monograma';
+
+/** Avatar normalizado que o backend anexa a todo User (getAvatarAttribute). */
+export interface Avatar {
+    tipo: TipoAvatar;
+    /** emoji já com tom de pele, OU a cor do monograma; null = derivar do nome */
+    valor: string | null;
+}
+
 export interface User {
     id: number;
     name: string;
@@ -9,6 +18,7 @@ export interface User {
     role: Papel;
     notificacoes_ativas?: boolean;
     email_verified_at?: string;
+    avatar?: Avatar;
 }
 
 export interface Permissoes {
@@ -23,12 +33,16 @@ export interface Permissoes {
     excluirNotaLiberada: boolean;
     verEstatisticas: boolean;
     gerenciarUsuarios: boolean;
+    /** Gerenciar a aba Prioridades (fornecedores prioritários) — só admin */
+    gerenciarPrioridades: boolean;
 }
 
 export interface Fornecedor {
     id: number;
     nome: string;
     cnpj?: string | null;
+    /** Fornecedor prioritário: sobe ao topo do pré-lote */
+    prioridade?: boolean;
 }
 
 export type TipoCard = 'cadastro' | 'regra' | 'custo' | 'quantidade' | 'sem_pedido';
@@ -61,8 +75,8 @@ export interface Nota {
     liberada_em: string | null;
     /** Chegada física de uma nota já liberada (o caminhão trouxe depois) */
     recebida_em: string | null;
-    /** Quem está "olhando" a nota agora (o 🙋‍♂️) — null se ninguém reservou */
-    visualizando_por: Pick<User, 'id' | 'name'> | null;
+    /** Quem está "olhando" a nota agora (mostra o avatar dela) — null se livre */
+    visualizando_por: (Pick<User, 'id' | 'name'> & { avatar?: Avatar }) | null;
     visualizando_em: string | null;
     comentarios_count: number;
     created_at: string;
@@ -83,7 +97,8 @@ export interface ResumoAlertas {
 
 export interface FiltrosAtivos {
     busca?: string | null;
-    loja?: number | null;
+    /** Lojas marcadas para aparecer (vazio = todas) */
+    loja?: number[];
     nivel?: Nivel | null;
     status?: StatusNota | null;
     /** Tipo de divergência ainda em aberto (cadastro, custo, ...) */

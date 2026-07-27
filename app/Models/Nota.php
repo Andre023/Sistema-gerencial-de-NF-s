@@ -158,7 +158,8 @@ class Nota extends Model
             'liberada_em'  => $this->liberada_em,
             'recebida_em'  => $this->recebida_em,
             'visualizando_por' => $this->visualizadaPor
-                ? ['id' => $this->visualizadaPor->id, 'name' => $this->visualizadaPor->name]
+                ? ['id' => $this->visualizadaPor->id, 'name' => $this->visualizadaPor->name,
+                   'avatar' => $this->visualizadaPor->avatar]
                 : null,
             'visualizando_em'  => $this->visualizando_em,
             'comentarios_count' => $this->comentarios_count ?? 0,

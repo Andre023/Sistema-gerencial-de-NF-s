@@ -42,7 +42,11 @@ class NotaAtualizada implements ShouldBroadcastNow
         // Recarrega a nota + relações para refletir a mudança recém-feita.
         // Formatada relativa a "hoje" (correto para quem vê o dia atual — o caso comum).
         $nota = $this->nota?->fresh([
-            'fornecedor:id,nome', 'user:id,name', 'liberadaPor:id,name', 'visualizadaPor:id,name', 'cards',
+            'fornecedor:id,nome,prioridade',
+            'user:id,name,avatar_tipo,avatar_valor',
+            'liberadaPor:id,name,avatar_tipo,avatar_valor',
+            'visualizadaPor:id,name,avatar_tipo,avatar_valor',
+            'cards',
         ]);
 
         if (! $nota) {

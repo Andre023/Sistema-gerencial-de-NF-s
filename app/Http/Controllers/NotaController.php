@@ -25,7 +25,6 @@ class NotaController extends Controller
         $dataFiltro = $request->input('data', Carbon::today()->toDateString());
 
         $busca  = $request->input('busca');
-        $loja   = $request->input('loja');
         $nivel  = $request->input('nivel');
         $status = $request->input('status');
         $tipo   = $request->input('tipo');
@@ -41,9 +40,25 @@ class NotaController extends Controller
             $tipo = null;
         }
 
-        $base = Nota::with(['fornecedor:id,nome', 'user:id,name', 'liberadaPor:id,name', 'visualizadaPor:id,name', 'cards'])
+        // Lojas marcadas: aceita array (loja[]=2&loja[]=3) ou um valor só (compat
+        // com link antigo). Mantém apenas lojas válidas; vazio = todas as lojas.
+        $lojaEntrada = $request->input('loja', []);
+        $lojas = array_values(array_filter(
+            array_map('intval', is_array($lojaEntrada)
+                ? $lojaEntrada
+                : ($lojaEntrada === '' || $lojaEntrada === null ? [] : [$lojaEntrada])),
+            fn($l) => in_array($l, Nota::LOJAS, true)
+        ));
+
+        $base = Nota::with([
+                'fornecedor:id,nome,prioridade',
+                'user:id,name,avatar_tipo,avatar_valor',
+                'liberadaPor:id,name,avatar_tipo,avatar_valor',
+                'visualizadaPor:id,name,avatar_tipo,avatar_valor',
+                'cards',
+            ])
             ->withCount('comentarios')
-            ->when($loja, fn($q) => $q->where('loja', $loja))
+            ->when($lojas, fn($q) => $q->whereIn('loja', $lojas))
             ->when($busca, fn($q) => $q->where(function ($q) use ($busca) {
                 $q->where('numero_nota', 'like', "%{$busca}%")
                     ->orWhereHas('fornecedor', fn($q2) => $q2->where('nome', 'like', "%{$busca}%"));
@@ -83,7 +98,11 @@ class NotaController extends Controller
         // A separação que a antiga tela de Cadastros fazia, agora em seções:
         // recebimento (caminhão na porta, prioridade) × pré-lote (antecipadas)
         $recebimento = $fila->where('origem', 'recebimento')->values();
-        $preLote     = $fila->where('origem', 'pre_lote')->values();
+        // Fornecedor prioritário (marcado na aba Prioridades) sobe ao topo do
+        // pré-lote; dentro de cada grupo mantém a ordem por data (sort estável).
+        $preLote     = $fila->where('origem', 'pre_lote')
+            ->sortByDesc(fn($n) => $n['fornecedor']->prioridade ? 1 : 0)
+            ->values();
 
         // LIBERADAS: liberadas no dia exato, MAIS as já liberadas que o caminhão
         // trouxe hoje (recebida_em) — a nota fechada no pré-lote que chegou agora.
@@ -109,7 +128,7 @@ class NotaController extends Controller
             'totalReconferir' => $totalReconferir,
             'filtros'       => [
                 'busca'  => $busca,
-                'loja'   => $loja,
+                'loja'   => $lojas,
                 'nivel'  => $nivel,
                 'status' => $status,
                 'tipo'   => $tipo,
