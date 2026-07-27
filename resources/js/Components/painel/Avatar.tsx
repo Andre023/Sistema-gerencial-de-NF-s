@@ -1,6 +1,6 @@
 import { User, Avatar as AvatarTipo } from '@/types';
 import { corDoNome, iniciais } from '@/lib/avatares';
-import Twemoji from '@/Components/painel/Twemoji';
+import Emoji from '@/Components/painel/Emoji';
 
 interface Props {
     /** Basta name + avatar — funciona tanto com User completo quanto com o
@@ -29,7 +29,7 @@ export default function Avatar({ user, size = 28, ring, className = '', title }:
             <span title={titulo}
                 className={`inline-flex items-center justify-center rounded-full shrink-0 select-none ${className}`}
                 style={{ ...dim, ...anel }}>
-                <Twemoji emoji={av.valor} size={Math.round(size * 0.72)} title={titulo} />
+                <Emoji emoji={av.valor} size={Math.round(size * 0.72)} title={titulo} />
             </span>
         );
     }

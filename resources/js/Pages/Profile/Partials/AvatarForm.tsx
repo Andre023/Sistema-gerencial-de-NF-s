@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { router, usePage } from '@inertiajs/react';
 import { PageProps, Avatar as AvatarTipo, TipoAvatar } from '@/types';
 import Avatar from '@/Components/painel/Avatar';
-import Twemoji from '@/Components/painel/Twemoji';
+import Emoji from '@/Components/painel/Emoji';
 import {
     EMOJIS_BASE, TONS_PELE, TONS_LABEL, aplicarTom, aceitaTom, CORES_MONOGRAMA,
 } from '@/lib/avatares';
@@ -97,7 +97,7 @@ export default function AvatarForm({ className = '' }: { className?: string }) {
                                     className={`w-9 h-9 rounded-lg border flex items-center justify-center transition ${
                                         tomIdx === i ? 'border-blue-500 bg-blue-50' : 'border-gray-200 hover:bg-gray-50'
                                     }`}>
-                                    <Twemoji emoji={aplicarTom('🙋', i)} size={20} />
+                                    <Emoji emoji={aplicarTom('🙋', i)} size={20} />
                                 </button>
                             ))}
                         </div>
@@ -111,7 +111,7 @@ export default function AvatarForm({ className = '' }: { className?: string }) {
                                     className={`aspect-square rounded-lg border flex items-center justify-center transition ${
                                         sel ? 'border-blue-500 bg-blue-50' : 'border-gray-200 hover:bg-gray-50'
                                     }`}>
-                                    <Twemoji emoji={mostra} size={24} />
+                                    <Emoji emoji={mostra} size={24} />
                                 </button>
                             );
                         })}
