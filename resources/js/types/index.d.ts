@@ -68,8 +68,8 @@ export interface Nota {
     user: User;
     loja: number;
     origem: OrigemNota;
-    /** Nota de CEASA — nela o setor de compras também pode abrir cards */
-    ceasa: boolean;
+    /** CEASA: 0 = não · 1 = CEASA 1 · 2 = CEASA 2 (compras também abre cards) */
+    ceasa: number;
     observacao: string | null;
     status: StatusNota;
     cards: Card[];

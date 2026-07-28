@@ -32,7 +32,7 @@ interface DadosForm {
     numero_nota: string; fornecedor_id: number | '';
     fornecedor: { id: number | ''; nome: string };
     fornecedor_novo: boolean; fornecedor_nome: string;
-    loja: number | ''; origem: string; ceasa: boolean; observacao: string;
+    loja: number | ''; origem: string; ceasa: number; observacao: string;
 }
 
 function FormNota({ fornecedores, opcoes, inicial, origemDefault, onSubmit, onCancelar, carregando, erros, labelSubmit, p }: {
@@ -45,7 +45,7 @@ function FormNota({ fornecedores, opcoes, inicial, origemDefault, onSubmit, onCa
         fornecedor: { id: inicial?.fornecedor?.id ?? '', nome: inicial?.fornecedor?.nome ?? '' },
         fornecedor_novo: false, fornecedor_nome: '', // checkbox sempre começa desmarcado
         loja: inicial?.loja ?? '', origem: inicial?.origem ?? origemDefault,
-        ceasa: inicial?.ceasa ?? false, observacao: inicial?.observacao ?? '',
+        ceasa: inicial?.ceasa ?? 0, observacao: inicial?.observacao ?? '',
     });
 
     const set = <K extends keyof DadosForm>(k: K, v: DadosForm[K]) => setForm(prev => ({ ...prev, [k]: v }));
@@ -123,14 +123,27 @@ function FormNota({ fornecedores, opcoes, inicial, origemDefault, onSubmit, onCa
                     </select>, erros.origem
                 )}
             </div>
-            <label className="flex items-center gap-2 cursor-pointer select-none">
-                <input type="checkbox" checked={form.ceasa}
-                    onChange={e => set('ceasa', e.target.checked)}
-                    style={{ accentColor: p.ACCENT }} />
-                <span className="text-sm" style={{ color: p.MUTED }}>
-                    Nota de CEASA — o setor de compras também pode abrir cards
+            <div>
+                <span className="block text-sm font-medium mb-1.5" style={{ color: p.MUTED }}>
+                    CEASA <span className="font-normal">(opcional — compras também pode abrir cards)</span>
                 </span>
-            </label>
+                <div className="flex gap-2">
+                    {[1, 2].map(n => {
+                        const ativo = form.ceasa === n;
+                        return (
+                            <button key={n} type="button" onClick={() => set('ceasa', ativo ? 0 : n)}
+                                className="px-4 py-2 text-sm font-medium rounded-lg transition"
+                                style={{
+                                    background: ativo ? p.PURPLE + '22' : p.INPUT_BG,
+                                    color: ativo ? p.PURPLE : p.MUTED,
+                                    border: `1px solid ${ativo ? p.PURPLE : p.INPUT_BORDER}`,
+                                }}>
+                                CEASA {n}
+                            </button>
+                        );
+                    })}
+                </div>
+            </div>
             {campo('Observação', false,
                 <textarea value={form.observacao} onChange={e => set('observacao', e.target.value)}
                     rows={3} placeholder="Detalhes adicionais..."
@@ -250,7 +263,7 @@ function ModalCards({ nota, onFechar, can, tiposCompras, isDark, p }: {
                 </div>
 
                 {/* ── Abrir novo card (pré-lote; e compras quando a nota é de CEASA) ── */}
-                {!liberada && (can.gerirCards || (nota.ceasa && ehCompras)) && (
+                {!liberada && (can.gerirCards || (nota.ceasa > 0 && ehCompras)) && (
                     <form onSubmit={abrirCard} className="flex items-center gap-2 pt-3" style={{ borderTop: `1px solid ${p.BORDER}` }}>
                         <select value={tipoNovo} onChange={e => setTipoNovo(e.target.value as TipoCard)}
                             className="rounded-lg text-sm px-2.5 py-1.5 outline-none"
@@ -324,11 +337,11 @@ function LinhaFila({ nota, onCards, onComentar, onEditar, onExcluir, onLiberar, 
             <td className="px-4 py-3 text-sm">
                 <div className="flex items-center gap-2">
                     <span className="font-medium" style={{ color: p.TEXT }}>{nota.numero_nota}</span>
-                    {nota.ceasa && (
+                    {nota.ceasa > 0 && (
                         <span className="inline-flex items-center rounded px-1.5 py-0.5 text-[10px] font-bold tracking-wide"
                             style={{ background: p.PURPLE + '22', color: p.PURPLE, border: `1px solid ${p.PURPLE}44` }}
                             title="Nota de CEASA — compras pode abrir cards">
-                            CEASA
+                            CEASA {nota.ceasa}
                         </span>
                     )}
                     {nota.nivel !== 'normal' && (

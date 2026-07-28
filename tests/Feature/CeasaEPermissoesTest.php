@@ -75,10 +75,10 @@ class CeasaEPermissoesTest extends TestCase
 
         $this->actingAs($this->recebimento)->post(route('notas.store'), [
             'numero_nota' => '7777', 'fornecedor_id' => $forn->id,
-            'loja' => 1, 'origem' => 'recebimento', 'ceasa' => true,
+            'loja' => 1, 'origem' => 'recebimento', 'ceasa' => 1,
         ])->assertRedirect();
 
-        $this->assertTrue(Nota::where('numero_nota', '7777')->first()->ceasa);
+        $this->assertSame(1, Nota::where('numero_nota', '7777')->first()->ceasa);
     }
 
     public function test_nota_nasce_sem_ceasa_por_padrao(): void
@@ -90,12 +90,12 @@ class CeasaEPermissoesTest extends TestCase
             'loja' => 1, 'origem' => 'recebimento',
         ])->assertRedirect();
 
-        $this->assertFalse(Nota::where('numero_nota', '8888')->first()->ceasa);
+        $this->assertSame(0, Nota::where('numero_nota', '8888')->first()->ceasa);
     }
 
     public function test_compras_abre_card_em_nota_ceasa(): void
     {
-        $nota = $this->nota(['ceasa' => true]);
+        $nota = $this->nota(['ceasa' => 1]);
 
         $this->actingAs($this->compras)
             ->post(route('notas.cards.store', $nota), ['tipo' => 'custo'])
@@ -107,7 +107,7 @@ class CeasaEPermissoesTest extends TestCase
 
     public function test_compras_nao_abre_card_em_nota_comum(): void
     {
-        $nota = $this->nota(['ceasa' => false]);
+        $nota = $this->nota(['ceasa' => 0]);
 
         $this->actingAs($this->compras)
             ->post(route('notas.cards.store', $nota), ['tipo' => 'custo'])
@@ -118,12 +118,41 @@ class CeasaEPermissoesTest extends TestCase
 
     public function test_pre_lote_abre_card_em_qualquer_nota(): void
     {
-        $comum = $this->nota(['ceasa' => false]);
-        $ceasa = $this->nota(['ceasa' => true]);
+        $comum = $this->nota(['ceasa' => 0]);
+        $ceasa = $this->nota(['ceasa' => 1]);
 
         $this->actingAs($this->preLote)->post(route('notas.cards.store', $comum), ['tipo' => 'cadastro'])->assertRedirect();
         $this->actingAs($this->preLote)->post(route('notas.cards.store', $ceasa), ['tipo' => 'cadastro'])->assertRedirect();
 
         $this->assertDatabaseCount('cards', 2);
+    }
+
+    public function test_lanca_ceasa_2_e_compras_pode_abrir_card(): void
+    {
+        $forn = Fornecedor::firstOrCreate(['nome' => 'CEASA2']);
+
+        $this->actingAs($this->recebimento)->post(route('notas.store'), [
+            'numero_nota' => '2222', 'fornecedor_id' => $forn->id,
+            'loja' => 1, 'origem' => 'recebimento', 'ceasa' => 2,
+        ])->assertRedirect();
+
+        $nota = Nota::where('numero_nota', '2222')->first();
+        $this->assertSame(2, $nota->ceasa);
+
+        // CEASA 2 também libera o setor de compras a abrir card
+        $this->actingAs($this->compras)
+            ->post(route('notas.cards.store', $nota), ['tipo' => 'custo'])
+            ->assertRedirect()
+            ->assertSessionHasNoErrors();
+        $this->assertDatabaseHas('cards', ['nota_id' => $nota->id, 'tipo' => 'custo']);
+    }
+
+    public function test_ceasa_invalido_e_recusado(): void
+    {
+        $forn = Fornecedor::firstOrCreate(['nome' => 'CEASAX']);
+        $this->actingAs($this->recebimento)->post(route('notas.store'), [
+            'numero_nota' => '3333', 'fornecedor_id' => $forn->id,
+            'loja' => 1, 'origem' => 'recebimento', 'ceasa' => 3,
+        ])->assertSessionHasErrors('ceasa');
     }
 }

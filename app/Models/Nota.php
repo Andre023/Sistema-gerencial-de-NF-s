@@ -32,7 +32,7 @@ class Nota extends Model
 
     protected $casts = [
         'loja'            => 'integer',
-        'ceasa'           => 'boolean',
+        'ceasa'           => 'integer', // 0 = não · 1 = CEASA 1 · 2 = CEASA 2
         'liberada_em'     => 'datetime',
         'recebida_em'     => 'datetime',
         'visualizando_em' => 'datetime',
@@ -144,7 +144,7 @@ class Nota extends Model
             'user'         => $this->user,
             'loja'         => $this->loja,
             'origem'       => $this->origem,
-            'ceasa'        => (bool) $this->ceasa,
+            'ceasa'        => (int) $this->ceasa,
             'observacao'   => $this->observacao,
             'status'       => $this->statusCalculado(),
             'cards'        => $this->cards->map(fn($c) => [
