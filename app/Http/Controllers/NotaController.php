@@ -179,7 +179,7 @@ class NotaController extends Controller
             'fornecedor_nome' => [Rule::requiredIf($novo), 'nullable', 'string', 'max:255'],
             'loja'            => ['required', 'integer', Rule::in(Nota::LOJAS)],
             'origem'          => ['required', Rule::in(Nota::ORIGENS)],
-            'ceasa'           => 'sometimes|integer|in:0,1,2',
+            'ceasa'           => 'sometimes|integer|in:0,1,2,3',
             'observacao'      => 'nullable|string|max:500',
         ]);
 
@@ -269,7 +269,7 @@ class NotaController extends Controller
             'fornecedor_nome' => [Rule::requiredIf($novo), 'nullable', 'string', 'max:255'],
             'loja'            => ['sometimes', 'integer', Rule::in(Nota::LOJAS)],
             'origem'          => ['sometimes', Rule::in(Nota::ORIGENS)],
-            'ceasa'           => 'sometimes|integer|in:0,1,2',
+            'ceasa'           => 'sometimes|integer|in:0,1,2,3',
             'observacao'      => 'nullable|string|max:500',
         ]);
 

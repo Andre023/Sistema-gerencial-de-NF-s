@@ -128,17 +128,21 @@ function FormNota({ fornecedores, opcoes, inicial, origemDefault, onSubmit, onCa
                     CEASA <span className="font-normal">(opcional — compras também pode abrir cards)</span>
                 </span>
                 <div className="flex gap-2">
-                    {[1, 2].map(n => {
-                        const ativo = form.ceasa === n;
+                    {[
+                        { v: 3, l: 'CEASA', t: 'CEASA sem saber se é 1 ou 2' },
+                        { v: 1, l: 'CEASA 1', t: '' },
+                        { v: 2, l: 'CEASA 2', t: '' },
+                    ].map(({ v, l, t }) => {
+                        const ativo = form.ceasa === v;
                         return (
-                            <button key={n} type="button" onClick={() => set('ceasa', ativo ? 0 : n)}
+                            <button key={v} type="button" title={t || undefined} onClick={() => set('ceasa', ativo ? 0 : v)}
                                 className="px-4 py-2 text-sm font-medium rounded-lg transition"
                                 style={{
                                     background: ativo ? p.PURPLE + '22' : p.INPUT_BG,
                                     color: ativo ? p.PURPLE : p.MUTED,
                                     border: `1px solid ${ativo ? p.PURPLE : p.INPUT_BORDER}`,
                                 }}>
-                                CEASA {n}
+                                {l}
                             </button>
                         );
                     })}
@@ -341,7 +345,7 @@ function LinhaFila({ nota, onCards, onComentar, onEditar, onExcluir, onLiberar, 
                         <span className="inline-flex items-center rounded px-1.5 py-0.5 text-[10px] font-bold tracking-wide"
                             style={{ background: p.PURPLE + '22', color: p.PURPLE, border: `1px solid ${p.PURPLE}44` }}
                             title="Nota de CEASA — compras pode abrir cards">
-                            CEASA {nota.ceasa}
+                            {nota.ceasa === 3 ? 'CEASA' : `CEASA ${nota.ceasa}`}
                         </span>
                     )}
                     {nota.nivel !== 'normal' && (
@@ -903,6 +907,14 @@ export default function Index({ recebimento, preLote, liberadas, fornecedores, d
                                     <tr key={n.id} className="opacity-80 group" style={{ borderBottom: `1px solid ${p.BORDER}` }}>
                                         <td className="px-4 py-3 text-sm whitespace-nowrap" style={{ color: p.TEXT }}>
                                             <span className="line-through">{n.numero_nota}</span>
+                                            {/* Selo CEASA (lembrete, não é divergência) — segue visível após liberar */}
+                                            {n.ceasa > 0 && (
+                                                <span className="ml-2 inline-flex items-center rounded px-1.5 py-0.5 text-[10px] font-bold tracking-wide no-underline"
+                                                    style={{ background: p.PURPLE + '22', color: p.PURPLE, border: `1px solid ${p.PURPLE}44` }}
+                                                    title="Nota de CEASA">
+                                                    {n.ceasa === 3 ? 'CEASA' : `CEASA ${n.ceasa}`}
+                                                </span>
+                                            )}
                                             {/* Liberada em outro dia, mas o caminhão trouxe hoje */}
                                             {n.recebida_em?.slice(0, 10) === hoje() && n.liberada_em?.slice(0, 10) !== hoje() && (
                                                 <span className="ml-2 text-[11px] font-medium px-1.5 py-0.5 rounded no-underline"

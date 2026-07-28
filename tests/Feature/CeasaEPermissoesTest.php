@@ -147,12 +147,32 @@ class CeasaEPermissoesTest extends TestCase
         $this->assertDatabaseHas('cards', ['nota_id' => $nota->id, 'tipo' => 'custo']);
     }
 
+    public function test_lanca_ceasa_neutro_e_compras_pode_abrir_card(): void
+    {
+        $forn = Fornecedor::firstOrCreate(['nome' => 'CEASANEUTRO']);
+
+        // 3 = CEASA sem saber se e 1 ou 2
+        $this->actingAs($this->recebimento)->post(route('notas.store'), [
+            'numero_nota' => '4444', 'fornecedor_id' => $forn->id,
+            'loja' => 1, 'origem' => 'recebimento', 'ceasa' => 3,
+        ])->assertRedirect();
+
+        $nota = Nota::where('numero_nota', '4444')->first();
+        $this->assertSame(3, $nota->ceasa);
+
+        $this->actingAs($this->compras)
+            ->post(route('notas.cards.store', $nota), ['tipo' => 'custo'])
+            ->assertRedirect()
+            ->assertSessionHasNoErrors();
+        $this->assertDatabaseHas('cards', ['nota_id' => $nota->id, 'tipo' => 'custo']);
+    }
+
     public function test_ceasa_invalido_e_recusado(): void
     {
         $forn = Fornecedor::firstOrCreate(['nome' => 'CEASAX']);
         $this->actingAs($this->recebimento)->post(route('notas.store'), [
             'numero_nota' => '3333', 'fornecedor_id' => $forn->id,
-            'loja' => 1, 'origem' => 'recebimento', 'ceasa' => 3,
+            'loja' => 1, 'origem' => 'recebimento', 'ceasa' => 4,
         ])->assertSessionHasErrors('ceasa');
     }
 }

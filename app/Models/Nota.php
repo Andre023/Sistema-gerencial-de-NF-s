@@ -32,7 +32,7 @@ class Nota extends Model
 
     protected $casts = [
         'loja'            => 'integer',
-        'ceasa'           => 'integer', // 0 = não · 1 = CEASA 1 · 2 = CEASA 2
+        'ceasa'           => 'integer', // 0 = não · 1 = CEASA 1 · 2 = CEASA 2 · 3 = CEASA (neutro)
         'liberada_em'     => 'datetime',
         'recebida_em'     => 'datetime',
         'visualizando_em' => 'datetime',
