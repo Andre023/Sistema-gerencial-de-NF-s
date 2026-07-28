@@ -50,6 +50,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::get('/',              [NotaController::class, 'index'])->name('index');
         Route::post('/',             [NotaController::class, 'store'])->name('store');
         Route::patch('/{nota}',      [NotaController::class, 'update'])->name('update');
+        Route::patch('/{nota}/liberada', [NotaController::class, 'editarLiberada'])->name('editar-liberada');
         Route::post('/{nota}/liberar', [NotaController::class, 'liberar'])->name('liberar');
         Route::post('/{nota}/devolver', [NotaController::class, 'devolver'])->name('devolver');
         Route::post('/{nota}/visualizar', [NotaController::class, 'visualizar'])->name('visualizar');

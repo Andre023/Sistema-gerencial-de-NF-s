@@ -202,4 +202,16 @@ class User extends Authenticatable
     {
         return ! $this->ehVisitante();
     }
+
+    /** Editar a observação de uma nota JÁ LIBERADA — recebimento, compras e pré-lote */
+    public function podeEditarObservacaoLiberada(): bool
+    {
+        return $this->ehUmDe(self::ROLE_RECEBIMENTO, self::ROLE_COMPRAS, self::ROLE_PRE_LOTE);
+    }
+
+    /** Editar o lembrete CEASA de uma nota JÁ LIBERADA — só recebimento */
+    public function podeEditarCeasaLiberada(): bool
+    {
+        return $this->ehUmDe(self::ROLE_RECEBIMENTO);
+    }
 }

@@ -329,6 +329,41 @@ class NotaController extends Controller
         return back()->with('sucesso', 'Nota liberada.');
     }
 
+    // ─── EDITAR NOTA JÁ LIBERADA (campos limitados por papel) ──────────────────
+    //
+    // A nota liberada é histórico fechado, mas alguns ajustes são legítimos: a
+    // OBSERVAÇÃO (recebimento, compras e pré-lote) e o lembrete CEASA (só
+    // recebimento). Autoriza por CAMPO — o frontend só envia o que o papel pode.
+
+    public function editarLiberada(Request $request, Nota $nota): RedirectResponse
+    {
+        if (! $nota->liberada_em) {
+            return back()->withErrors(['nota' => 'Esta nota não está liberada — use a edição normal.']);
+        }
+
+        $dados = $request->validate([
+            'observacao' => 'sometimes|nullable|string|max:500',
+            'ceasa'      => 'sometimes|integer|in:0,1,2,3',
+        ]);
+
+        $mudancas = [];
+        if ($request->has('observacao')) {
+            Gate::authorize('editar-observacao-liberada');
+            $mudancas['observacao'] = $dados['observacao'] ?? null;
+        }
+        if ($request->has('ceasa')) {
+            Gate::authorize('editar-ceasa-liberada');
+            $mudancas['ceasa'] = (int) $dados['ceasa'];
+        }
+
+        if ($mudancas) {
+            $nota->update($mudancas);
+            event(new NotaAtualizada($nota));
+        }
+
+        return back()->with('sucesso', 'Nota atualizada.');
+    }
+
     // ─── DEVOLVER (estorno da liberação → volta para o recebimento) ────────────
     //
     // Conferiram errado e liberaram, mas a nota segue com erro. Pré-lote e

@@ -174,9 +174,13 @@ function ModalCards({ nota, onFechar, can, tiposCompras, isDark, p }: {
     nota: Nota | null; onFechar: () => void; can: Permissoes; tiposCompras: TipoCard[]; isDark: boolean; p: Palette;
 }) {
     // Compras só corrige os tipos dela (regra é do pré-lote); admin corrige tudo
-    const ehCompras = usePage().props.auth.user.role === 'compras';
-    const podeCorrigirEste = (c: Card) =>
-        can.corrigirCard && (!ehCompras || tiposCompras.includes(c.tipo));
+    const meuPapel = usePage().props.auth.user.role;
+    const ehCompras = meuPapel === 'compras';
+    const podeCorrigirEste = (c: Card) => {
+        // Importar NF: recebimento e compras marcam via "Corrigido"; pré-lote usa "Resolver".
+        if (c.tipo === 'importar_nf') return !can.gerirCards && (meuPapel === 'recebimento' || meuPapel === 'compras');
+        return can.corrigirCard && (!ehCompras || tiposCompras.includes(c.tipo));
+    };
 
     const [tipoNovo, setTipoNovo] = useState<TipoCard | ''>('');
     const [detalheNovo, setDetalheNovo] = useState('');
@@ -190,6 +194,15 @@ function ModalCards({ nota, onFechar, can, tiposCompras, isDark, p }: {
     const liberada = nota.status === 'liberada';
     const ativos = nota.cards.filter(c => c.status !== 'resolvido');
     const podeLiberar = !liberada && ativos.length === 0;
+
+    // Quais tipos este usuário pode ABRIR: pré-lote (e compras em CEASA) abrem
+    // qualquer um; recebimento/compras (fora de CEASA) só o "Importar NF".
+    const abreQualquer = can.gerirCards || (nota.ceasa > 0 && ehCompras);
+    const tiposParaAbrir: TipoCard[] = abreQualquer
+        ? opcoesTipos(nota)
+        : ['recebimento', 'pre_lote', 'compras'].includes(meuPapel)
+            ? opcoesTipos(nota).filter(t => t === 'importar_nf')
+            : [];
 
     const agir = (fn: () => void) => { setErro(null); setOcupado(true); fn(); };
     const opts = {
@@ -267,13 +280,13 @@ function ModalCards({ nota, onFechar, can, tiposCompras, isDark, p }: {
                 </div>
 
                 {/* ── Abrir novo card (pré-lote; e compras quando a nota é de CEASA) ── */}
-                {!liberada && (can.gerirCards || (nota.ceasa > 0 && ehCompras)) && (
+                {!liberada && tiposParaAbrir.length > 0 && (
                     <form onSubmit={abrirCard} className="flex items-center gap-2 pt-3" style={{ borderTop: `1px solid ${p.BORDER}` }}>
                         <select value={tipoNovo} onChange={e => setTipoNovo(e.target.value as TipoCard)}
                             className="rounded-lg text-sm px-2.5 py-1.5 outline-none"
                             style={{ background: p.INPUT_BG, color: p.TEXT, border: `1px solid ${p.INPUT_BORDER}` }}>
                             <option value="">Divergência...</option>
-                            {opcoesTipos(nota).map(t => <option key={t} value={t}>{TIPO_CARD_LABEL[t]}</option>)}
+                            {tiposParaAbrir.map(t => <option key={t} value={t}>{TIPO_CARD_LABEL[t]}</option>)}
                         </select>
                         <input type="text" value={detalheNovo} onChange={e => setDetalheNovo(e.target.value)}
                             placeholder="Detalhe (opcional)" maxLength={500}
@@ -306,9 +319,86 @@ function ModalCards({ nota, onFechar, can, tiposCompras, isDark, p }: {
 }
 
 /** Tipos que ainda não têm card ativo nesta nota. */
+// ─── Modal: editar nota JÁ LIBERADA (observação + lembrete CEASA) ──────────────
+
+function ModalEditarLiberada({ nota, can, onFechar, p }: {
+    nota: Nota | null; can: Permissoes; onFechar: () => void; p: Palette;
+}) {
+    const [obs, setObs] = useState('');
+    const [ceasa, setCeasa] = useState(0);
+    const [salvando, setSalvando] = useState(false);
+
+    useEffect(() => {
+        if (nota) { setObs(nota.observacao ?? ''); setCeasa(nota.ceasa); }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [nota?.id]);
+
+    if (!nota) return null;
+
+    const salvar = () => {
+        setSalvando(true);
+        const dados: Record<string, string | number | null> = {};
+        if (can.editarObservacaoLiberada) dados.observacao = obs.trim() || null;
+        if (can.editarCeasaLiberada) dados.ceasa = ceasa;
+        router.patch(route('notas.editar-liberada', nota.id), dados as any, {
+            preserveScroll: true,
+            onSuccess: () => onFechar(),
+            onFinish: () => setSalvando(false),
+        });
+    };
+
+    const CEASAS = [{ v: 0, l: 'Nenhum' }, { v: 3, l: 'CEASA' }, { v: 1, l: 'CEASA 1' }, { v: 2, l: 'CEASA 2' }];
+
+    return (
+        <Modal aberto={!!nota} onFechar={onFechar} titulo={`Editar nota ${nota.numero_nota} (liberada)`} p={p}>
+            <div className="space-y-4">
+                {can.editarObservacaoLiberada && (
+                    <div>
+                        <label className="block text-sm font-medium mb-1.5" style={{ color: p.MUTED }}>Observação</label>
+                        <textarea value={obs} onChange={e => setObs(e.target.value)} rows={3} maxLength={500}
+                            className="block w-full rounded-lg text-sm px-3 py-2 outline-none resize-none"
+                            style={{ background: p.INPUT_BG, color: p.TEXT, border: `1px solid ${p.INPUT_BORDER}` }} />
+                    </div>
+                )}
+                {can.editarCeasaLiberada && (
+                    <div>
+                        <span className="block text-sm font-medium mb-1.5" style={{ color: p.MUTED }}>Lembrete CEASA</span>
+                        <div className="flex flex-wrap gap-2">
+                            {CEASAS.map(({ v, l }) => {
+                                const ativo = ceasa === v;
+                                return (
+                                    <button key={v} type="button" onClick={() => setCeasa(v)}
+                                        className="px-3 py-2 text-sm font-medium rounded-lg transition"
+                                        style={{
+                                            background: ativo ? p.PURPLE + '22' : p.INPUT_BG,
+                                            color: ativo ? p.PURPLE : p.MUTED,
+                                            border: `1px solid ${ativo ? p.PURPLE : p.INPUT_BORDER}`,
+                                        }}>
+                                        {l}
+                                    </button>
+                                );
+                            })}
+                        </div>
+                    </div>
+                )}
+                <div className="flex justify-end gap-3 pt-3" style={{ borderTop: `1px solid ${p.BORDER}` }}>
+                    <button type="button" onClick={onFechar} className="px-4 py-2 text-sm" style={{ color: p.MUTED }}>
+                        Cancelar
+                    </button>
+                    <button type="button" onClick={salvar} disabled={salvando}
+                        className="px-5 py-2 text-sm font-medium text-white rounded-lg transition disabled:opacity-50"
+                        style={{ background: p.ACCENT }}>
+                        {salvando ? 'Salvando...' : 'Salvar'}
+                    </button>
+                </div>
+            </div>
+        </Modal>
+    );
+}
+
 function opcoesTipos(nota: Nota): TipoCard[] {
     const ativos = nota.cards.filter(c => c.status !== 'resolvido').map(c => c.tipo);
-    return (['cadastro', 'regra', 'custo', 'quantidade', 'sem_pedido'] as TipoCard[]).filter(t => !ativos.includes(t));
+    return (['cadastro', 'regra', 'custo', 'quantidade', 'sem_pedido', 'importar_nf'] as TipoCard[]).filter(t => !ativos.includes(t));
 }
 
 // ─── Linha da fila ──────────────────────────────────────────────────────────────
@@ -459,6 +549,7 @@ export default function Index({ recebimento, preLote, liberadas, fornecedores, d
     const [modalEditar, setModalEditar] = useState<Nota | null>(null);
     const [cardsId, setCardsId] = useState<number | null>(null);
     const [comentariosNota, setComentariosNota] = useState<Nota | null>(null);
+    const [editarLiberadaNota, setEditarLiberadaNota] = useState<Nota | null>(null);
     const [echoTick, setEchoTick] = useState(0);
     const [erros, setErros] = useState<Record<string, string>>({});
     const [submetendo, setSubmetendo] = useState(false);
@@ -729,6 +820,9 @@ export default function Index({ recebimento, preLote, liberadas, fornecedores, d
                 podeComentar={can.interagir}
                 p={p} />
 
+            <ModalEditarLiberada nota={editarLiberadaNota} can={can}
+                onFechar={() => setEditarLiberadaNota(null)} p={p} />
+
             <div className="min-h-screen py-6 px-4 sm:px-6 lg:px-8 max-w-screen-2xl mx-auto space-y-4 transition-colors duration-200"
                 style={{ background: p.BG }}>
 
@@ -944,6 +1038,17 @@ export default function Index({ recebimento, preLote, liberadas, fornecedores, d
                                                 <Icone path="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.8 9.8 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
                                                 {n.comentarios_count > 0 && <span className="text-xs font-medium">{n.comentarios_count}</span>}
                                             </button>
+
+                                            {/* Editar observação (recebimento/compras/pré-lote) e lembrete CEASA (recebimento) */}
+                                            {(can.editarObservacaoLiberada || can.editarCeasaLiberada) && (
+                                                <button onClick={() => setEditarLiberadaNota(n)} title="Editar observação / CEASA"
+                                                    className="inline-flex items-center p-1.5 rounded-lg transition opacity-0 group-hover:opacity-100"
+                                                    style={{ color: p.ACCENT }}
+                                                    onMouseEnter={e => (e.currentTarget.style.background = p.ACCENT + '1a')}
+                                                    onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}>
+                                                    <Icone path="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                                                </button>
+                                            )}
 
                                             {/* Conferiu errado: devolve ao recebimento para reajuste (pré-lote/recebimento) */}
                                             {can.devolverNota && (

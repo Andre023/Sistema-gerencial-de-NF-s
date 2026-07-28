@@ -37,6 +37,10 @@ export interface Permissoes {
     gerenciarPrioridades: boolean;
     /** Ações leves na fila (comentar, reservar) — todos menos o visitante */
     interagir: boolean;
+    /** Editar a observação de uma nota já liberada — recebimento, compras, pré-lote */
+    editarObservacaoLiberada: boolean;
+    /** Editar o lembrete CEASA de uma nota já liberada — só recebimento */
+    editarCeasaLiberada: boolean;
 }
 
 export interface Fornecedor {
@@ -47,7 +51,7 @@ export interface Fornecedor {
     prioridade?: boolean;
 }
 
-export type TipoCard = 'cadastro' | 'regra' | 'custo' | 'quantidade' | 'sem_pedido';
+export type TipoCard = 'cadastro' | 'regra' | 'custo' | 'quantidade' | 'sem_pedido' | 'importar_nf';
 export type StatusCard = 'aberto' | 'resolvido';
 
 export interface Card {

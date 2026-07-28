@@ -23,10 +23,13 @@ class CardController extends Controller
 
     public function store(Request $request, Nota $nota): RedirectResponse
     {
-        // Em geral só o pré-lote abre card. Exceção: nota de CEASA, em que o
-        // setor de compras também pode abrir.
+        // Em geral só o pré-lote abre card. Exceções: nota de CEASA (compras
+        // também abre) e o card "Importar NF" (recebimento, pré-lote e compras).
         $user = $request->user();
-        $podeAbrir = $user->podeGerirCards() || ($nota->ceasa && $user->podeCorrigirCard());
+        $importar = $request->input('tipo') === 'importar_nf';
+        $podeAbrir = $user->podeGerirCards()
+            || ($nota->ceasa && $user->podeCorrigirCard())
+            || ($importar && ($user->podeLancarNota() || $user->podeCorrigirCard()));
         abort_unless($podeAbrir, 403);
 
         if ($nota->liberada_em) {
@@ -66,13 +69,13 @@ class CardController extends Controller
 
     public function corrigir(Request $request, Nota $nota, Card $card): RedirectResponse
     {
-        Gate::authorize('corrigir-card');
-
         $this->garanteVinculo($nota, $card);
 
-        // Compras corrige cadastro/custo/quantidade; regra é resolvida pelo pré-lote
+        // Autorização por card (podeSerCorrigidoPor): compras corrige os tipos dela
+        // (cadastro/custo/quantidade/sem_pedido); "Importar NF" é marcado por
+        // recebimento, pré-lote ou compras; regra é do pré-lote; admin tudo.
         if (! $card->podeSerCorrigidoPor($request->user())) {
-            abort(403, 'Cards de regra são resolvidos pelo pré-lote.');
+            abort(403, 'Você não pode marcar este card como corrigido.');
         }
 
         if ($card->status !== Card::STATUS_ABERTO) {

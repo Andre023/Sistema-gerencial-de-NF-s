@@ -54,6 +54,7 @@ export const TIPO_CARD_LABEL: Record<string, string> = {
     custo: 'Custo',
     quantidade: 'Quantidade',
     sem_pedido: 'Sem pedido',
+    importar_nf: 'Importar NF',
 };
 
 export const CARD_COR_DARK: Record<string, { bg: string; text: string; border: string }> = {
@@ -62,6 +63,7 @@ export const CARD_COR_DARK: Record<string, { bg: string; text: string; border: s
     custo: { bg: 'rgba(210,153,34,0.15)', text: '#e3b341', border: 'rgba(210,153,34,0.35)' },
     quantidade: { bg: 'rgba(163,113,247,0.15)', text: '#d2a8ff', border: 'rgba(163,113,247,0.35)' },
     sem_pedido: { bg: 'rgba(20,184,166,0.15)', text: '#2dd4bf', border: 'rgba(20,184,166,0.35)' },
+    importar_nf: { bg: 'rgba(63,185,80,0.15)', text: '#56d364', border: 'rgba(63,185,80,0.35)' },
 };
 
 export const CARD_COR_LIGHT: Record<string, { bg: string; text: string; border: string }> = {
@@ -70,6 +72,7 @@ export const CARD_COR_LIGHT: Record<string, { bg: string; text: string; border: 
     custo: { bg: '#fef9c3', text: '#854d0e', border: '#fde047' },
     quantidade: { bg: '#f3e8ff', text: '#7e22ce', border: '#d8b4fe' },
     sem_pedido: { bg: '#ccfbf1', text: '#0f766e', border: '#5eead4' },
+    importar_nf: { bg: '#dcfce7', text: '#15803d', border: '#86efac' },
 };
 
 export const STATUS_NOTA_LABEL: Record<string, string> = {

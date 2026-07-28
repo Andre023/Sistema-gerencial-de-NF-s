@@ -34,7 +34,7 @@ class Card extends Model
         'reaberturas'  => 'integer',
     ];
 
-    public const TIPOS = ['cadastro', 'regra', 'custo', 'quantidade', 'sem_pedido'];
+    public const TIPOS = ['cadastro', 'regra', 'custo', 'quantidade', 'sem_pedido', 'importar_nf'];
 
     /**
      * Tipos que o comprador corrige no ERP e marca aqui.
@@ -43,6 +43,13 @@ class Card extends Model
      * o pedido no ERP é o setor de compras.
      */
     public const TIPOS_COMPRAS = ['cadastro', 'custo', 'quantidade', 'sem_pedido'];
+
+    /**
+     * "Importar NF": não é um erro de um setor só — recebimento, pré-lote e
+     * compras podem ABRIR e marcar como feito. Não é um card de compras (fora de
+     * TIPOS_COMPRAS), mas qualquer papel operacional o resolve.
+     */
+    public const TIPOS_TODOS = ['importar_nf'];
 
     // Corrigir (compras) já resolve o card — não há estado intermediário.
     public const STATUS_ABERTO    = 'aberto';
@@ -87,6 +94,13 @@ class Card extends Model
     {
         if ($user->isAdmin()) {
             return true;
+        }
+
+        // "Importar NF": recebimento, pré-lote e compras marcam como feito.
+        if (in_array($this->tipo, self::TIPOS_TODOS, true)) {
+            return $user->podeLancarNota()   // recebimento + pré-lote
+                || $user->podeGerirCards()   // pré-lote
+                || $user->podeCorrigirCard(); // compras
         }
 
         return $user->podeCorrigirCard() && in_array($this->tipo, self::TIPOS_COMPRAS, true);
