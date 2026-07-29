@@ -46,6 +46,7 @@ class NotaAtualizada implements ShouldBroadcastNow
             'user:id,name,avatar_tipo,avatar_valor',
             'liberadaPor:id,name,avatar_tipo,avatar_valor',
             'visualizadaPor:id,name,avatar_tipo,avatar_valor',
+            'canceladaPor:id,name,avatar_tipo,avatar_valor',
             'cards',
         ]);
 

@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 import { Head, router, usePage } from '@inertiajs/react';
 import { format, parseISO, addDays, subDays } from 'date-fns';
-import { Nota, Card, Fornecedor, FiltrosAtivos, OpcoesSistema, Nivel, ResumoAlertas, ResumoTipos, Permissoes, TipoCard } from '@/types';
+import { Nota, Card, Fornecedor, FiltrosAtivos, OpcoesSistema, Nivel, ResumoAlertas, ResumoTipos, Permissoes, TipoCard, OrigemNota } from '@/types';
 import { useTheme } from '@/Contexts/ThemeContext';
 import { DARK, LIGHT, Palette, lojaNome, hoje, nivelCor, NIVEL_LABEL, idadeTexto, TIPO_CARD_LABEL, STATUS_NOTA_LABEL, CARD_COR_DARK, CARD_COR_LIGHT, ORIGEM_LABEL } from '@/lib/tema';
 import Icone from '@/Components/painel/Icone';
@@ -17,6 +17,7 @@ interface Props {
     recebimento: Nota[];
     preLote: Nota[];
     liberadas: Nota[];
+    canceladas: Nota[];
     fornecedores: Fornecedor[];
     dataFiltro: string;
     resumoAlertas: ResumoAlertas;
@@ -398,15 +399,18 @@ function ModalEditarLiberada({ nota, can, onFechar, p }: {
 
 function opcoesTipos(nota: Nota): TipoCard[] {
     const ativos = nota.cards.filter(c => c.status !== 'resolvido').map(c => c.tipo);
-    return (['cadastro', 'regra', 'custo', 'quantidade', 'sem_pedido', 'importar_nf'] as TipoCard[]).filter(t => !ativos.includes(t));
+    const base: TipoCard[] = ['cadastro', 'regra', 'custo', 'quantidade', 'sem_pedido', 'importar_nf'];
+    // "Reconferir" só existe em nota de CEASA (pedido de nova conferência)
+    if (nota.ceasa > 0) base.push('reconferir');
+    return base.filter(t => !ativos.includes(t));
 }
 
 // ─── Linha da fila ──────────────────────────────────────────────────────────────
 
-function LinhaFila({ nota, onCards, onComentar, onEditar, onExcluir, onLiberar, onVisualizar, usuarioId, can, isDark, p }: {
+function LinhaFila({ nota, onCards, onComentar, onEditar, onExcluir, onLiberar, onVisualizar, onCancelar, usuarioId, can, isDark, p }: {
     nota: Nota; onCards: (n: Nota) => void; onComentar: (n: Nota) => void;
     onEditar: (n: Nota) => void; onExcluir: (n: Nota) => void; onLiberar: (n: Nota) => void;
-    onVisualizar: (n: Nota) => void; usuarioId: number;
+    onVisualizar: (n: Nota) => void; onCancelar: (n: Nota) => void; usuarioId: number;
     can: Permissoes; isDark: boolean; p: Palette;
 }) {
     const cor = nivelCor(nota.nivel, p);
@@ -441,8 +445,18 @@ function LinhaFila({ nota, onCards, onComentar, onEditar, onExcluir, onLiberar, 
                     {nota.nivel !== 'normal' && (
                         <span className="inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-xs font-semibold whitespace-nowrap"
                             style={{ background: cor + '22', color: cor, border: `1px solid ${cor}44` }}
-                            title={`Aberta desde ${nota.data_origem}`}>
+                            title={nota.origem_anterior
+                                ? `Nesta fila desde ${nota.origem_alterada_em ? new Date(nota.origem_alterada_em).toLocaleDateString('pt-BR') : '—'}`
+                                : `Aberta desde ${nota.data_origem}`}>
                             {idadeTexto(nota.dias_aberta)}
+                        </span>
+                    )}
+                    {/* Trocou de fila: o relógio reiniciou aqui, mas ela esperou na fila anterior */}
+                    {nota.origem_anterior && (
+                        <span className="inline-flex items-center rounded px-1.5 py-0.5 text-[10px] font-medium whitespace-nowrap"
+                            style={{ background: p.MUTED + '1a', color: p.MUTED, border: `1px solid ${p.MUTED}33` }}
+                            title={`Esteve em ${ORIGEM_LABEL[nota.origem_anterior]} desde ${nota.origem_anterior_data} — a contagem de cores recomeçou ao mudar de fila`}>
+                            {ORIGEM_LABEL[nota.origem_anterior]} desde {nota.origem_anterior_data}
                         </span>
                     )}
                 </div>
@@ -523,6 +537,15 @@ function LinhaFila({ nota, onCards, onComentar, onEditar, onExcluir, onLiberar, 
                                 <Icone path="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
                             </button>
                         )}
+                        {/* Fornecedor cancelou a NF: sai da fila e vai para "Canceladas" */}
+                        {can.cancelarNota && (
+                            <button onClick={() => onCancelar(nota)} title="Nota cancelada pelo fornecedor"
+                                className="p-1.5 rounded-lg transition" style={{ color: p.ORANGE }}
+                                onMouseEnter={e => (e.currentTarget.style.background = p.ORANGE + '1a')}
+                                onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}>
+                                <Icone path="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636" />
+                            </button>
+                        )}
                         {can.gerenciarNotas && (
                             <button onClick={() => onExcluir(nota)} title="Excluir"
                                 className="p-1.5 rounded-lg transition" style={{ color: p.RED }}
@@ -540,7 +563,7 @@ function LinhaFila({ nota, onCards, onComentar, onEditar, onExcluir, onLiberar, 
 
 // ─── Página ─────────────────────────────────────────────────────────────────────
 
-export default function Index({ recebimento, preLote, liberadas, fornecedores, dataFiltro, resumoAlertas, resumoTipos, totalReconferir, filtros, opcoes }: Props) {
+export default function Index({ recebimento, preLote, liberadas, canceladas, fornecedores, dataFiltro, resumoAlertas, resumoTipos, totalReconferir, filtros, opcoes }: Props) {
     const { isDark } = useTheme();
     const p = isDark ? DARK : LIGHT;
     const { can, user } = usePage().props.auth;
@@ -561,9 +584,17 @@ export default function Index({ recebimento, preLote, liberadas, fornecedores, d
     const [recebimentoL, setRecebimentoL] = useState(recebimento);
     const [preLoteL, setPreLoteL] = useState(preLote);
     const [liberadasL, setLiberadasL] = useState(liberadas);
+    const [canceladasL, setCanceladasL] = useState(canceladas);
     useEffect(() => setRecebimentoL(recebimento), [recebimento]);
     useEffect(() => setPreLoteL(preLote), [preLote]);
     useEffect(() => setLiberadasL(liberadas), [liberadas]);
+    useEffect(() => setCanceladasL(canceladas), [canceladas]);
+
+    // Filtro local da tabela de liberadas: caminhão na porta × pré-lote × ambos
+    const [origemLiberadas, setOrigemLiberadas] = useState<OrigemNota | null>(null);
+    const liberadasFiltradas = origemLiberadas
+        ? liberadasL.filter(n => n.origem === origemLiberadas)
+        : liberadasL;
 
     const isHoje = dataFiltro === hoje();
     // Visão "simples" (hoje, sem filtros): dá pra atualizar a linha no cliente com segurança
@@ -587,10 +618,28 @@ export default function Index({ recebimento, preLote, liberadas, fornecedores, d
             setRecebimentoL(l => l.filter(n => n.id !== id));
             setPreLoteL(l => l.filter(n => n.id !== id));
             setLiberadasL(l => l.filter(n => n.id !== id));
+            setCanceladasL(l => l.filter(n => n.id !== id));
             return;
         }
         const nota = e.nota;
         if (!nota) return;
+
+        // Cancelada sai de todas as filas e vai para a seção própria (do dia)
+        const cancelada = nota.status === 'cancelada';
+        const canceladaHoje = cancelada && (nota.cancelada_em ?? '').slice(0, 10) === hoje();
+        setCanceladasL(l => {
+            const sem = l.filter(n => n.id !== nota.id);
+            return canceladaHoje
+                ? [...sem, nota].sort((a, b) => (b.cancelada_em ?? '').localeCompare(a.cancelada_em ?? ''))
+                : sem;
+        });
+        if (cancelada) {
+            setRecebimentoL(l => l.filter(n => n.id !== nota.id));
+            setPreLoteL(l => l.filter(n => n.id !== nota.id));
+            setLiberadasL(l => l.filter(n => n.id !== nota.id));
+            return;
+        }
+
         const naFila = nota.status !== 'liberada';
         // Liberadas mostra as do dia; evita puxar p/ hoje uma liberada em dia passado
         // — salvo se o caminhão a trouxe hoje (recebida_em), aí ela entra na lista.
@@ -724,6 +773,18 @@ export default function Index({ recebimento, preLote, liberadas, fornecedores, d
     };
 
     // Estorna a liberação: tira das liberadas e volta a nota para o recebimento
+    // Fornecedor cancelou a NF: sai da fila e vai para "Canceladas neste dia"
+    const cancelar = (n: Nota) => {
+        const motivo = prompt(`Cancelar a nota ${n.numero_nota} (${n.fornecedor.nome})?\n\nMotivo (opcional):`);
+        if (motivo === null) return; // desistiu
+        router.post(route('notas.cancelar', n.id), { motivo: motivo || undefined } as any, { preserveScroll: true });
+    };
+
+    const descancelar = (n: Nota) => {
+        if (!confirm(`Desfazer o cancelamento da nota ${n.numero_nota}? Ela volta para a fila.`)) return;
+        router.post(route('notas.descancelar', n.id), {}, { preserveScroll: true });
+    };
+
     const devolver = (n: Nota) => {
         if (!confirm(`Devolver a nota ${n.numero_nota} ao recebimento? Ela sai das liberadas e volta para a fila para reajuste.`)) return;
         router.post(route('notas.devolver', n.id), {}, { preserveScroll: true });
@@ -752,6 +813,7 @@ export default function Index({ recebimento, preLote, liberadas, fornecedores, d
 
     const COLS_FILA = ['Nota', 'Fornecedor', 'Divergências', 'Loja', 'Observação', 'Lançado', ''];
     const COLS_LIBERADAS = ['Nota', 'Fornecedor', 'Divergências', 'Loja', 'Observação', 'Liberada por', ''];
+    const COLS_CANCELADAS = ['Nota', 'Fornecedor', 'Loja', 'Fila', 'Motivo', 'Cancelada por', ''];
 
     const inputCtrl = { background: p.INPUT_BG, color: p.TEXT, border: `1px solid ${p.INPUT_BORDER}` };
 
@@ -779,7 +841,7 @@ export default function Index({ recebimento, preLote, liberadas, fornecedores, d
                             <LinhaFila key={n.id} nota={n} can={can} isDark={isDark} p={p}
                                 onCards={x => setCardsId(x.id)} onComentar={setComentariosNota}
                                 onEditar={setModalEditar} onExcluir={excluir} onLiberar={liberarRapido}
-                                onVisualizar={visualizar} usuarioId={user.id} />
+                                onVisualizar={visualizar} onCancelar={cancelar} usuarioId={user.id} />
                         ))}
                     </tbody>
                 </table>
@@ -980,24 +1042,45 @@ export default function Index({ recebimento, preLote, liberadas, fornecedores, d
 
                 {/* ── Liberadas ───────────────────────────────────────────────── */}
                 <div className="rounded-xl overflow-hidden" style={{ background: p.SURFACE, border: `1px solid ${p.BORDER}` }}>
-                    <div className="flex items-center justify-between px-5 py-3.5" style={{ borderBottom: `1px solid ${p.BORDER}` }}>
+                    <div className="flex items-center justify-between px-5 py-3.5 gap-3 flex-wrap" style={{ borderBottom: `1px solid ${p.BORDER}` }}>
                         <h2 className="text-sm font-semibold flex items-center gap-2" style={{ color: p.MUTED }}>
                             Liberadas neste dia
                             <span className="text-xs font-medium px-2 py-0.5 rounded-full"
                                 style={{ background: p.GREEN + '22', color: p.GREEN, border: `1px solid ${p.GREEN}33` }}>
-                                {liberadasL.length}
+                                {liberadasFiltradas.length}
                             </span>
                         </h2>
+                        {/* Filtro por fila de origem: caminhão na porta × pré-lote × ambos */}
+                        <div className="flex items-center gap-1.5">
+                            {([null, 'recebimento', 'pre_lote'] as const).map(o => {
+                                const ativo = origemLiberadas === o;
+                                const rotulo = o === null ? 'Ambos' : ORIGEM_LABEL[o];
+                                const cor = o === 'recebimento' ? p.RED : o === 'pre_lote' ? p.ACCENT : p.MUTED;
+                                return (
+                                    <button key={rotulo} onClick={() => setOrigemLiberadas(o)}
+                                        className="text-xs font-medium px-2.5 py-1 rounded-lg transition"
+                                        style={{
+                                            background: ativo ? cor + '22' : 'transparent',
+                                            color: ativo ? cor : p.MUTED,
+                                            border: `1px solid ${ativo ? cor : p.BORDER}`,
+                                        }}>
+                                        {rotulo}
+                                    </button>
+                                );
+                            })}
+                        </div>
                     </div>
                     <div className="overflow-x-auto">
                         <table className="min-w-full">
                             <THead colunas={COLS_LIBERADAS} p={p} />
                             <tbody>
-                                {liberadasL.length === 0 ? (
+                                {liberadasFiltradas.length === 0 ? (
                                     <tr><td colSpan={7} className="px-4 py-8 text-center text-sm" style={{ color: p.MUTED }}>
-                                        Nenhuma nota liberada neste dia.
+                                        {liberadasL.length === 0
+                                            ? 'Nenhuma nota liberada neste dia.'
+                                            : `Nenhuma nota liberada em ${ORIGEM_LABEL[origemLiberadas!]} neste dia.`}
                                     </td></tr>
-                                ) : liberadasL.map(n => (
+                                ) : liberadasFiltradas.map(n => (
                                     <tr key={n.id} className="opacity-80 group" style={{ borderBottom: `1px solid ${p.BORDER}` }}>
                                         <td className="px-4 py-3 text-sm whitespace-nowrap" style={{ color: p.TEXT }}>
                                             <span className="line-through">{n.numero_nota}</span>
@@ -1069,6 +1152,73 @@ export default function Index({ recebimento, preLote, liberadas, fornecedores, d
                                                     onMouseEnter={e => (e.currentTarget.style.background = p.RED + '1a')}
                                                     onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}>
                                                     <Icone path="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                                </button>
+                                            )}
+                                        </td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                {/* ── Canceladas ──────────────────────────────────────────────── */}
+                <div className="rounded-xl overflow-hidden" style={{ background: p.SURFACE, border: `1px solid ${p.BORDER}` }}>
+                    <div className="flex items-center justify-between px-5 py-3.5" style={{ borderBottom: `1px solid ${p.BORDER}` }}>
+                        <h2 className="text-sm font-semibold flex items-center gap-2" style={{ color: p.MUTED }}>
+                            Canceladas neste dia
+                            <span className="text-xs font-medium px-2 py-0.5 rounded-full"
+                                style={{ background: p.ORANGE + '22', color: p.ORANGE, border: `1px solid ${p.ORANGE}33` }}>
+                                {canceladasL.length}
+                            </span>
+                        </h2>
+                        <span className="text-xs" style={{ color: p.MUTED }}>NF cancelada pelo fornecedor</span>
+                    </div>
+                    <div className="overflow-x-auto">
+                        <table className="min-w-full">
+                            <THead colunas={COLS_CANCELADAS} p={p} />
+                            <tbody>
+                                {canceladasL.length === 0 ? (
+                                    <tr><td colSpan={7} className="px-4 py-8 text-center text-sm" style={{ color: p.MUTED }}>
+                                        Nenhuma nota cancelada neste dia.
+                                    </td></tr>
+                                ) : canceladasL.map(n => (
+                                    <tr key={n.id} className="opacity-80 group" style={{ borderBottom: `1px solid ${p.BORDER}` }}>
+                                        <td className="px-4 py-3 text-sm whitespace-nowrap" style={{ color: p.TEXT }}>
+                                            <span className="line-through">{n.numero_nota}</span>
+                                            {n.ceasa > 0 && (
+                                                <span className="ml-2 inline-flex items-center rounded px-1.5 py-0.5 text-[10px] font-bold tracking-wide no-underline"
+                                                    style={{ background: p.PURPLE + '22', color: p.PURPLE, border: `1px solid ${p.PURPLE}44` }}
+                                                    title="Nota de CEASA">
+                                                    {n.ceasa === 3 ? 'CEASA' : `CEASA ${n.ceasa}`}
+                                                </span>
+                                            )}
+                                        </td>
+                                        <td className="px-4 py-3 text-sm max-w-[180px] truncate" style={{ color: p.TEXT }}>{n.fornecedor.nome}</td>
+                                        <td className="px-4 py-3 text-sm whitespace-nowrap" style={{ color: p.TEXT }}>{lojaNome(n.loja)}</td>
+                                        <td className="px-4 py-3 text-sm whitespace-nowrap" style={{ color: p.MUTED }}>
+                                            {ORIGEM_LABEL[n.origem]}
+                                        </td>
+                                        <td className="px-4 py-3 text-sm max-w-[220px] truncate" style={{ color: p.TEXT }} title={n.motivo_cancelamento ?? ''}>
+                                            {n.motivo_cancelamento || <span style={{ color: p.MUTED }}>—</span>}
+                                        </td>
+                                        <td className="px-4 py-3 text-sm" style={{ color: p.TEXT }}>{n.cancelada_por?.name.split(' ')[0] ?? '—'}</td>
+                                        <td className="px-4 py-3 text-right">
+                                            <button onClick={() => setComentariosNota(n)} title="Comentários"
+                                                className={`inline-flex items-center gap-1 p-1.5 rounded-lg transition ${n.comentarios_count > 0 ? '' : 'opacity-0 group-hover:opacity-100'}`}
+                                                style={{ color: n.comentarios_count > 0 ? p.ACCENT : p.MUTED }}>
+                                                <Icone path="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.8 9.8 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+                                                {n.comentarios_count > 0 && <span className="text-xs font-medium">{n.comentarios_count}</span>}
+                                            </button>
+
+                                            {/* Cancelou por engano: volta para a fila */}
+                                            {can.cancelarNota && (
+                                                <button onClick={() => descancelar(n)} title="Desfazer cancelamento"
+                                                    className="inline-flex items-center p-1.5 rounded-lg transition opacity-0 group-hover:opacity-100"
+                                                    style={{ color: p.GREEN }}
+                                                    onMouseEnter={e => (e.currentTarget.style.background = p.GREEN + '1a')}
+                                                    onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}>
+                                                    <Icone path="M9 15L3 9m0 0l6-6M3 9h12a6 6 0 010 12h-3" />
                                                 </button>
                                             )}
                                         </td>

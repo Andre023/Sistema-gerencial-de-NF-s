@@ -209,6 +209,15 @@ class User extends Authenticatable
         return $this->ehUmDe(self::ROLE_RECEBIMENTO, self::ROLE_COMPRAS, self::ROLE_PRE_LOTE);
     }
 
+    /**
+     * Cancelar a nota (o fornecedor cancelou a NF) — pré-lote e compras.
+     * A nota sai da fila e vai para "Canceladas neste dia"; nada é excluído.
+     */
+    public function podeCancelarNota(): bool
+    {
+        return $this->ehUmDe(self::ROLE_PRE_LOTE, self::ROLE_COMPRAS);
+    }
+
     /** Editar o lembrete CEASA de uma nota JÁ LIBERADA — só recebimento */
     public function podeEditarCeasaLiberada(): bool
     {

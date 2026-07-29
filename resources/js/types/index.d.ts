@@ -31,6 +31,8 @@ export interface Permissoes {
     gerenciarNotas: boolean;
     /** Excluir nota já liberada (histórico fechado) — só admin */
     excluirNotaLiberada: boolean;
+    /** Cancelar a nota (o fornecedor cancelou a NF) — pré-lote e compras */
+    cancelarNota: boolean;
     verEstatisticas: boolean;
     gerenciarUsuarios: boolean;
     /** Gerenciar a aba Prioridades (fornecedores prioritários) — só admin */
@@ -51,7 +53,7 @@ export interface Fornecedor {
     prioridade?: boolean;
 }
 
-export type TipoCard = 'cadastro' | 'regra' | 'custo' | 'quantidade' | 'sem_pedido' | 'importar_nf';
+export type TipoCard = 'cadastro' | 'regra' | 'custo' | 'quantidade' | 'sem_pedido' | 'importar_nf' | 'reconferir';
 export type StatusCard = 'aberto' | 'resolvido';
 
 export interface Card {
@@ -62,7 +64,7 @@ export interface Card {
     reaberturas: number;
 }
 
-export type StatusNota = 'pendente' | 'com_divergencia' | 'reconferir' | 'liberada';
+export type StatusNota = 'pendente' | 'com_divergencia' | 'reconferir' | 'liberada' | 'cancelada';
 export type OrigemNota = 'recebimento' | 'pre_lote';
 
 export interface Nota {
@@ -81,6 +83,14 @@ export interface Nota {
     liberada_em: string | null;
     /** Chegada física de uma nota já liberada (o caminhão trouxe depois) */
     recebida_em: string | null;
+    /** Cancelamento (o fornecedor cancelou a NF) — null se ativa */
+    cancelada_em: string | null;
+    cancelada_por: Pick<User, 'id' | 'name'> | null;
+    motivo_cancelamento: string | null;
+    /** Fila de onde veio, quando a nota trocou de fila ("Pré-lote desde 19/06") */
+    origem_anterior: OrigemNota | null;
+    origem_anterior_data: string | null;
+    origem_alterada_em: string | null;
     /** Quem está "olhando" a nota agora (mostra o avatar dela) — null se livre */
     visualizando_por: (Pick<User, 'id' | 'name'> & { avatar?: Avatar }) | null;
     visualizando_em: string | null;

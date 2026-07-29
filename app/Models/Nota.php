@@ -28,6 +28,11 @@ class Nota extends Model
         'recebida_em',
         'visualizando_por',
         'visualizando_em',
+        'cancelada_em',
+        'cancelada_por',
+        'motivo_cancelamento',
+        'origem_alterada_em',
+        'origem_anterior',
     ];
 
     protected $casts = [
@@ -36,9 +41,11 @@ class Nota extends Model
         'liberada_em'     => 'datetime',
         'recebida_em'     => 'datetime',
         'visualizando_em' => 'datetime',
+        'cancelada_em'       => 'datetime',
+        'origem_alterada_em' => 'datetime',
     ];
 
-    public const LOJAS = [1, 2, 3, 9, 11, 12];
+    public const LOJAS = [1, 2, 3, 7, 9, 11, 12, 13, 18];
 
     /** recebimento = caminhão na porta (prioridade) | pre_lote = antecipada */
     public const ORIGENS = ['recebimento', 'pre_lote'];
@@ -54,6 +61,7 @@ class Nota extends Model
     public const STATUS_DIVERGENCIA = 'com_divergencia'; // tem card aberto
     public const STATUS_RECONFERIR  = 'reconferir';      // cards corrigidos aguardando o pré-lote
     public const STATUS_LIBERADA    = 'liberada';
+    public const STATUS_CANCELADA   = 'cancelada';       // o fornecedor cancelou a NF
 
     // ─── Relações ───────────────────────────────────────────────────────────────
 
@@ -76,6 +84,22 @@ class Nota extends Model
     public function visualizadaPor(): BelongsTo
     {
         return $this->belongsTo(User::class, 'visualizando_por');
+    }
+
+    public function canceladaPor(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'cancelada_por');
+    }
+
+    /**
+     * De quando conta o envelhecimento: se a nota trocou de fila, o relógio
+     * reinicia na data da troca — ela esperou na fila ANTERIOR, e as cores devem
+     * refletir o tempo na fila ATUAL. A origem anterior vira o selo
+     * "Pré-lote desde 19/06" (ver paraTabela).
+     */
+    public function inicioContagem(): \Carbon\Carbon
+    {
+        return $this->origem_alterada_em ?? $this->created_at;
     }
 
     /** Solta a reserva (o 🙋‍♂️ some). Chamado quando a pessoa age na nota. */
@@ -104,6 +128,11 @@ class Nota extends Model
      */
     public function statusCalculado(): string
     {
+        // Cancelada encerra a nota: nem os cards nem a liberação importam mais
+        if ($this->cancelada_em) {
+            return self::STATUS_CANCELADA;
+        }
+
         if ($this->liberada_em) {
             return self::STATUS_LIBERADA;
         }
@@ -157,6 +186,15 @@ class Nota extends Model
             'liberada_por' => $this->liberadaPor,
             'liberada_em'  => $this->liberada_em,
             'recebida_em'  => $this->recebida_em,
+            'cancelada_em'  => $this->cancelada_em,
+            'cancelada_por' => $this->canceladaPor
+                ? ['id' => $this->canceladaPor->id, 'name' => $this->canceladaPor->name]
+                : null,
+            'motivo_cancelamento' => $this->motivo_cancelamento,
+            // Veio de outra fila: a tela mostra "Pré-lote desde 19/06"
+            'origem_anterior'      => $this->origem_anterior,
+            'origem_anterior_data' => $this->origem_anterior ? $this->created_at->format('d/m') : null,
+            'origem_alterada_em'   => $this->origem_alterada_em,
             'visualizando_por' => $this->visualizadaPor
                 ? ['id' => $this->visualizadaPor->id, 'name' => $this->visualizadaPor->name,
                    'avatar' => $this->visualizadaPor->avatar]

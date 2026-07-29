@@ -64,9 +64,11 @@ class NotaController extends Controller
                     ->orWhereHas('fornecedor', fn($q2) => $q2->where('nome', 'like', "%{$busca}%"));
             }));
 
-        // NA FILA: tudo que ainda não foi liberado, até a data (arrasta de dias anteriores)
+        // NA FILA: tudo que ainda não foi liberado nem cancelado, até a data
+        // (arrasta de dias anteriores)
         $fila = (clone $base)
             ->whereNull('liberada_em')
+            ->whereNull('cancelada_em')
             ->whereDate('created_at', '<=', $dataFiltro)
             ->orderBy('created_at', 'asc')
             ->get()
@@ -108,10 +110,21 @@ class NotaController extends Controller
         // trouxe hoje (recebida_em) — a nota fechada no pré-lote que chegou agora.
         $liberadas = (clone $base)
             ->whereNotNull('liberada_em')
+            ->whereNull('cancelada_em')
             ->where(fn($q) => $q
                 ->whereDate('liberada_em', $dataFiltro)
                 ->orWhereDate('recebida_em', $dataFiltro))
             ->orderBy('liberada_em', 'desc')
+            ->get()
+            ->map(fn($n) => $n->paraTabela($dataFiltro));
+
+        // CANCELADAS no dia: seção própria abaixo das liberadas. Fica no
+        // histórico para as estatísticas (docs/NOTAS_CANCELADAS.md).
+        $canceladas = (clone $base)
+            ->with('canceladaPor:id,name,avatar_tipo,avatar_valor')
+            ->whereNotNull('cancelada_em')
+            ->whereDate('cancelada_em', $dataFiltro)
+            ->orderBy('cancelada_em', 'desc')
             ->get()
             ->map(fn($n) => $n->paraTabela($dataFiltro));
 
@@ -121,6 +134,7 @@ class NotaController extends Controller
             'recebimento'   => $recebimento,
             'preLote'       => $preLote,
             'liberadas'     => $liberadas,
+            'canceladas'    => $canceladas,
             'fornecedores'  => $fornecedores,
             'dataFiltro'      => $dataFiltro,
             'resumoAlertas'   => $resumoAlertas,
@@ -246,7 +260,13 @@ class NotaController extends Controller
             ]);
         }
 
-        $existente->update(['origem' => $dados['origem']]);
+        // Trocar de fila reinicia o relógio do envelhecimento: ela esperou na
+        // fila ANTERIOR. Guardamos de onde veio (vira "Pré-lote desde 19/06").
+        $existente->update([
+            'origem'             => $dados['origem'],
+            'origem_anterior'    => $existente->origem,
+            'origem_alterada_em' => now(),
+        ]);
         event(new NotaAtualizada($existente));
 
         return back()->with('sucesso', 'Nota movida para ' . Nota::ORIGEM_LABEL[$dados['origem']] . '.');
@@ -327,6 +347,58 @@ class NotaController extends Controller
         Notificador::notaLiberada($nota, $request->user());
 
         return back()->with('sucesso', 'Nota liberada.');
+    }
+
+    // ─── CANCELAR (o fornecedor cancelou a NF) ────────────────────────────────
+    //
+    // A nota sai da fila e vai para "Canceladas neste dia". Nada é excluído: o
+    // histórico (cards, comentários, quem cancelou e por quê) fica inteiro para
+    // as estatísticas — ver docs/NOTAS_CANCELADAS.md.
+
+    public function cancelar(Request $request, Nota $nota): RedirectResponse
+    {
+        Gate::authorize('cancelar-nota');
+
+        if ($nota->cancelada_em) {
+            return back()->withErrors(['nota' => 'Esta nota já está cancelada.']);
+        }
+
+        $dados = $request->validate([
+            'motivo' => 'nullable|string|max:500',
+        ]);
+
+        $nota->update([
+            'cancelada_em'        => now(),
+            'cancelada_por'       => $request->user()->id,
+            'motivo_cancelamento' => $dados['motivo'] ?? null,
+            // Saiu da fila: a reserva (🙋‍♂️) não faz mais sentido
+            'visualizando_por'    => null,
+            'visualizando_em'     => null,
+        ]);
+
+        event(new NotaAtualizada($nota));
+
+        return back()->with('sucesso', 'Nota cancelada.');
+    }
+
+    /** Cancelou por engano: volta para a fila exatamente como estava. */
+    public function descancelar(Request $request, Nota $nota): RedirectResponse
+    {
+        Gate::authorize('cancelar-nota');
+
+        if (! $nota->cancelada_em) {
+            return back()->withErrors(['nota' => 'Esta nota não está cancelada.']);
+        }
+
+        $nota->update([
+            'cancelada_em'        => null,
+            'cancelada_por'       => null,
+            'motivo_cancelamento' => null,
+        ]);
+
+        event(new NotaAtualizada($nota));
+
+        return back()->with('sucesso', 'Cancelamento desfeito — a nota voltou para a fila.');
     }
 
     // ─── EDITAR NOTA JÁ LIBERADA (campos limitados por papel) ──────────────────

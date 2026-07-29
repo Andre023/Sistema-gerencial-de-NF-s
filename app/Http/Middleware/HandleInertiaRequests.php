@@ -50,6 +50,7 @@ class HandleInertiaRequests extends Middleware
                     'gerenciarUsuarios' => $user->podeGerenciarUsuarios(),
                     'gerenciarPrioridades' => $user->podeGerenciarPrioridades(),
                     'interagir'            => $user->podeInteragir(),
+                    'cancelarNota'         => $user->podeCancelarNota(),
                     'editarObservacaoLiberada' => $user->podeEditarObservacaoLiberada(),
                     'editarCeasaLiberada'      => $user->podeEditarCeasaLiberada(),
                 ] : null,

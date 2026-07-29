@@ -27,23 +27,33 @@ trait TemIdade
     public const NIVEIS_ALERTA = [self::NIVEL_CRITICO, self::NIVEL_ALERTA, self::NIVEL_ATENCAO];
 
     /**
-     * Dias entre a criação e a data consultada.
+     * De quando o relógio conta. Por padrão é a criação; um model pode
+     * sobrescrever quando o registro "recomeça" (ex.: a nota que troca de fila
+     * reinicia a contagem na fila nova — ver Nota::inicioContagem()).
+     */
+    public function inicioContagem(): Carbon
+    {
+        return $this->created_at;
+    }
+
+    /**
+     * Dias entre o início da contagem e a data consultada.
      *
      * Relativo ao filtro (não a "hoje") para bater com a lógica de pendentes que
      * arrastam: ao navegar para um dia passado, a idade é a daquele dia.
      */
     public function diasEmAberto(string $dataFiltro): int
     {
-        $criada = $this->created_at->copy()->startOfDay();
+        $inicio = $this->inicioContagem()->copy()->startOfDay();
         $ref    = Carbon::parse($dataFiltro)->startOfDay();
 
-        // Carbon 3: diffInDays é assinado — criada antes da referência dá positivo.
-        return max(0, (int) $criada->diffInDays($ref));
+        // Carbon 3: diffInDays é assinado — início antes da referência dá positivo.
+        return max(0, (int) $inicio->diffInDays($ref));
     }
 
     public function isAtrasada(string $dataFiltro): bool
     {
-        return $this->created_at->toDateString() < $dataFiltro;
+        return $this->inicioContagem()->toDateString() < $dataFiltro;
     }
 
     public function nivelAlerta(string $dataFiltro): string

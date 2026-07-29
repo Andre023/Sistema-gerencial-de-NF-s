@@ -41,6 +41,11 @@ class CardController extends Controller
             'detalhe' => 'nullable|string|max:500',
         ]);
 
+        // "Reconferir" é pedido de nova conferência do CEASA — não existe fora dele
+        if (in_array($dados['tipo'], Card::TIPOS_SO_CEASA, true) && ! $nota->ceasa) {
+            return back()->withErrors(['tipo' => 'O card de reconferência é exclusivo de notas de CEASA.']);
+        }
+
         // Um card ativo por tipo: se cadastro já está aberto, não abre outro igual
         $jaExiste = $nota->cards()
             ->where('tipo', $dados['tipo'])

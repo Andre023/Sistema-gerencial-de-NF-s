@@ -34,7 +34,14 @@ class Card extends Model
         'reaberturas'  => 'integer',
     ];
 
-    public const TIPOS = ['cadastro', 'regra', 'custo', 'quantidade', 'sem_pedido', 'importar_nf'];
+    public const TIPOS = ['cadastro', 'regra', 'custo', 'quantidade', 'sem_pedido', 'importar_nf', 'reconferir'];
+
+    /**
+     * Tipos que só existem em nota de CEASA. "Reconferir": compras pede que o
+     * pré-lote confira de novo a nota do CEASA (hortifrúti tem muita variação
+     * de peso/preço). Fora do CEASA a reconferência já é o fluxo normal.
+     */
+    public const TIPOS_SO_CEASA = ['reconferir'];
 
     /**
      * Tipos que o comprador corrige no ERP e marca aqui.
