@@ -37,12 +37,15 @@ class Notificacao extends Model
     public const TIPO_REABERTO = 'reaberto';
     /** Fim da linha — quem lançou a nota pode tocar o recebimento */
     public const TIPO_LIBERADA = 'liberada';
+    /** Nota recém lançada (caminhão na porta) — o pré-lote precisa analisar */
+    public const TIPO_LANCADA = 'lancada';
 
     public const TIPOS = [
         self::TIPO_DIVERGENCIA,
         self::TIPO_CORRIGIDO,
         self::TIPO_REABERTO,
         self::TIPO_LIBERADA,
+        self::TIPO_LANCADA,
     ];
 
     /** Quantas o sino mostra na lista (o contador conta todas as pendentes) */

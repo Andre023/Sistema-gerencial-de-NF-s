@@ -94,6 +94,7 @@ export const NOTIFICACAO_LABEL: Record<string, string> = {
     reaberto: 'Reaberta — continua errada',
     corrigido: 'Compras corrigiu — reconferir',
     liberada: 'Nota liberada',
+    lancada: 'Nota recém lançada — analisar',
 };
 
 /** Cor da barra lateral do aviso: vermelho pede ação, verde é conclusão. */
@@ -103,6 +104,7 @@ export function notificacaoCor(tipo: string, p: Palette): string {
         case 'reaberto':    return p.RED;
         case 'corrigido':   return p.ACCENT;
         case 'liberada':    return p.GREEN;
+        case 'lancada':     return p.PURPLE;
         default:            return p.MUTED;
     }
 }

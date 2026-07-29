@@ -13,6 +13,7 @@ use Illuminate\Support\Collection;
  * Quem é avisado do quê. O ciclo do card já sabe o destinatário de cada salto —
  * aqui só traduzimos isso em notificação:
  *
+ *   recebimento lança    → pré-lote           (nota nova esperando análise)
  *   pré-lote abre card   → compras            (users com papel compras)
  *   compras corrige      → quem abriu o card  (cards.aberto_por)
  *   pré-lote reabre      → compras de novo
@@ -30,10 +31,34 @@ use Illuminate\Support\Collection;
  */
 class Notificador
 {
+    // ─── SALTO 0: nota recém lançada → pré-lote ────────────────────────────────
+
+    /**
+     * O recebimento lançou uma nota (caminhão na porta): o pré-lote precisa
+     * saber que há nota nova esperando análise.
+     *
+     * Quando quem lança já é do pré-lote (nota antecipada), não avisamos: o
+     * setor que analisa é o mesmo que acabou de cadastrar, e o aviso seria só
+     * ruído para os colegas.
+     */
+    public static function notaLancada(Nota $nota, User $autor): void
+    {
+        if ($autor->role === User::ROLE_PRE_LOTE) {
+            return;
+        }
+
+        $preLote = User::where('role', User::ROLE_PRE_LOTE)->get();
+
+        self::entregar($preLote, $nota, Notificacao::TIPO_LANCADA, collect(), $autor);
+    }
+
     // ─── SALTO 1: pré-lote abriu card → compras ────────────────────────────────
 
     public static function cardAberto(Nota $nota, User $autor): void
     {
+        // O pré-lote já olhou a nota (abriu divergência): ela deixou de ser "nova"
+        self::encerrar($nota, [Notificacao::TIPO_LANCADA]);
+
         self::sincronizarCompras($nota, $autor, Notificacao::TIPO_DIVERGENCIA);
     }
 
@@ -81,6 +106,7 @@ class Notificador
             Notificacao::TIPO_DIVERGENCIA,
             Notificacao::TIPO_REABERTO,
             Notificacao::TIPO_CORRIGIDO,
+            Notificacao::TIPO_LANCADA,
         ]);
 
         $quemLancou = $nota->user_id ? User::find($nota->user_id) : null;
@@ -99,6 +125,12 @@ class Notificador
     // ─── Nota excluída: nada nela pede ação (o soft delete não cascateia) ──────
 
     public static function notaRemovida(Nota $nota): void
+    {
+        self::encerrar($nota, Notificacao::TIPOS);
+    }
+
+    /** Cancelada pelo fornecedor: some da fila, então nada nela pede ação. */
+    public static function notaCancelada(Nota $nota): void
     {
         self::encerrar($nota, Notificacao::TIPOS);
     }

@@ -220,6 +220,8 @@ class NotaController extends Controller
         ]);
 
         event(new NotaAtualizada($nota));
+        // Nota nova esperando análise: o pré-lote precisa saber
+        Notificador::notaLancada($nota, $request->user());
 
         return back()->with('sucesso', 'Nota lançada.');
     }
@@ -268,6 +270,12 @@ class NotaController extends Controller
             'origem_alterada_em' => now(),
         ]);
         event(new NotaAtualizada($existente));
+
+        // Chegou o caminhão de uma nota que esperava no pré-lote: para quem
+        // confere é o mesmo evento de uma nota recém lançada.
+        if ($dados['origem'] === 'recebimento') {
+            Notificador::notaLancada($existente, $request->user());
+        }
 
         return back()->with('sucesso', 'Nota movida para ' . Nota::ORIGEM_LABEL[$dados['origem']] . '.');
     }
@@ -377,6 +385,7 @@ class NotaController extends Controller
         ]);
 
         event(new NotaAtualizada($nota));
+        Notificador::notaCancelada($nota); // saiu da fila: nada nela pede ação
 
         return back()->with('sucesso', 'Nota cancelada.');
     }
