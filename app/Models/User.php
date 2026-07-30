@@ -182,6 +182,16 @@ class User extends Authenticatable
         return $this->isAdmin();
     }
 
+    /**
+     * Ver o dossiê do fornecedor — hoje só admin, como Estatísticas.
+     * Fica separado de propósito: liberar para compras/pré-lote (que negociam
+     * com o fornecedor) é trocar esta linha, sem mexer em mais nada.
+     */
+    public function podeVerDossie(): bool
+    {
+        return $this->isAdmin();
+    }
+
     /** Gerenciar usuários — só admin */
     public function podeGerenciarUsuarios(): bool
     {

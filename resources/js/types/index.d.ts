@@ -34,6 +34,8 @@ export interface Permissoes {
     /** Cancelar a nota (o fornecedor cancelou a NF) — pré-lote e compras */
     cancelarNota: boolean;
     verEstatisticas: boolean;
+    /** Ver o dossiê do fornecedor (aba Fornecedores) */
+    verDossie: boolean;
     gerenciarUsuarios: boolean;
     /** Gerenciar a aba Prioridades (fornecedores prioritários) — só admin */
     gerenciarPrioridades: boolean;

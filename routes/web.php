@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\CardController;
 use App\Http\Controllers\ComentarioController;
+use App\Http\Controllers\DossieController;
 use App\Http\Controllers\EstatisticaController;
 use App\Http\Controllers\FornecedorController;
 use App\Http\Controllers\NotaController;
@@ -84,6 +85,11 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('/estatisticas', [EstatisticaController::class, 'index'])
         ->middleware('can:ver-estatisticas')
         ->name('estatisticas.index');
+
+    // ── Dossiê do fornecedor ───────────────────────────────────────────────────
+    Route::get('/dossie', [DossieController::class, 'index'])
+        ->middleware('can:ver-dossie')
+        ->name('dossie.index');
 
     // ── Prioridades (só admin) ─────────────────────────────────────────────────
     Route::middleware('can:gerenciar-prioridades')->prefix('prioridades')->name('prioridades.')->group(function () {

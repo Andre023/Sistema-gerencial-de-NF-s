@@ -47,6 +47,7 @@ class HandleInertiaRequests extends Middleware
                     'gerenciarNotas'    => $user->podeGerenciarNotas(),
                     'excluirNotaLiberada' => $user->podeExcluirNotaLiberada(),
                     'verEstatisticas'   => $user->podeVerEstatisticas(),
+                    'verDossie'         => $user->podeVerDossie(),
                     'gerenciarUsuarios' => $user->podeGerenciarUsuarios(),
                     'gerenciarPrioridades' => $user->podeGerenciarPrioridades(),
                     'interagir'            => $user->podeInteragir(),

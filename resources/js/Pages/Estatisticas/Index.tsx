@@ -4,6 +4,10 @@ import { Head, router } from '@inertiajs/react';
 import { useTheme } from '@/Contexts/ThemeContext';
 import { nivelCor, idadeTexto } from '@/lib/tema';
 import { Nivel } from '@/types';
+import {
+    DARK, LIGHT, Palette, Card, KpiCard, Linha, BarrasH, BarrasV, Donut, ComparaRede,
+    LOJA_CORES_DARK, LOJA_CORES_LIGHT, lojaNome, fmtDia, pct, fmtHoras,
+} from '@/Components/estatisticas/Graficos';
 
 // ─── Tipos ────────────────────────────────────────────────────────────────────
 
@@ -14,6 +18,31 @@ interface Kpis {
     resolvidasNoDia: number;
     taxaResolucao: number;
     tempoMedioHoras: number | null;
+    /** Variação vs. o período anterior de mesmo tamanho (null = sem base) */
+    variacao: { total: number | null; taxaResolucao: number | null; tempoMedio: number | null };
+}
+interface Etapas {
+    ateAnalise: number | null;
+    correcao: number | null;
+    reconferencia: number | null;
+    semDivergencia: number | null;
+}
+interface Retrabalho {
+    totalCards: number; reabertos: number; taxa: number;
+    porTipo: { motivo: string; cards: number; reaberturas: number }[];
+    porFornecedor: { fornecedor: string; total: number }[];
+}
+interface PorOrigem {
+    origem: string; total: number; atendidas: number; taxa: number; tempoMedioHoras: number | null;
+}
+interface PorCeasa {
+    grupo: string; total: number; atendidas: number;
+    comDivergencia: number; taxaDivergencia: number; tempoMedioHoras: number | null;
+}
+interface Cancelamento {
+    total: number; taxa: number; tardias: number; tempoMedioHoras: number | null;
+    porFornecedor: { fornecedor: string; total: number }[];
+    porQuem: { usuario: string; total: number }[];
 }
 interface DiaEvol { dia: string; total: number; atendidas: number; pendentes: number }
 interface PorMotivo { motivo: string; total: number; atendidas: number }
@@ -42,310 +71,14 @@ interface Props {
     reincidentes: Reincidente[];
     rankingUsuarios: RankUser[];
     pendentesMaisAntigas: PendAntiga[];
-}
-
-// ─── Paletas de cor (dark / light) ────────────────────────────────────────────
-
-interface Palette {
-    BG: string;
-    SURFACE: string;
-    BORDER: string;
-    TEXT: string;
-    MUTED: string;
-    ACCENT: string;
-    GREEN: string;
-    RED: string;
-    AMBER: string;
-    PURPLE: string;
-    BAR_BG: string;
-    HOVER_ROW: string;
-    TOOLTIP_BG: string;
-}
-
-const DARK: Palette = {
-    BG: '#0d1117',
-    SURFACE: '#161b22',
-    BORDER: '#21262d',
-    TEXT: '#e6edf3',
-    MUTED: '#7d8590',
-    ACCENT: '#2f81f7',
-    GREEN: '#3fb950',
-    RED: '#f85149',
-    AMBER: '#d29922',
-    PURPLE: '#a371f7',
-    BAR_BG: '#21262d',
-    HOVER_ROW: '#21262d',
-    TOOLTIP_BG: '#30363d',
-};
-
-const LIGHT: Palette = {
-    BG: '#f6f8fa',
-    SURFACE: '#ffffff',
-    BORDER: '#d0d7de',
-    TEXT: '#1f2328',
-    MUTED: '#656d76',
-    ACCENT: '#0969da',
-    GREEN: '#1a7f37',
-    RED: '#d1242f',
-    AMBER: '#9a6700',
-    PURPLE: '#8250df',
-    BAR_BG: '#eaeef2',
-    HOVER_ROW: '#f6f8fa',
-    TOOLTIP_BG: '#1f2328',
-};
-
-const LOJA_CORES_DARK = ['#2f81f7', '#d29922', '#3fb950', '#f85149', '#a371f7', '#58a6ff', '#56d364'];
-const LOJA_CORES_LIGHT = ['#0969da', '#9a6700', '#1a7f37', '#d1242f', '#8250df', '#0550ae', '#116329'];
-
-// ─── Helpers ──────────────────────────────────────────────────────────────────
-
-const lojaNome = (n: number) => `Loja ${String(n).padStart(2, '0')}`;
-const fmtDia = (s: string) => s.slice(5).replace('-', '/');
-const pct = (v: number, t: number) => (t > 0 ? Math.round((v / t) * 100) : 0);
-
-// ─── Card ─────────────────────────────────────────────────────────────────────
-
-function Card({ title, children, className = '', action, p }: {
-    title?: string;
-    children: React.ReactNode;
-    className?: string;
-    action?: React.ReactNode;
-    p: Palette;
-}) {
-    return (
-        <div
-            className={`rounded-xl overflow-hidden ${className}`}
-            style={{ background: p.SURFACE, border: `1px solid ${p.BORDER}` }}
-        >
-            {title && (
-                <div
-                    className="flex items-center justify-between px-5 py-3.5"
-                    style={{ borderBottom: `1px solid ${p.BORDER}` }}
-                >
-                    <h3 className="text-sm font-semibold" style={{ color: p.TEXT }}>{title}</h3>
-                    {action}
-                </div>
-            )}
-            <div className="p-5">{children}</div>
-        </div>
-    );
-}
-
-// ─── KPI Card ─────────────────────────────────────────────────────────────────
-
-function KpiCard({ label, valor, sub, trend, trendUp, p }: {
-    label: string;
-    valor: string | number;
-    sub?: string;
-    trend?: string;
-    trendUp?: boolean;
-    p: Palette;
-}) {
-    return (
-        <div
-            className="rounded-xl p-5 flex flex-col gap-2"
-            style={{ background: p.SURFACE, border: `1px solid ${p.BORDER}` }}
-        >
-            {trend && (
-                <span
-                    className="text-xs font-semibold self-end"
-                    style={{ color: trendUp ? p.GREEN : p.RED }}
-                >
-                    {trendUp ? '↑' : '↓'} {trend}
-                </span>
-            )}
-            <p className="text-xs font-medium uppercase tracking-wider" style={{ color: p.MUTED }}>{label}</p>
-            <p className="text-2xl font-bold leading-none" style={{ color: p.TEXT }}>{valor}</p>
-            {sub && <p className="text-xs" style={{ color: p.MUTED }}>{sub}</p>}
-        </div>
-    );
-}
-
-// ─── Gráfico de linha SVG ─────────────────────────────────────────────────────
-
-function Linha({ dados, cor, altura = 200, p }: {
-    dados: { label: string; valor: number }[];
-    cor: string;
-    altura?: number;
-    p: Palette;
-}) {
-    const w = 800; const h = altura;
-    const pad = { t: 12, r: 12, b: 28, l: 36 };
-    const innerW = w - pad.l - pad.r;
-    const innerH = h - pad.t - pad.b;
-    const maximo = Math.max(...dados.map(d => d.valor), 1);
-
-    if (dados.length < 2) return (
-        <p className="text-sm text-center py-6" style={{ color: p.MUTED }}>Dados insuficientes.</p>
-    );
-
-    const xStep = innerW / (dados.length - 1);
-    const pts = dados.map((d, i) => ({
-        x: pad.l + i * xStep,
-        y: pad.t + innerH - (d.valor / maximo) * innerH,
-        ...d,
-    }));
-
-    const polyline = pts.map(pt => `${pt.x},${pt.y}`).join(' ');
-    const area = `${pts[0].x},${pad.t + innerH} ${polyline} ${pts[pts.length - 1].x},${pad.t + innerH}`;
-
-    const yTicks = [0, 0.25, 0.5, 0.75, 1].map(frac => ({
-        y: pad.t + innerH - frac * innerH,
-        val: Math.round(frac * maximo),
-    }));
-
-    const xStep2 = Math.ceil(dados.length / 10);
-    const xLabels = dados.filter((_, i) => i % xStep2 === 0 || i === dados.length - 1);
-
-    return (
-        <svg viewBox={`0 0 ${w} ${h}`} className="w-full" style={{ height: altura }}>
-            <defs>
-                <linearGradient id={`grad-${cor.replace('#', '')}`} x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor={cor} stopOpacity="0.25" />
-                    <stop offset="100%" stopColor={cor} stopOpacity="0" />
-                </linearGradient>
-            </defs>
-            {yTicks.map((t, i) => (
-                <g key={i}>
-                    <line x1={pad.l} y1={t.y} x2={w - pad.r} y2={t.y}
-                        stroke={p.BORDER} strokeWidth="1" strokeDasharray="4 4" />
-                    <text x={pad.l - 6} y={t.y + 4} textAnchor="end"
-                        fontSize="9" fill={p.MUTED}>{t.val}</text>
-                </g>
-            ))}
-            <polygon points={area} fill={`url(#grad-${cor.replace('#', '')})`} />
-            <polyline points={polyline} fill="none" stroke={cor}
-                strokeWidth="2.5" strokeLinejoin="round" strokeLinecap="round" />
-            {pts.map((pt, i) => (
-                <circle key={i} cx={pt.x} cy={pt.y} r="3.5" fill={cor} stroke={p.SURFACE} strokeWidth="2">
-                    <title>{pt.label}: {pt.valor}</title>
-                </circle>
-            ))}
-            {xLabels.map((d, i) => {
-                const idx = dados.indexOf(d);
-                return (
-                    <text key={i} x={pad.l + idx * xStep} y={h - 6}
-                        textAnchor="middle" fontSize="9" fill={p.MUTED}>{d.label}</text>
-                );
-            })}
-        </svg>
-    );
-}
-
-// ─── Barras horizontais ───────────────────────────────────────────────────────
-
-function BarrasH({ items, cor, p }: {
-    items: { label: string; valor: number; cor?: string }[];
-    cor: string;
-    p: Palette;
-}) {
-    const maximo = Math.max(...items.map(i => i.valor), 1);
-    return (
-        <div className="space-y-3">
-            {items.map((item, i) => (
-                <div key={i} className="flex items-center gap-3">
-                    <span className="text-xs w-32 truncate shrink-0 text-right" style={{ color: p.MUTED }} title={item.label}>
-                        {item.label}
-                    </span>
-                    <div className="flex-1 rounded-full h-5 overflow-hidden" style={{ background: p.BAR_BG }}>
-                        <div
-                            className="h-5 rounded-full flex items-center justify-end pr-2 transition-all duration-500"
-                            style={{
-                                width: `${Math.max((item.valor / maximo) * 100, 3)}%`,
-                                background: item.cor ?? cor,
-                            }}
-                        >
-                            <span className="text-xs font-semibold" style={{ color: '#fff' }}>{item.valor}</span>
-                        </div>
-                    </div>
-                </div>
-            ))}
-            {items.length === 0 && (
-                <p className="text-sm text-center py-4" style={{ color: p.MUTED }}>Sem dados no período.</p>
-            )}
-        </div>
-    );
-}
-
-// ─── Barras verticais ─────────────────────────────────────────────────────────
-
-function BarrasV({ items, altura = 160, cor, p }: {
-    items: { label: string; valor: number; cor?: string }[];
-    altura?: number;
-    cor: string;
-    p: Palette;
-}) {
-    const maximo = Math.max(...items.map(i => i.valor), 1);
-    return (
-        <div className="flex items-end gap-1 overflow-x-auto pb-2" style={{ height: altura + 32 }}>
-            {items.map((item, i) => {
-                const h = Math.max((item.valor / maximo) * altura, item.valor > 0 ? 4 : 0);
-                return (
-                    <div key={i} className="flex flex-col items-center gap-1 min-w-[28px] flex-1 group">
-                        <span className="text-xs opacity-0 group-hover:opacity-100 transition whitespace-nowrap px-1.5 py-0.5 rounded text-[10px]"
-                            style={{ background: p.TOOLTIP_BG, color: p.TEXT }}>
-                            {item.valor}
-                        </span>
-                        <div
-                            className="w-full rounded-t transition-all duration-300"
-                            style={{ height: h, background: item.cor ?? cor, opacity: 0.85, minWidth: 8 }}
-                        />
-                        <span className="text-[10px] whitespace-nowrap" style={{ color: p.MUTED }}>{item.label}</span>
-                    </div>
-                );
-            })}
-        </div>
-    );
-}
-
-// ─── Donut ────────────────────────────────────────────────────────────────────
-
-function Donut({ itens, size = 120, p }: {
-    itens: { label: string; valor: number; cor: string }[];
-    size?: number;
-    p: Palette;
-}) {
-    const total = itens.reduce((s, i) => s + i.valor, 0);
-    if (total === 0) return <p className="text-sm text-center py-4" style={{ color: p.MUTED }}>Sem dados.</p>;
-
-    const r = 40; const cx = 60; const cy = 60;
-    const circunf = 2 * Math.PI * r;
-    let offset = 0;
-    const segmentos = itens.map(item => {
-        const frac = item.valor / total;
-        const seg = { ...item, dasharray: `${frac * circunf} ${circunf}`, offset: offset * circunf };
-        offset += frac;
-        return seg;
-    });
-
-    return (
-        <div className="flex items-center gap-5 flex-wrap">
-            <svg viewBox="0 0 120 120" style={{ width: size, height: size }}>
-                <circle cx={cx} cy={cy} r={r} fill="none" stroke={p.BORDER} strokeWidth="18" />
-                {segmentos.map((s, i) => (
-                    <circle key={i} cx={cx} cy={cy} r={r} fill="none"
-                        stroke={s.cor} strokeWidth="18"
-                        strokeDasharray={s.dasharray}
-                        strokeDashoffset={-s.offset}
-                        transform="rotate(-90 60 60)">
-                        <title>{s.label}: {s.valor}</title>
-                    </circle>
-                ))}
-                <text x="60" y="56" textAnchor="middle" fontSize="15" fontWeight="bold" fill={p.TEXT}>{total}</text>
-                <text x="60" y="70" textAnchor="middle" fontSize="9" fill={p.MUTED}>total</text>
-            </svg>
-            <div className="flex flex-col gap-2 min-w-0">
-                {itens.map((item, i) => (
-                    <div key={i} className="flex items-center gap-2 text-xs" style={{ color: p.MUTED }}>
-                        <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ background: item.cor }} />
-                        <span className="truncate">{item.label}</span>
-                        <span className="ml-auto font-semibold pl-3" style={{ color: p.TEXT }}>{item.valor}</span>
-                        <span className="text-xs">({pct(item.valor, total)}%)</span>
-                    </div>
-                ))}
-            </div>
-        </div>
-    );
+    // ── Blocos novos ──
+    etapas: Etapas;
+    retrabalho: Retrabalho;
+    porOrigem: PorOrigem[];
+    porCeasa: PorCeasa[];
+    cancelamento: Cancelamento;
+    filtros: { loja: number[]; origem: string | null; ceasa: string | null };
+    opcoes: { lojas: number[]; origens: string[] };
 }
 
 // ─── Página principal ─────────────────────────────────────────────────────────
@@ -355,6 +88,7 @@ const PERIODOS = [7, 15, 30, 60, 90];
 export default function Index({
     periodo, kpis, evolucaoDiaria, porMotivo, porLoja, porDiaSemana, porHora,
     topFornecedores, fornecedoresPorMotivo, reincidentes, rankingUsuarios, pendentesMaisAntigas,
+    etapas, retrabalho, porOrigem, porCeasa, cancelamento, filtros, opcoes,
 }: Props) {
 
     const { isDark } = useTheme();
@@ -367,13 +101,35 @@ export default function Index({
         Regra: p.RED,
         Custo: p.AMBER,
         Quantidade: p.PURPLE,
+        'Sem pedido': '#2dd4bf',
+        'Importar nf': p.GREEN,
+        Reconferir: '#e3954a',
         'Sem divergência': p.GREEN,
     };
 
     const [motivoForn, setMotivoForn] = useState(Object.keys(fornecedoresPorMotivo)[0] ?? '');
 
-    const mudarPeriodo = (per: number) =>
-        router.get(route('estatisticas.index'), { periodo: per }, { preserveState: false });
+    // Navegação preservando os filtros ativos
+    const irPara = (extras: Record<string, unknown>) =>
+        router.get(route('estatisticas.index'), {
+            periodo,
+            loja: filtros.loja.length ? filtros.loja : undefined,
+            origem: filtros.origem ?? undefined,
+            ceasa: filtros.ceasa ?? undefined,
+            ...extras,
+        } as any, { preserveState: false });
+
+    const mudarPeriodo = (per: number) => irPara({ periodo: per });
+    const alternarLoja = (l: number) => {
+        const novo = filtros.loja.includes(l) ? filtros.loja.filter(x => x !== l) : [...filtros.loja, l];
+        irPara({ loja: novo.length ? novo : undefined });
+    };
+    const filtrarOrigem = (o: string | null) => irPara({ origem: o ?? undefined });
+    const filtrarCeasa = (c: string | null) => irPara({ ceasa: c ?? undefined });
+    const temFiltro = filtros.loja.length > 0 || !!filtros.origem || !!filtros.ceasa;
+
+    /** "↑ 12%" — sinal e cor conforme a variação, e se subir é bom ou ruim. */
+    const varTexto = (v: number | null) => v === null ? undefined : `${Math.abs(v)}% vs. anterior`;
 
     const linhaTotal = evolucaoDiaria.map(d => ({ label: fmtDia(d.dia), valor: d.total }));
     const linhaAtend = evolucaoDiaria.map(d => ({ label: fmtDia(d.dia), valor: d.atendidas }));
@@ -418,21 +174,208 @@ export default function Index({
                     </div>
                 </div>
 
+                {/* ── Filtros (loja / fila / CEASA) ─────────────────────────── */}
+                <div className="flex flex-wrap items-center gap-x-4 gap-y-2 rounded-xl px-4 py-3"
+                    style={{ background: p.SURFACE, border: `1px solid ${p.BORDER}` }}>
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                        <span className="text-xs font-medium" style={{ color: p.MUTED }}>Lojas:</span>
+                        {opcoes.lojas.map(l => {
+                            const ativo = filtros.loja.includes(l);
+                            return (
+                                <button key={l} onClick={() => alternarLoja(l)}
+                                    className="text-xs font-medium px-2 py-1 rounded-lg transition"
+                                    style={{
+                                        background: ativo ? p.ACCENT + '22' : 'transparent',
+                                        color: ativo ? p.ACCENT : p.MUTED,
+                                        border: `1px solid ${ativo ? p.ACCENT : p.BORDER}`,
+                                    }}>
+                                    {String(l).padStart(2, '0')}
+                                </button>
+                            );
+                        })}
+                    </div>
+
+                    <div className="flex items-center gap-1.5">
+                        <span className="text-xs font-medium" style={{ color: p.MUTED }}>Fila:</span>
+                        {[{ v: null, l: 'Ambas' }, { v: 'recebimento', l: 'Caminhão' }, { v: 'pre_lote', l: 'Pré-lote' }].map(o => {
+                            const ativo = filtros.origem === o.v;
+                            return (
+                                <button key={o.l} onClick={() => filtrarOrigem(o.v)}
+                                    className="text-xs font-medium px-2 py-1 rounded-lg transition"
+                                    style={{
+                                        background: ativo ? p.PURPLE + '22' : 'transparent',
+                                        color: ativo ? p.PURPLE : p.MUTED,
+                                        border: `1px solid ${ativo ? p.PURPLE : p.BORDER}`,
+                                    }}>
+                                    {o.l}
+                                </button>
+                            );
+                        })}
+                    </div>
+
+                    <div className="flex items-center gap-1.5">
+                        <span className="text-xs font-medium" style={{ color: p.MUTED }}>CEASA:</span>
+                        {[{ v: null, l: 'Tudo' }, { v: 'so', l: 'Só CEASA' }, { v: 'sem', l: 'Sem CEASA' }].map(c => {
+                            const ativo = filtros.ceasa === c.v;
+                            return (
+                                <button key={c.l} onClick={() => filtrarCeasa(c.v)}
+                                    className="text-xs font-medium px-2 py-1 rounded-lg transition"
+                                    style={{
+                                        background: ativo ? p.AMBER + '22' : 'transparent',
+                                        color: ativo ? p.AMBER : p.MUTED,
+                                        border: `1px solid ${ativo ? p.AMBER : p.BORDER}`,
+                                    }}>
+                                    {c.l}
+                                </button>
+                            );
+                        })}
+                    </div>
+
+                    {temFiltro && (
+                        <button onClick={() => irPara({ loja: undefined, origem: undefined, ceasa: undefined })}
+                            className="text-xs ml-auto" style={{ color: p.MUTED }}>
+                            ✕ limpar filtros
+                        </button>
+                    )}
+                </div>
+
                 {/* ── KPIs ──────────────────────────────────────────────────── */}
                 <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
-                    <KpiCard label="Total de notas" valor={kpis.total} p={p} />
+                    <KpiCard label="Total de notas" valor={kpis.total}
+                        trend={varTexto(kpis.variacao.total)}
+                        trendUp={(kpis.variacao.total ?? 0) >= 0} p={p} />
                     <KpiCard label="Liberadas" valor={kpis.atendidas}
-                        sub={`${kpis.taxaResolucao}% do total`}
-                        trend={`${kpis.taxaResolucao}%`} trendUp p={p} />
+                        sub={`${kpis.taxaResolucao}% do total`} p={p} />
                     <KpiCard label="Na fila" valor={kpis.pendentes}
-                        trend={kpis.pendentes > 0 ? `${kpis.pendentes}` : undefined} trendUp={false} p={p} />
+                        sub="canceladas não contam" p={p} />
                     <KpiCard label="Liberadas no dia" valor={kpis.resolvidasNoDia}
                         sub="lançamento = liberação" p={p} />
-                    <KpiCard label="Taxa de liberação" valor={`${kpis.taxaResolucao}%`} p={p} />
-                    <KpiCard
-                        label="Tempo médio"
-                        valor={kpis.tempoMedioHoras !== null ? `${kpis.tempoMedioHoras}h` : '—'}
-                        sub="para liberar" p={p} />
+                    <KpiCard label="Taxa de liberação" valor={`${kpis.taxaResolucao}%`}
+                        trend={varTexto(kpis.variacao.taxaResolucao)}
+                        trendUp={(kpis.variacao.taxaResolucao ?? 0) >= 0} p={p} />
+                    <KpiCard label="Tempo médio" valor={fmtHoras(kpis.tempoMedioHoras)}
+                        sub="para liberar"
+                        trend={varTexto(kpis.variacao.tempoMedio)}
+                        // menos tempo é melhor: cai = verde
+                        trendUp={(kpis.variacao.tempoMedio ?? 0) <= 0} p={p} />
+                </div>
+
+                {/* ── Onde o tempo é gasto (etapas) ─────────────────────────── */}
+                <Card title="Onde o tempo é gasto" p={p}
+                    action={<span className="text-xs" style={{ color: p.MUTED }}>média por etapa do fluxo</span>}>
+                    <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+                        {[
+                            { l: 'Até o pré-lote analisar', v: etapas.ateAnalise, d: 'lançamento → 1ª divergência' },
+                            { l: 'Compras corrigir', v: etapas.correcao, d: 'card aberto → corrigido' },
+                            { l: 'Reconferir e liberar', v: etapas.reconferencia, d: 'corrigido → liberada' },
+                            { l: 'Nota limpa', v: etapas.semDivergencia, d: 'sem nenhuma divergência' },
+                        ].map(e => (
+                            <div key={e.l} className="rounded-lg p-4" style={{ background: p.BG, border: `1px solid ${p.BORDER}` }}>
+                                <p className="text-xl font-bold" style={{ color: p.TEXT }}>{fmtHoras(e.v)}</p>
+                                <p className="text-xs font-medium mt-1" style={{ color: p.TEXT }}>{e.l}</p>
+                                <p className="text-[11px] mt-0.5" style={{ color: p.MUTED }}>{e.d}</p>
+                            </div>
+                        ))}
+                    </div>
+                </Card>
+
+                {/* ── Fila × fila e CEASA ───────────────────────────────────── */}
+                <div className="grid lg:grid-cols-2 gap-4">
+                    <Card title="Caminhão na porta × Pré-lote" p={p}>
+                        <div className="space-y-3">
+                            {porOrigem.map(o => (
+                                <div key={o.origem} className="flex items-center justify-between gap-3 rounded-lg px-3 py-2.5"
+                                    style={{ background: p.BG }}>
+                                    <div className="min-w-0">
+                                        <p className="text-sm font-medium" style={{ color: p.TEXT }}>{o.origem}</p>
+                                        <p className="text-xs" style={{ color: p.MUTED }}>{o.total} notas · {o.taxa}% liberadas</p>
+                                    </div>
+                                    <div className="text-right shrink-0">
+                                        <p className="text-sm font-semibold" style={{ color: p.ACCENT }}>{fmtHoras(o.tempoMedioHoras)}</p>
+                                        <p className="text-[11px]" style={{ color: p.MUTED }}>até liberar</p>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    </Card>
+
+                    <Card title="CEASA × resto" p={p}
+                        action={<span className="text-xs" style={{ color: p.MUTED }}>hortifrúti tem outra dinâmica</span>}>
+                        <div className="space-y-3">
+                            {porCeasa.map(c => (
+                                <div key={c.grupo} className="flex items-center justify-between gap-3 rounded-lg px-3 py-2.5"
+                                    style={{ background: p.BG }}>
+                                    <div className="min-w-0">
+                                        <p className="text-sm font-medium" style={{ color: p.TEXT }}>{c.grupo}</p>
+                                        <p className="text-xs" style={{ color: p.MUTED }}>
+                                            {c.total} notas · {c.taxaDivergencia}% com divergência
+                                        </p>
+                                    </div>
+                                    <div className="text-right shrink-0">
+                                        <p className="text-sm font-semibold" style={{ color: p.AMBER }}>{fmtHoras(c.tempoMedioHoras)}</p>
+                                        <p className="text-[11px]" style={{ color: p.MUTED }}>até liberar</p>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    </Card>
+                </div>
+
+                {/* ── Retrabalho + Cancelamento ─────────────────────────────── */}
+                <div className="grid lg:grid-cols-2 gap-4">
+                    <Card title="Retrabalho (cards reabertos)" p={p}
+                        action={<span className="text-xs font-semibold"
+                            style={{ color: retrabalho.taxa > 10 ? p.RED : p.MUTED }}>{retrabalho.taxa}% dos cards</span>}>
+                        <div className="flex items-center gap-4 mb-4">
+                            <div className="text-center px-3">
+                                <p className="text-2xl font-bold" style={{ color: retrabalho.reabertos > 0 ? p.RED : p.GREEN }}>
+                                    {retrabalho.reabertos}
+                                </p>
+                                <p className="text-[11px] mt-0.5" style={{ color: p.MUTED }}>de {retrabalho.totalCards} cards</p>
+                            </div>
+                            <p className="text-xs flex-1" style={{ color: p.MUTED }}>
+                                Card reaberto = compras marcou como corrigido e o pré-lote achou que continuava errado.
+                            </p>
+                        </div>
+                        {retrabalho.porFornecedor.length > 0 && (
+                            <>
+                                <p className="text-xs mb-2" style={{ color: p.MUTED }}>Quem gera mais retrabalho</p>
+                                <BarrasH cor={p.RED} p={p}
+                                    items={retrabalho.porFornecedor.map(f => ({ label: f.fornecedor, valor: f.total }))} />
+                            </>
+                        )}
+                    </Card>
+
+                    <Card title="Cancelamentos" p={p}
+                        action={<span className="text-xs font-semibold" style={{ color: p.MUTED }}>{cancelamento.taxa}% das notas</span>}>
+                        <div className="grid grid-cols-3 gap-3 mb-4">
+                            <div className="text-center rounded-lg py-2.5" style={{ background: p.BG }}>
+                                <p className="text-xl font-bold" style={{ color: p.TEXT }}>{cancelamento.total}</p>
+                                <p className="text-[11px]" style={{ color: p.MUTED }}>canceladas</p>
+                            </div>
+                            <div className="text-center rounded-lg py-2.5" style={{ background: p.BG }}>
+                                <p className="text-xl font-bold" style={{ color: cancelamento.tardias > 0 ? p.AMBER : p.TEXT }}>
+                                    {cancelamento.tardias}
+                                </p>
+                                <p className="text-[11px]" style={{ color: p.MUTED }}>já conferidas</p>
+                            </div>
+                            <div className="text-center rounded-lg py-2.5" style={{ background: p.BG }}>
+                                <p className="text-xl font-bold" style={{ color: p.TEXT }}>{fmtHoras(cancelamento.tempoMedioHoras)}</p>
+                                <p className="text-[11px]" style={{ color: p.MUTED }}>até cancelar</p>
+                            </div>
+                        </div>
+                        {cancelamento.porFornecedor.length > 0 ? (
+                            <>
+                                <p className="text-xs mb-2" style={{ color: p.MUTED }}>Fornecedores que mais cancelam</p>
+                                <BarrasH cor={p.AMBER} p={p}
+                                    items={cancelamento.porFornecedor.map(f => ({ label: f.fornecedor, valor: f.total }))} />
+                            </>
+                        ) : (
+                            <p className="text-sm text-center py-3" style={{ color: p.MUTED }}>
+                                Nenhum cancelamento no período.
+                            </p>
+                        )}
+                    </Card>
                 </div>
 
                 {/* ── Evolução + Top fornecedores ────────────────────────────── */}
@@ -440,7 +383,7 @@ export default function Index({
 
                     {/* Gráfico principal */}
                     <div className="lg:col-span-2">
-                        <Card title={`Evolução de Faturamento — últimos ${periodo} dias`} p={p}>
+                        <Card title={`Notas lançadas — últimos ${periodo} dias`} p={p}>
                             <Linha dados={linhaTotal} cor={p.ACCENT} altura={200} p={p} />
                             <div className="mt-4 pt-4" style={{ borderTop: `1px solid ${p.BORDER}` }}>
                                 <p className="text-xs mb-2" style={{ color: p.MUTED }}>Liberadas por dia</p>
@@ -494,10 +437,10 @@ export default function Index({
                                             style={{ background: MOTIVO_COR[m.motivo] ?? p.MUTED }} />
                                         <span className="text-sm" style={{ color: p.TEXT }}>{m.motivo}</span>
                                     </div>
-                                    <div className="flex items-center gap-4 text-xs" style={{ color: p.MUTED }}>
+                                    <div className="flex items-center gap-3 text-xs tabular-nums shrink-0" style={{ color: p.MUTED }}>
                                         <span>{m.total} total</span>
                                         <span style={{ color: p.GREEN }}>{m.atendidas} atend.</span>
-                                        <span className="font-semibold w-8 text-right" style={{ color: p.TEXT }}>
+                                        <span className="font-semibold w-11 text-right" style={{ color: p.TEXT }}>
                                             {pct(m.atendidas, m.total)}%
                                         </span>
                                     </div>
@@ -513,15 +456,15 @@ export default function Index({
                                 <div key={l.loja} className="flex items-center gap-3">
                                     <span className="w-2 h-2 rounded-full shrink-0"
                                         style={{ background: LOJA_CORES[i % LOJA_CORES.length] }} />
-                                    <span className="text-sm w-16" style={{ color: p.TEXT }}>{lojaNome(l.loja)}</span>
-                                    <div className="flex-1 rounded-full h-2.5 overflow-hidden" style={{ background: p.BORDER }}>
+                                    <span className="text-sm w-16 shrink-0" style={{ color: p.TEXT }}>{lojaNome(l.loja)}</span>
+                                    <div className="flex-1 rounded-full h-2.5 overflow-hidden min-w-0" style={{ background: p.BORDER }}>
                                         <div className="h-2.5 rounded-full"
                                             style={{
                                                 width: `${pct(l.total, kpis.total)}%`,
                                                 background: LOJA_CORES[i % LOJA_CORES.length],
                                             }} />
                                     </div>
-                                    <span className="text-xs w-8 text-right" style={{ color: p.MUTED }}>{l.total}</span>
+                                    <span className="text-xs w-12 text-right tabular-nums shrink-0" style={{ color: p.MUTED }}>{l.total}</span>
                                 </div>
                             ))}
                         </div>
@@ -543,8 +486,8 @@ export default function Index({
                             <BarrasV
                                 items={porHora.map(h => ({ label: h.hora, valor: h.total }))}
                                 cor={p.AMBER} altura={150} p={p} />
-                            <p className="text-xs text-center mt-2" style={{ color: p.MUTED }}>
-                                Passe o mouse sobre as barras para ver o valor
+                            <p className="text-xs text-center mt-1" style={{ color: p.MUTED }}>
+                                Passe o mouse nas barras para ver o total de cada hora
                             </p>
                         </Card>
                     </div>
@@ -566,17 +509,18 @@ export default function Index({
                             ))}
                         </div>
                     }>
-                    <BarrasH
-                        items={(fornecedoresPorMotivo[motivoForn] ?? []).map(f => ({
-                            label: f.fornecedor, valor: f.total,
-                            cor: MOTIVO_COR[motivoForn] ?? p.ACCENT,
-                        }))}
-                        cor={p.ACCENT} p={p}
-                    />
-                    {(fornecedoresPorMotivo[motivoForn] ?? []).length === 0 && (
+                    {(fornecedoresPorMotivo[motivoForn] ?? []).length === 0 ? (
                         <p className="text-sm text-center py-4" style={{ color: p.MUTED }}>
                             Sem divergências de <strong style={{ color: p.TEXT }}>{motivoForn}</strong> no período.
                         </p>
+                    ) : (
+                        <BarrasH
+                            items={(fornecedoresPorMotivo[motivoForn] ?? []).map(f => ({
+                                label: f.fornecedor, valor: f.total,
+                                cor: MOTIVO_COR[motivoForn] ?? p.ACCENT,
+                            }))}
+                            cor={p.ACCENT} p={p}
+                        />
                     )}
                 </Card>
 

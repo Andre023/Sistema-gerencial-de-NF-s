@@ -85,6 +85,11 @@ export default function AuthenticatedLayout({
                                         Estatísticas
                                     </NavLink>
                                 )}
+                                {can.verDossie && (
+                                    <NavLink href={route('dossie.index')} active={route().current('dossie.*')}>
+                                        Fornecedores
+                                    </NavLink>
+                                )}
                                 {can.gerenciarPrioridades && (
                                     <NavLink href={route('prioridades.index')} active={route().current('prioridades.*')}>
                                         Prioridades
@@ -176,6 +181,11 @@ export default function AuthenticatedLayout({
                         {can.verEstatisticas && (
                             <ResponsiveNavLink href={route('estatisticas.index')} active={route().current('estatisticas.*')}>
                                 Estatísticas
+                            </ResponsiveNavLink>
+                        )}
+                        {can.verDossie && (
+                            <ResponsiveNavLink href={route('dossie.index')} active={route().current('dossie.*')}>
+                                Fornecedores
                             </ResponsiveNavLink>
                         )}
                         {can.gerenciarPrioridades && (

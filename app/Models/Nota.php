@@ -120,6 +120,21 @@ class Nota extends Model
         return $this->morphMany(Comentario::class, 'comentavel');
     }
 
+    // ─── Escopos ────────────────────────────────────────────────────────────────
+
+    /**
+     * Notas que contam como trabalho real: exclui as CANCELADAS.
+     *
+     * As excluídas já saem sozinhas (SoftDeletes). A cancelada, não: ela fica na
+     * tabela com liberada_em nulo e, sem este filtro, é contada como "pendente"
+     * para sempre — envenenando taxa de resolução e a lista de mais antigas.
+     * Use em TODA consulta de estatística/painel. Ver docs/NOTAS_CANCELADAS.md.
+     */
+    public function scopeAtivas(\Illuminate\Database\Eloquent\Builder $q): \Illuminate\Database\Eloquent\Builder
+    {
+        return $q->whereNull('cancelada_em');
+    }
+
     // ─── Estado derivado ────────────────────────────────────────────────────────
 
     /**
