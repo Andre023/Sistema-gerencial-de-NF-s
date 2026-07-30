@@ -24,12 +24,13 @@ class CardController extends Controller
     public function store(Request $request, Nota $nota): RedirectResponse
     {
         // Em geral só o pré-lote abre card. Exceções: nota de CEASA (compras
-        // também abre) e o card "Importar NF" (recebimento, pré-lote e compras).
+        // também abre) e os tipos de todo mundo (Importar NF, Trocar nota) —
+        // que qualquer papel operacional abre, porque não são erro de um setor.
         $user = $request->user();
-        $importar = $request->input('tipo') === 'importar_nf';
+        $deTodos = in_array($request->input('tipo'), Card::TIPOS_TODOS, true);
         $podeAbrir = $user->podeGerirCards()
             || ($nota->ceasa && $user->podeCorrigirCard())
-            || ($importar && ($user->podeLancarNota() || $user->podeCorrigirCard()));
+            || ($deTodos && ($user->podeLancarNota() || $user->podeCorrigirCard()));
         abort_unless($podeAbrir, 403);
 
         if ($nota->liberada_em) {

@@ -93,8 +93,11 @@ export function KpiCard({ label, valor, sub, trend, trendUp, p }: {
 
 // ─── Linha (SVG) ──────────────────────────────────────────────────────────────
 
-export function Linha({ dados, cor, altura = 200, p }: {
-    dados: { label: string; valor: number }[]; cor: string; altura?: number; p: Palette;
+export function Linha({ dados, cor, altura = 200, onPonto, p }: {
+    dados: { label: string; valor: number }[]; cor: string; altura?: number;
+    /** Clique num ponto (índice) — usado para abrir o dia daquele ponto */
+    onPonto?: (indice: number) => void;
+    p: Palette;
 }) {
     const w = 800; const h = altura;
     const pad = { t: 12, r: 12, b: 28, l: 36 };
@@ -147,9 +150,13 @@ export function Linha({ dados, cor, altura = 200, p }: {
             <polyline points={polyline} fill="none" stroke={cor}
                 strokeWidth="2.5" strokeLinejoin="round" strokeLinecap="round" />
             {pts.map((pt, i) => (
-                <circle key={i} cx={pt.x} cy={pt.y} r="3.5" fill={cor} stroke={p.SURFACE} strokeWidth="2">
-                    <title>{pt.label}: {pt.valor}</title>
-                </circle>
+                <g key={i} onClick={onPonto ? () => onPonto(i) : undefined}
+                    style={{ cursor: onPonto ? 'pointer' : 'default' }}>
+                    {/* Alvo invisível e generoso: acertar um ponto de 3px é sofrido */}
+                    {onPonto && <circle cx={pt.x} cy={pt.y} r="12" fill="transparent" />}
+                    <circle cx={pt.x} cy={pt.y} r="3.5" fill={cor} stroke={p.SURFACE} strokeWidth="2" />
+                    <title>{pt.label}: {pt.valor}{onPonto ? ' — clique para ver o dia' : ''}</title>
+                </g>
             ))}
             {xLabels.map((d, i) => {
                 const idx = dados.indexOf(d);

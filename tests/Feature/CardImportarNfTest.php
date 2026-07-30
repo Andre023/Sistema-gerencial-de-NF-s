@@ -116,4 +116,42 @@ class CardImportarNfTest extends TestCase
             ->post(route('notas.cards.store', $nota), ['tipo' => 'custo'])
             ->assertForbidden();
     }
+
+    // ── "Trocar nota": mesmo espirito do Importar NF ─────────────────────────
+
+    public function test_qualquer_papel_operacional_abre_trocar_nota(): void
+    {
+        foreach ([$this->recebimento, $this->compras, $this->preLote] as $quem) {
+            $nota = $this->nota();
+            $this->actingAs($quem)
+                ->post(route('notas.cards.store', $nota), ['tipo' => 'trocar_nota'])
+                ->assertRedirect()->assertSessionHasNoErrors();
+
+            $this->assertDatabaseHas('cards', ['nota_id' => $nota->id, 'tipo' => 'trocar_nota']);
+        }
+    }
+
+    public function test_recebimento_e_compras_marcam_trocar_nota_como_feito(): void
+    {
+        foreach ([$this->recebimento, $this->compras] as $quem) {
+            $nota = $this->nota();
+            $card = $this->card($nota, 'trocar_nota');
+
+            $this->actingAs($quem)
+                ->patch(route('notas.cards.corrigir', [$nota, $card]))
+                ->assertRedirect()->assertSessionHasNoErrors();
+
+            $this->assertSame(Card::STATUS_RESOLVIDO, $card->fresh()->status);
+        }
+    }
+
+    public function test_visitante_nao_abre_trocar_nota(): void
+    {
+        $visitante = User::factory()->create(['role' => User::ROLE_VISITANTE]);
+        $nota = $this->nota();
+
+        $this->actingAs($visitante)
+            ->post(route('notas.cards.store', $nota), ['tipo' => 'trocar_nota'])
+            ->assertForbidden();
+    }
 }

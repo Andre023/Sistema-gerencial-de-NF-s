@@ -140,6 +140,22 @@ class DossieController extends Controller
             ->groupBy('loja')->orderBy('loja')->get()
             ->map(fn($r) => ['loja' => (int) $r->loja, 'total' => (int) $r->total]);
 
+        // ── Em que dia da semana este fornecedor costuma entregar ─────────────
+        // Serve para preparar a escala: se ele concentra na quinta, é quando a
+        // conferência dele pesa. Dias sem entrega aparecem zerados, senão a
+        // barra some e some junto a informação de que naquele dia não vem nada.
+        $contagem = $notas()
+            ->selectRaw("{$this->diaSemana('notas.created_at')} as dia_num, COUNT(*) as total")
+            ->groupBy('dia_num')->pluck('total', 'dia_num');
+
+        $rotulos = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
+        $porDiaSemana = collect(range(1, 7))->map(fn($n) => [
+            'dia'   => $rotulos[$n - 1],
+            'total' => (int) ($contagem[$n] ?? 0),
+        ])->values();
+
+        $pico = $porDiaSemana->sortByDesc('total')->first();
+
         // ── Retrabalho ────────────────────────────────────────────────────────
         $reaberturas = Card::join('notas', 'notas.id', '=', 'cards.nota_id')
             ->whereNull('notas.deleted_at')->whereNull('notas.cancelada_em')
@@ -183,6 +199,9 @@ class DossieController extends Controller
             'divergencias' => $divergencias,
             'evolucao'     => $evolucao,
             'porLoja'      => $porLoja,
+            'porDiaSemana' => $porDiaSemana,
+            // Dia de pico (null quando o fornecedor não tem nota no período)
+            'diaPico'      => ($pico && $pico['total'] > 0) ? $pico : null,
             'ultimas'      => $ultimas,
         ];
     }

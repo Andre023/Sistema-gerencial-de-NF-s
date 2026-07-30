@@ -100,16 +100,63 @@ class EditarLiberadaTest extends TestCase
         $this->assertSame(1, $nota->fresh()->ceasa);
     }
 
-    public function test_endpoint_recusa_nota_nao_liberada(): void
+    /** Nota AINDA NA FILA: a observação é editável (recado operacional). */
+    private function naFila(array $extra = []): Nota
     {
         $forn = Fornecedor::firstOrCreate(['nome' => 'FORN']);
-        $naoLib = Nota::create([
-            'numero_nota' => '5000', 'fornecedor_id' => $forn->id,
-            'user_id' => $this->recebimento->id, 'loja' => 1, 'origem' => 'recebimento',
-        ]);
+        return Nota::create(array_merge([
+            'numero_nota'   => (string) random_int(1000, 9999),
+            'fornecedor_id' => $forn->id,
+            'user_id'       => $this->recebimento->id,
+            'loja'          => 1,
+            'origem'        => 'recebimento',
+        ], $extra));
+    }
 
+    public function test_compras_edita_observacao_de_nota_na_fila(): void
+    {
+        $nota = $this->naFila(['observacao' => 'antiga']);
+
+        $this->actingAs($this->compras)
+            ->patch(route('notas.editar-liberada', $nota), ['observacao' => 'combinei com o fornecedor'])
+            ->assertRedirect();
+
+        $this->assertSame('combinei com o fornecedor', $nota->fresh()->observacao);
+    }
+
+    public function test_compras_nao_edita_outros_campos_da_nota(): void
+    {
+        $nota = $this->naFila(['loja' => 1]);
+
+        // O caminho de edição completa continua fechado para compras
+        $this->actingAs($this->compras)
+            ->patch(route('notas.update', $nota), ['loja' => 2])
+            ->assertForbidden();
+
+        $this->assertSame(1, $nota->fresh()->loja);
+    }
+
+    public function test_ceasa_na_fila_nao_passa_por_este_endpoint(): void
+    {
+        $nota = $this->naFila(['ceasa' => 0]);
+
+        // Enquanto está na fila, o CEASA se edita pelo formulário normal
         $this->actingAs($this->recebimento)
-            ->patch(route('notas.editar-liberada', $naoLib), ['observacao' => 'x'])
+            ->patch(route('notas.editar-liberada', $nota), ['ceasa' => 2])
             ->assertSessionHasErrors('nota');
+
+        $this->assertSame(0, $nota->fresh()->ceasa);
+    }
+
+    public function test_visitante_nao_edita_observacao(): void
+    {
+        $visitante = User::factory()->create(['role' => User::ROLE_VISITANTE]);
+        $nota = $this->naFila(['observacao' => 'x']);
+
+        $this->actingAs($visitante)
+            ->patch(route('notas.editar-liberada', $nota), ['observacao' => 'hack'])
+            ->assertForbidden();
+
+        $this->assertSame('x', $nota->fresh()->observacao);
     }
 }

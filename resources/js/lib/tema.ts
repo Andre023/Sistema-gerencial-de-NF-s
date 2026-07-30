@@ -56,6 +56,7 @@ export const TIPO_CARD_LABEL: Record<string, string> = {
     sem_pedido: 'Sem pedido',
     importar_nf: 'Importar NF',
     reconferir: 'Reconferir',
+    trocar_nota: 'Trocar nota',
 };
 
 export const CARD_COR_DARK: Record<string, { bg: string; text: string; border: string }> = {
@@ -66,6 +67,7 @@ export const CARD_COR_DARK: Record<string, { bg: string; text: string; border: s
     sem_pedido: { bg: 'rgba(20,184,166,0.15)', text: '#2dd4bf', border: 'rgba(20,184,166,0.35)' },
     importar_nf: { bg: 'rgba(63,185,80,0.15)', text: '#56d364', border: 'rgba(63,185,80,0.35)' },
     reconferir: { bg: 'rgba(227,149,74,0.15)', text: '#f0a868', border: 'rgba(227,149,74,0.35)' },
+    trocar_nota: { bg: 'rgba(219,112,199,0.15)', text: '#d2a8ff', border: 'rgba(219,112,199,0.35)' },
 };
 
 export const CARD_COR_LIGHT: Record<string, { bg: string; text: string; border: string }> = {
@@ -76,6 +78,7 @@ export const CARD_COR_LIGHT: Record<string, { bg: string; text: string; border: 
     sem_pedido: { bg: '#ccfbf1', text: '#0f766e', border: '#5eead4' },
     importar_nf: { bg: '#dcfce7', text: '#15803d', border: '#86efac' },
     reconferir: { bg: '#ffedd5', text: '#9a3412', border: '#fed7aa' },
+    trocar_nota: { bg: '#fce7f3', text: '#9d174d', border: '#fbcfe8' },
 };
 
 export const STATUS_NOTA_LABEL: Record<string, string> = {

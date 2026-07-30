@@ -213,8 +213,12 @@ class User extends Authenticatable
         return ! $this->ehVisitante();
     }
 
-    /** Editar a observação de uma nota JÁ LIBERADA — recebimento, compras e pré-lote */
-    public function podeEditarObservacaoLiberada(): bool
+    /**
+     * Editar a OBSERVAÇÃO da nota (na fila ou já liberada) — recebimento,
+     * pré-lote e compras. É recado operacional, não conteúdo fiscal: compras
+     * usa para registrar o que combinou com o fornecedor.
+     */
+    public function podeEditarObservacao(): bool
     {
         return $this->ehUmDe(self::ROLE_RECEBIMENTO, self::ROLE_COMPRAS, self::ROLE_PRE_LOTE);
     }

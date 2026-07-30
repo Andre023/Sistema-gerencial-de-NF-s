@@ -40,7 +40,7 @@ class AppServiceProvider extends ServiceProvider
         Gate::define('gerenciar-prioridades', fn(User $u) => $u->podeGerenciarPrioridades());
         Gate::define('interagir',          fn(User $u) => $u->podeInteragir());
         Gate::define('cancelar-nota',      fn(User $u) => $u->podeCancelarNota());
-        Gate::define('editar-observacao-liberada', fn(User $u) => $u->podeEditarObservacaoLiberada());
+        Gate::define('editar-observacao',  fn(User $u) => $u->podeEditarObservacao());
         Gate::define('editar-ceasa-liberada',      fn(User $u) => $u->podeEditarCeasaLiberada());
     }
 }

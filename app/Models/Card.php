@@ -34,7 +34,7 @@ class Card extends Model
         'reaberturas'  => 'integer',
     ];
 
-    public const TIPOS = ['cadastro', 'regra', 'custo', 'quantidade', 'sem_pedido', 'importar_nf', 'reconferir'];
+    public const TIPOS = ['cadastro', 'regra', 'custo', 'quantidade', 'sem_pedido', 'importar_nf', 'reconferir', 'trocar_nota'];
 
     /**
      * Tipos que só existem em nota de CEASA. "Reconferir": compras pede que o
@@ -52,11 +52,13 @@ class Card extends Model
     public const TIPOS_COMPRAS = ['cadastro', 'custo', 'quantidade', 'sem_pedido'];
 
     /**
-     * "Importar NF": não é um erro de um setor só — recebimento, pré-lote e
-     * compras podem ABRIR e marcar como feito. Não é um card de compras (fora de
-     * TIPOS_COMPRAS), mas qualquer papel operacional o resolve.
+     * Tipos que NÃO são erro de um setor só: recebimento, pré-lote e compras
+     * podem ABRIR e marcar como feito. Ficam fora de TIPOS_COMPRAS, mas
+     * qualquer papel operacional os resolve.
+     *   • importar_nf  — a NF precisa ser importada no ERP
+     *   • trocar_nota  — a nota tem de ser trocada com o fornecedor
      */
-    public const TIPOS_TODOS = ['importar_nf'];
+    public const TIPOS_TODOS = ['importar_nf', 'trocar_nota'];
 
     // Corrigir (compras) já resolve o card — não há estado intermediário.
     public const STATUS_ABERTO    = 'aberto';

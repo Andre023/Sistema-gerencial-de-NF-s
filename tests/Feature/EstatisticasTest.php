@@ -169,4 +169,62 @@ class EstatisticasTest extends TestCase
     {
         $this->actingAs($this->preLote)->get(route('estatisticas.index'))->assertForbidden();
     }
+
+    // ── Intervalo de/até (o dia único é o caso de = até) ─────────────────────
+
+    public function test_intervalo_de_ate_limita_o_periodo(): void
+    {
+        $antiga = $this->nota(['numero_nota' => 'ANTIGA']);
+        $antiga->forceFill(['created_at' => now()->subDays(10)])->saveQuietly();
+        $this->nota(['numero_nota' => 'HOJE']);
+
+        // Só o dia de 10 dias atrás
+        $dia = now()->subDays(10)->toDateString();
+        $props = $this->stats(['de' => $dia, 'ate' => $dia]);
+
+        $this->assertSame(1, $props['kpis']['total']);
+        $this->assertTrue($props['intervalo']['umDiaSo']);
+        $this->assertTrue($props['intervalo']['livre']);
+    }
+
+    public function test_um_lado_so_vira_dia_unico(): void
+    {
+        $this->nota();
+        $hoje = now()->toDateString();
+
+        $props = $this->stats(['de' => $hoje]);
+
+        $this->assertSame($hoje, $props['intervalo']['ate']);
+        $this->assertTrue($props['intervalo']['umDiaSo']);
+    }
+
+    public function test_intervalo_invertido_e_corrigido(): void
+    {
+        $this->nota();
+        $ontem = now()->subDay()->toDateString();
+        $hoje  = now()->toDateString();
+
+        // de > ate: troca em vez de dar erro
+        $props = $this->stats(['de' => $hoje, 'ate' => $ontem]);
+
+        $this->assertSame($ontem, $props['intervalo']['de']);
+        $this->assertSame($hoje, $props['intervalo']['ate']);
+    }
+
+    public function test_sem_intervalo_usa_ultimos_n_dias(): void
+    {
+        $this->nota();
+        $props = $this->stats(['periodo' => 7]);
+
+        $this->assertFalse($props['intervalo']['livre']);
+        $this->assertSame(7, $props['intervalo']['dias']);
+    }
+
+    public function test_data_invalida_cai_no_padrao(): void
+    {
+        $this->nota();
+        $props = $this->stats(['de' => 'ontem-cedo']);
+
+        $this->assertFalse($props['intervalo']['livre']);
+    }
 }

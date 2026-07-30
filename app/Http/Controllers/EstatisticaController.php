@@ -29,6 +29,10 @@ class EstatisticaController extends Controller
         $periodo = (int) $request->input('periodo', 30);
         $periodo = max(1, min($periodo, 365));
 
+        // Intervalo livre (de/até) — o dia único é o caso em que de = até.
+        // Quando vem intervalo, ele manda no período.
+        [$de, $ate, $periodo, $intervalo] = $this->janela($request, $periodo);
+
         // Filtros opcionais
         $lojas = array_values(array_filter(
             array_map('intval', (array) $request->input('loja', [])),
@@ -38,13 +42,17 @@ class EstatisticaController extends Controller
         // ceasa: null = tudo | 'so' = só CEASA | 'sem' = exclui CEASA
         $ceasa = in_array($request->input('ceasa'), ['so', 'sem'], true) ? $request->input('ceasa') : null;
 
-        $de  = now()->subDays($periodo - 1)->startOfDay();
-        $ate = now()->endOfDay();
-        // Janela anterior de mesmo tamanho, para o comparativo dos KPIs
-        $deAnt  = (clone $de)->subDays($periodo);
+        // Janela anterior de mesmo tamanho, para o comparativo dos KPIs.
+        // Compara DIA a dia: o Carbon 3 devolve float e "01 00:00 → 01 23:59"
+        // daria 0,99 dia (o +1 antes do cast virava 7,99 em vez de 7).
+        $dias   = max(1, (int) $de->copy()->startOfDay()->diffInDays($ate->copy()->startOfDay()) + 1);
+        $deAnt  = (clone $de)->subDays($dias);
         $ateAnt = (clone $de)->subSecond();
 
-        $chave = 'stats:' . md5(json_encode([$periodo, $lojas, $origem, $ceasa, now()->format('Y-m-d H:i')]));
+        $chave = 'stats:' . md5(json_encode([
+            $de->toDateTimeString(), $ate->toDateTimeString(),
+            $lojas, $origem, $ceasa, now()->format('Y-m-d H:i'),
+        ]));
 
         $dados = $this->cacheado($chave, function () use ($de, $ate, $deAnt, $ateAnt, $lojas, $origem, $ceasa) {
             return $this->calcular($de, $ate, $deAnt, $ateAnt, $lojas, $origem, $ceasa);
@@ -52,10 +60,54 @@ class EstatisticaController extends Controller
 
         return Inertia::render('Estatisticas/Index', [
             'periodo' => $periodo,
+            'intervalo' => [
+                'de'      => $de->toDateString(),
+                'ate'     => $ate->toDateString(),
+                'dias'    => $dias,
+                // true = o usuário escolheu datas (não é o "últimos N dias")
+                'livre'   => $intervalo,
+                'umDiaSo' => $de->toDateString() === $ate->toDateString(),
+            ],
             'filtros' => ['loja' => $lojas, 'origem' => $origem, 'ceasa' => $ceasa],
             'opcoes'  => ['lojas' => Nota::LOJAS, 'origens' => Nota::ORIGENS],
             ...$dados,
         ]);
+    }
+
+    /**
+     * Janela de análise: "últimos N dias" (padrão) ou um intervalo escolhido.
+     *
+     * Um dia único é só o caso de = até — por isso não existe um modo "dia":
+     * o mesmo seletor cobre "ontem", "semana passada" e "julho fechado".
+     *
+     * @return array{0:\Carbon\Carbon,1:\Carbon\Carbon,2:int,3:bool}
+     */
+    private function janela(Request $request, int $periodo): array
+    {
+        $de  = $request->input('de');
+        $ate = $request->input('ate');
+
+        $valida = fn($d) => $d && preg_match('/^\d{4}-\d{2}-\d{2}$/', $d);
+
+        if ($valida($de) || $valida($ate)) {
+            // Um lado só preenchido vira dia único
+            $inicio = \Carbon\Carbon::parse($valida($de) ? $de : $ate)->startOfDay();
+            $fim    = \Carbon\Carbon::parse($valida($ate) ? $ate : $de)->endOfDay();
+
+            if ($inicio->gt($fim)) {          // invertido: troca em vez de dar erro
+                [$inicio, $fim] = [$fim->copy()->startOfDay(), $inicio->copy()->endOfDay()];
+            }
+            // Teto de 2 anos para não varrer a tabela inteira sem querer
+            if ($inicio->diffInDays($fim) > 730) {
+                $inicio = $fim->copy()->subDays(730)->startOfDay();
+            }
+
+            $dias = (int) $inicio->copy()->startOfDay()->diffInDays($fim->copy()->startOfDay()) + 1;
+
+            return [$inicio, $fim, $dias, true];
+        }
+
+        return [now()->subDays($periodo - 1)->startOfDay(), now()->endOfDay(), $periodo, false];
     }
 
     // ─── Cálculo ──────────────────────────────────────────────────────────────

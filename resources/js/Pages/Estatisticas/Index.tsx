@@ -79,6 +79,7 @@ interface Props {
     cancelamento: Cancelamento;
     filtros: { loja: number[]; origem: string | null; ceasa: string | null };
     opcoes: { lojas: number[]; origens: string[] };
+    intervalo: { de: string; ate: string; dias: number; livre: boolean; umDiaSo: boolean };
 }
 
 // ─── Página principal ─────────────────────────────────────────────────────────
@@ -88,7 +89,7 @@ const PERIODOS = [7, 15, 30, 60, 90];
 export default function Index({
     periodo, kpis, evolucaoDiaria, porMotivo, porLoja, porDiaSemana, porHora,
     topFornecedores, fornecedoresPorMotivo, reincidentes, rankingUsuarios, pendentesMaisAntigas,
-    etapas, retrabalho, porOrigem, porCeasa, cancelamento, filtros, opcoes,
+    etapas, retrabalho, porOrigem, porCeasa, cancelamento, filtros, opcoes, intervalo,
 }: Props) {
 
     const { isDark } = useTheme();
@@ -109,17 +110,42 @@ export default function Index({
 
     const [motivoForn, setMotivoForn] = useState(Object.keys(fornecedoresPorMotivo)[0] ?? '');
 
-    // Navegação preservando os filtros ativos
+    // Navegação preservando os filtros ativos (e o intervalo, quando escolhido)
     const irPara = (extras: Record<string, unknown>) =>
         router.get(route('estatisticas.index'), {
             periodo,
+            ...(intervalo.livre ? { de: intervalo.de, ate: intervalo.ate } : {}),
             loja: filtros.loja.length ? filtros.loja : undefined,
             origem: filtros.origem ?? undefined,
             ceasa: filtros.ceasa ?? undefined,
             ...extras,
         } as any, { preserveState: false });
 
-    const mudarPeriodo = (per: number) => irPara({ periodo: per });
+    // "Últimos N dias" volta a mandar: limpa o intervalo escolhido
+    const mudarPeriodo = (per: number) => irPara({ periodo: per, de: undefined, ate: undefined });
+
+    /** Aplica um intervalo (de/até). Um dia só = de igual a até. */
+    const usarIntervalo = (de: string, ate: string) => irPara({ de, ate });
+
+    // Atalhos: ontem, esta semana, mês passado e mês retrasado (fechamento)
+    const iso = (d: Date) => d.toISOString().slice(0, 10);
+    const atalhos = (() => {
+        const hoje = new Date();
+        const ontem = new Date(hoje); ontem.setDate(hoje.getDate() - 1);
+        const domingo = new Date(hoje); domingo.setDate(hoje.getDate() - hoje.getDay());
+        const mesAtual = new Date(hoje.getFullYear(), hoje.getMonth(), 1);
+        const mesPassado = new Date(hoje.getFullYear(), hoje.getMonth() - 1, 1);
+        const fimMesPassado = new Date(hoje.getFullYear(), hoje.getMonth(), 0);
+        const nomeMes = (d: Date) => d.toLocaleDateString('pt-BR', { month: 'long' });
+
+        return [
+            { rotulo: 'Hoje', de: iso(hoje), ate: iso(hoje) },
+            { rotulo: 'Ontem', de: iso(ontem), ate: iso(ontem) },
+            { rotulo: 'Esta semana', de: iso(domingo), ate: iso(hoje) },
+            { rotulo: nomeMes(hoje), de: iso(mesAtual), ate: iso(hoje) },
+            { rotulo: nomeMes(mesPassado), de: iso(mesPassado), ate: iso(fimMesPassado) },
+        ];
+    })();
     const alternarLoja = (l: number) => {
         const novo = filtros.loja.includes(l) ? filtros.loja.filter(x => x !== l) : [...filtros.loja, l];
         irPara({ loja: novo.length ? novo : undefined });
@@ -152,7 +178,13 @@ export default function Index({
                 <div className="flex flex-wrap items-center justify-between gap-4">
                     <div>
                         <h1 className="text-xl font-bold tracking-tight" style={{ color: p.TEXT }}>Estatísticas</h1>
-                        <p className="text-sm mt-0.5" style={{ color: p.MUTED }}>Últimos {periodo} dias</p>
+                        <p className="text-sm mt-0.5" style={{ color: p.MUTED }}>
+                            {!intervalo.livre
+                                ? `Últimos ${periodo} dias`
+                                : intervalo.umDiaSo
+                                    ? `Dia ${intervalo.de.split('-').reverse().join('/')}`
+                                    : `${intervalo.de.split('-').reverse().join('/')} a ${intervalo.ate.split('-').reverse().join('/')} · ${intervalo.dias} dias`}
+                        </p>
                     </div>
 
                     {/* Seletor de período */}
@@ -163,7 +195,7 @@ export default function Index({
                                 key={per}
                                 onClick={() => mudarPeriodo(per)}
                                 className="px-3.5 py-1.5 text-sm rounded-md font-medium transition-all"
-                                style={per === periodo
+                                style={!intervalo.livre && per === periodo
                                     ? { background: p.ACCENT, color: '#fff' }
                                     : { color: p.MUTED, background: 'transparent' }
                                 }
@@ -173,6 +205,59 @@ export default function Index({
                         ))}
                     </div>
                 </div>
+
+                {/* ── Intervalo (de/até) + atalhos ──────────────────────────── */}
+                <div className="flex flex-wrap items-center gap-x-4 gap-y-2 rounded-xl px-4 py-3"
+                    style={{ background: p.SURFACE, border: `1px solid ${p.BORDER}` }}>
+                    <div className="flex items-center gap-2">
+                        <span className="text-xs font-medium" style={{ color: p.MUTED }}>De</span>
+                        <input type="date" value={intervalo.de} max={intervalo.ate}
+                            onChange={e => e.target.value && usarIntervalo(e.target.value, intervalo.ate)}
+                            className="rounded-lg text-xs px-2 py-1.5 outline-none"
+                            style={{ background: p.BG, color: p.TEXT, border: `1px solid ${p.BORDER}`, colorScheme: isDark ? 'dark' : 'light' }} />
+                        <span className="text-xs font-medium" style={{ color: p.MUTED }}>até</span>
+                        <input type="date" value={intervalo.ate} min={intervalo.de}
+                            onChange={e => e.target.value && usarIntervalo(intervalo.de, e.target.value)}
+                            className="rounded-lg text-xs px-2 py-1.5 outline-none"
+                            style={{ background: p.BG, color: p.TEXT, border: `1px solid ${p.BORDER}`, colorScheme: isDark ? 'dark' : 'light' }} />
+                    </div>
+
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                        {atalhos.map(a => {
+                            const ativo = intervalo.livre && intervalo.de === a.de && intervalo.ate === a.ate;
+                            return (
+                                <button key={a.rotulo} onClick={() => usarIntervalo(a.de, a.ate)}
+                                    className="text-xs font-medium px-2.5 py-1.5 rounded-lg transition capitalize"
+                                    style={{
+                                        background: ativo ? p.ACCENT + '22' : 'transparent',
+                                        color: ativo ? p.ACCENT : p.MUTED,
+                                        border: `1px solid ${ativo ? p.ACCENT : p.BORDER}`,
+                                    }}>
+                                    {a.rotulo}
+                                </button>
+                            );
+                        })}
+                    </div>
+
+                    {intervalo.livre && (
+                        <button onClick={() => mudarPeriodo(30)} className="text-xs ml-auto" style={{ color: p.MUTED }}>
+                            ✕ voltar para "últimos 30 dias"
+                        </button>
+                    )}
+                </div>
+
+                {/* Em um dia só as médias oscilam demais para servirem de base */}
+                {intervalo.umDiaSo && (
+                    <div className="rounded-xl px-4 py-3 text-xs flex items-start gap-2"
+                        style={{ background: p.AMBER + '14', border: `1px solid ${p.AMBER}44`, color: p.AMBER }}>
+                        <span className="font-bold">⚠</span>
+                        <span>
+                            Um dia isolado tem poucos registros: as <strong>contagens</strong> são confiáveis, mas as
+                            <strong> médias de tempo</strong> variam muito e não servem para tirar conclusão —
+                            compare com um período maior antes de decidir.
+                        </span>
+                    </div>
+                )}
 
                 {/* ── Filtros (loja / fila / CEASA) ─────────────────────────── */}
                 <div className="flex flex-wrap items-center gap-x-4 gap-y-2 rounded-xl px-4 py-3"
@@ -383,8 +468,13 @@ export default function Index({
 
                     {/* Gráfico principal */}
                     <div className="lg:col-span-2">
-                        <Card title={`Notas lançadas — últimos ${periodo} dias`} p={p}>
-                            <Linha dados={linhaTotal} cor={p.ACCENT} altura={200} p={p} />
+                        <Card title="Notas lançadas por dia" p={p}
+                            action={<span className="text-xs" style={{ color: p.MUTED }}>clique num ponto para abrir o dia</span>}>
+                            <Linha dados={linhaTotal} cor={p.ACCENT} altura={200} p={p}
+                                onPonto={i => {
+                                    const dia = evolucaoDiaria[i]?.dia;
+                                    if (dia) usarIntervalo(dia, dia);
+                                }} />
                             <div className="mt-4 pt-4" style={{ borderTop: `1px solid ${p.BORDER}` }}>
                                 <p className="text-xs mb-2" style={{ color: p.MUTED }}>Liberadas por dia</p>
                                 <Linha dados={linhaAtend} cor={p.GREEN} altura={100} p={p} />

@@ -410,30 +410,37 @@ class NotaController extends Controller
         return back()->with('sucesso', 'Cancelamento desfeito — a nota voltou para a fila.');
     }
 
-    // ─── EDITAR NOTA JÁ LIBERADA (campos limitados por papel) ──────────────────
+    // ─── EDITAR CAMPOS LEVES (autoriza por CAMPO, não pela nota) ──────────────
     //
-    // A nota liberada é histórico fechado, mas alguns ajustes são legítimos: a
-    // OBSERVAÇÃO (recebimento, compras e pré-lote) e o lembrete CEASA (só
-    // recebimento). Autoriza por CAMPO — o frontend só envia o que o papel pode.
+    // Serve para a nota na fila E para a já liberada. Cada campo tem sua regra:
+    //   • OBSERVAÇÃO   — recebimento, pré-lote e compras, em qualquer momento.
+    //     É recado operacional ("faltou 1 caixa"), não altera o conteúdo fiscal;
+    //     compras precisa dela para registrar o combinado com o fornecedor.
+    //   • LEMBRETE CEASA — só recebimento, e só depois de liberada (antes disso
+    //     o recebimento já edita pelo formulário normal).
+    // O frontend só envia o que o papel pode; aqui é a trava de verdade.
 
     public function editarLiberada(Request $request, Nota $nota): RedirectResponse
     {
-        if (! $nota->liberada_em) {
-            return back()->withErrors(['nota' => 'Esta nota não está liberada — use a edição normal.']);
-        }
-
         $dados = $request->validate([
             'observacao' => 'sometimes|nullable|string|max:500',
             'ceasa'      => 'sometimes|integer|in:0,1,2,3',
         ]);
 
         $mudancas = [];
+
         if ($request->has('observacao')) {
-            Gate::authorize('editar-observacao-liberada');
+            Gate::authorize('editar-observacao');
             $mudancas['observacao'] = $dados['observacao'] ?? null;
         }
+
         if ($request->has('ceasa')) {
             Gate::authorize('editar-ceasa-liberada');
+
+            if (! $nota->liberada_em) {
+                return back()->withErrors(['nota' => 'Use o formulário de edição enquanto a nota está na fila.']);
+            }
+
             $mudancas['ceasa'] = (int) $dados['ceasa'];
         }
 

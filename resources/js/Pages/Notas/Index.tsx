@@ -177,9 +177,11 @@ function ModalCards({ nota, onFechar, can, tiposCompras, isDark, p }: {
     // Compras só corrige os tipos dela (regra é do pré-lote); admin corrige tudo
     const meuPapel = usePage().props.auth.user.role;
     const ehCompras = meuPapel === 'compras';
+    // Cards "de todo mundo" (Importar NF, Trocar nota): recebimento e compras
+    // marcam via "Corrigido"; o pré-lote usa "Resolver" (já tem o botão dele).
+    const DE_TODOS: TipoCard[] = ['importar_nf', 'trocar_nota'];
     const podeCorrigirEste = (c: Card) => {
-        // Importar NF: recebimento e compras marcam via "Corrigido"; pré-lote usa "Resolver".
-        if (c.tipo === 'importar_nf') return !can.gerirCards && (meuPapel === 'recebimento' || meuPapel === 'compras');
+        if (DE_TODOS.includes(c.tipo)) return !can.gerirCards && (meuPapel === 'recebimento' || meuPapel === 'compras');
         return can.corrigirCard && (!ehCompras || tiposCompras.includes(c.tipo));
     };
 
@@ -202,7 +204,7 @@ function ModalCards({ nota, onFechar, can, tiposCompras, isDark, p }: {
     const tiposParaAbrir: TipoCard[] = abreQualquer
         ? opcoesTipos(nota)
         : ['recebimento', 'pre_lote', 'compras'].includes(meuPapel)
-            ? opcoesTipos(nota).filter(t => t === 'importar_nf')
+            ? opcoesTipos(nota).filter(t => DE_TODOS.includes(t))
             : [];
 
     const agir = (fn: () => void) => { setErro(null); setOcupado(true); fn(); };
@@ -336,11 +338,15 @@ function ModalEditarLiberada({ nota, can, onFechar, p }: {
 
     if (!nota) return null;
 
+    // O lembrete CEASA só é editável por aqui depois de liberada; na fila o
+    // recebimento/pré-lote já mexem nele pelo formulário completo.
+    const podeCeasa = can.editarCeasaLiberada && nota.status === 'liberada';
+
     const salvar = () => {
         setSalvando(true);
         const dados: Record<string, string | number | null> = {};
-        if (can.editarObservacaoLiberada) dados.observacao = obs.trim() || null;
-        if (can.editarCeasaLiberada) dados.ceasa = ceasa;
+        if (can.editarObservacao) dados.observacao = obs.trim() || null;
+        if (podeCeasa) dados.ceasa = ceasa;
         router.patch(route('notas.editar-liberada', nota.id), dados as any, {
             preserveScroll: true,
             onSuccess: () => onFechar(),
@@ -351,9 +357,10 @@ function ModalEditarLiberada({ nota, can, onFechar, p }: {
     const CEASAS = [{ v: 0, l: 'Nenhum' }, { v: 3, l: 'CEASA' }, { v: 1, l: 'CEASA 1' }, { v: 2, l: 'CEASA 2' }];
 
     return (
-        <Modal aberto={!!nota} onFechar={onFechar} titulo={`Editar nota ${nota.numero_nota} (liberada)`} p={p}>
+        <Modal aberto={!!nota} onFechar={onFechar}
+            titulo={`Nota ${nota.numero_nota}${nota.status === 'liberada' ? ' (liberada)' : ''}`} p={p}>
             <div className="space-y-4">
-                {can.editarObservacaoLiberada && (
+                {can.editarObservacao && (
                     <div>
                         <label className="block text-sm font-medium mb-1.5" style={{ color: p.MUTED }}>Observação</label>
                         <textarea value={obs} onChange={e => setObs(e.target.value)} rows={3} maxLength={500}
@@ -361,7 +368,7 @@ function ModalEditarLiberada({ nota, can, onFechar, p }: {
                             style={{ background: p.INPUT_BG, color: p.TEXT, border: `1px solid ${p.INPUT_BORDER}` }} />
                     </div>
                 )}
-                {can.editarCeasaLiberada && (
+                {podeCeasa && (
                     <div>
                         <span className="block text-sm font-medium mb-1.5" style={{ color: p.MUTED }}>Lembrete CEASA</span>
                         <div className="flex flex-wrap gap-2">
@@ -399,7 +406,7 @@ function ModalEditarLiberada({ nota, can, onFechar, p }: {
 
 function opcoesTipos(nota: Nota): TipoCard[] {
     const ativos = nota.cards.filter(c => c.status !== 'resolvido').map(c => c.tipo);
-    const base: TipoCard[] = ['cadastro', 'regra', 'custo', 'quantidade', 'sem_pedido', 'importar_nf'];
+    const base: TipoCard[] = ['cadastro', 'regra', 'custo', 'quantidade', 'sem_pedido', 'importar_nf', 'trocar_nota'];
     // "Reconferir" só existe em nota de CEASA (pedido de nova conferência)
     if (nota.ceasa > 0) base.push('reconferir');
     return base.filter(t => !ativos.includes(t));
@@ -407,10 +414,11 @@ function opcoesTipos(nota: Nota): TipoCard[] {
 
 // ─── Linha da fila ──────────────────────────────────────────────────────────────
 
-function LinhaFila({ nota, onCards, onComentar, onEditar, onExcluir, onLiberar, onVisualizar, onCancelar, usuarioId, can, isDark, p }: {
+function LinhaFila({ nota, onCards, onComentar, onEditar, onExcluir, onLiberar, onVisualizar, onCancelar, onObservacao, usuarioId, can, isDark, p }: {
     nota: Nota; onCards: (n: Nota) => void; onComentar: (n: Nota) => void;
     onEditar: (n: Nota) => void; onExcluir: (n: Nota) => void; onLiberar: (n: Nota) => void;
-    onVisualizar: (n: Nota) => void; onCancelar: (n: Nota) => void; usuarioId: number;
+    onVisualizar: (n: Nota) => void; onCancelar: (n: Nota) => void;
+    onObservacao: (n: Nota) => void; usuarioId: number;
     can: Permissoes; isDark: boolean; p: Palette;
 }) {
     const cor = nivelCor(nota.nivel, p);
@@ -529,14 +537,22 @@ function LinhaFila({ nota, onCards, onComentar, onEditar, onExcluir, onLiberar, 
                                 <Icone path="M5 13l4 4L19 7" />
                             </button>
                         )}
-                        {can.editarNotas && (
+                        {can.editarNotas ? (
                             <button onClick={() => onEditar(nota)} title="Editar"
                                 className="p-1.5 rounded-lg transition" style={{ color: p.ACCENT }}
                                 onMouseEnter={e => (e.currentTarget.style.background = p.ACCENT + '1a')}
                                 onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}>
                                 <Icone path="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
                             </button>
-                        )}
+                        ) : can.editarObservacao ? (
+                            /* Compras não edita a nota, mas registra o combinado na observação */
+                            <button onClick={() => onObservacao(nota)} title="Editar observação"
+                                className="p-1.5 rounded-lg transition" style={{ color: p.ACCENT }}
+                                onMouseEnter={e => (e.currentTarget.style.background = p.ACCENT + '1a')}
+                                onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}>
+                                <Icone path="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                            </button>
+                        ) : null}
                         {/* Fornecedor cancelou a NF: sai da fila e vai para "Canceladas" */}
                         {can.cancelarNota && (
                             <button onClick={() => onCancelar(nota)} title="Nota cancelada pelo fornecedor"
@@ -841,7 +857,8 @@ export default function Index({ recebimento, preLote, liberadas, canceladas, for
                             <LinhaFila key={n.id} nota={n} can={can} isDark={isDark} p={p}
                                 onCards={x => setCardsId(x.id)} onComentar={setComentariosNota}
                                 onEditar={setModalEditar} onExcluir={excluir} onLiberar={liberarRapido}
-                                onVisualizar={visualizar} onCancelar={cancelar} usuarioId={user.id} />
+                                onVisualizar={visualizar} onCancelar={cancelar}
+                                onObservacao={setEditarLiberadaNota} usuarioId={user.id} />
                         ))}
                     </tbody>
                 </table>
@@ -1123,7 +1140,7 @@ export default function Index({ recebimento, preLote, liberadas, canceladas, for
                                             </button>
 
                                             {/* Editar observação (recebimento/compras/pré-lote) e lembrete CEASA (recebimento) */}
-                                            {(can.editarObservacaoLiberada || can.editarCeasaLiberada) && (
+                                            {(can.editarObservacao || can.editarCeasaLiberada) && (
                                                 <button onClick={() => setEditarLiberadaNota(n)} title="Editar observação / CEASA"
                                                     className="inline-flex items-center p-1.5 rounded-lg transition opacity-0 group-hover:opacity-100"
                                                     style={{ color: p.ACCENT }}

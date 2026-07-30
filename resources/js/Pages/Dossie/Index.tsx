@@ -5,13 +5,14 @@ import { useTheme } from '@/Contexts/ThemeContext';
 import { Fornecedor, StatusNota, TipoCard, OrigemNota } from '@/types';
 import { TIPO_CARD_LABEL, STATUS_NOTA_LABEL, ORIGEM_LABEL } from '@/lib/tema';
 import {
-    DARK, LIGHT, Palette, Card, KpiCard, Linha, BarrasH, Donut, ComparaRede,
+    DARK, LIGHT, Palette, Card, KpiCard, Linha, BarrasH, BarrasV, Donut, ComparaRede,
     LOJA_CORES_DARK, LOJA_CORES_LIGHT, lojaNome, fmtHoras,
 } from '@/Components/estatisticas/Graficos';
 
 interface Divergencia { motivo: string; total: number; taxa: number; taxaRede: number; vezes: number | null }
 interface Evolucao { mes: string; total: number; liberadas: number; divergencias: number }
 interface PorLoja { loja: number; total: number }
+interface PorDiaSemana { dia: string; total: number }
 interface UltimaNota {
     id: number; numero_nota: string; loja: number; status: StatusNota; origem: OrigemNota;
     ceasa: number; cards: { tipo: TipoCard; status: string; reaberturas: number }[];
@@ -27,6 +28,8 @@ interface Dossie {
     divergencias: Divergencia[];
     evolucao: Evolucao[];
     porLoja: PorLoja[];
+    porDiaSemana: PorDiaSemana[];
+    diaPico: PorDiaSemana | null;
     ultimas: UltimaNota[];
 }
 
@@ -230,6 +233,26 @@ export default function Index({ busca, periodo, resultados, fornecedor, dossie }
                                     </div>
                                 </>
                             )}
+                        </Card>
+
+                        {/* ── Quando este fornecedor entrega ── */}
+                        <Card title="Dia da semana em que mais chega nota" p={p}
+                            action={dossie.diaPico && (
+                                <span className="text-xs font-semibold px-2.5 py-1 rounded-lg"
+                                    style={{ background: p.PURPLE + '22', color: p.PURPLE, border: `1px solid ${p.PURPLE}44` }}>
+                                    Pico: {dossie.diaPico.dia} · {dossie.diaPico.total} notas
+                                </span>
+                            )}>
+                            <BarrasV altura={150} cor={p.PURPLE} p={p}
+                                items={dossie.porDiaSemana.map(d => ({
+                                    label: d.dia,
+                                    valor: d.total,
+                                    // O dia de pico ganha destaque; os demais ficam esmaecidos
+                                    cor: dossie.diaPico && d.dia === dossie.diaPico.dia ? p.PURPLE : p.ACCENT,
+                                }))} />
+                            <p className="text-xs mt-1" style={{ color: p.MUTED }}>
+                                Útil para preparar a escala: é no dia de pico que a conferência deste fornecedor pesa.
+                            </p>
                         </Card>
 
                         {/* ── Loja + retrabalho ── */}
