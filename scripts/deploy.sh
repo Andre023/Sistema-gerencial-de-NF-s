@@ -49,7 +49,29 @@ git pull
 echo "→ Dependências PHP..."
 composer install --no-dev --optimize-autoloader
 
-echo "→ Dependências JS + build..."
+# O npm quase sempre vem do nvm, que se instala no ~/.bashrc — e o ~/.bashrc NÃO
+# roda em shell não-interativo, que é o caso deste script (e de qualquer chamada
+# por cron). Daí o sintoma confuso: `npm` funciona quando você digita no terminal
+# e some com "command not found" quando o script chama.
+if ! command -v npm > /dev/null 2>&1; then
+    for init in "${HOME}/.nvm/nvm.sh" /usr/local/nvm/nvm.sh /opt/nvm/nvm.sh; do
+        if [[ -s "${init}" ]]; then
+            # shellcheck source=/dev/null
+            . "${init}"
+            break
+        fi
+    done
+fi
+
+if ! command -v npm > /dev/null 2>&1; then
+    echo "✗ npm não encontrado — nem no PATH, nem via nvm." >&2
+    echo "  O backup desta rodada está de pé e o banco não foi tocado." >&2
+    echo "  Para descobrir onde ele está, rode no terminal:" >&2
+    echo "      which -a npm node; ls -d ~/.nvm 2>/dev/null" >&2
+    exit 1
+fi
+
+echo "→ Dependências JS + build... (npm: $(command -v npm))"
 npm ci
 npm run build
 
