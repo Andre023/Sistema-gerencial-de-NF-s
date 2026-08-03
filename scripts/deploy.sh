@@ -18,33 +18,64 @@ APP_DIR="/var/www/nfs"
 
 cd "${APP_DIR}"
 
-# ─── 1. Backup (pré-condição, não etapa) ──────────────────────────────────────
+# Reentrada: o `git pull` pode atualizar ESTE arquivo no meio da execução, e o
+# bash lê o script sob demanda — ou seja, a partir do pull ele passaria a seguir
+# um roteiro diferente do que começou (foi o que aconteceu em 03/08: a versão
+# antiga exigia npm na VM e parou no meio, mesmo com a nova já em disco).
+# Solução: se o próprio script mudou no pull, ele se re-executa na versão nova.
+# Esta variável evita repetir o backup e barra um laço infinito de re-execução.
+REENTRADA="${NFS_DEPLOY_REENTRADA:-0}"
 
-# Reaproveita o mesmo backup.sh do cron diário, em vez de ter uma segunda receita
-# de dump aqui: assim o backup de antes do deploy segue o mesmo caminho testado
-# pelo testar-restore.sh — e também vai para fora da VM.
-#
-# O `set -e` cuida do resto: se o backup falhar (dump vazio, disco cheio, PAR
-# expirado), o script morre nesta linha, antes de tocar em código ou banco.
-echo "→ Backup antes de qualquer alteração..."
-bash scripts/backup.sh
+if [[ "${REENTRADA}" == "0" ]]; then
 
-# O `|| true` evita um falso negativo: o `ls` pode levar SIGPIPE quando o `head`
-# fecha a entrada, e com pipefail isso derrubaria o deploy depois de o backup ter
-# dado certo.
-ARQUIVO="$(ls -1t /var/backups/nfs/nfs-*.sql.gz 2>/dev/null | head -1 || true)"
+    # ─── 1. Backup (pré-condição, não etapa) ──────────────────────────────────
 
-# ─── 2. O que a migration vai fazer (à vista, antes de fazer) ─────────────────
+    # Reaproveita o mesmo backup.sh do cron diário, em vez de ter uma segunda
+    # receita de dump aqui: assim o backup de antes do deploy segue o mesmo
+    # caminho testado pelo testar-restore.sh — e também vai para fora da VM.
+    #
+    # O `set -e` cuida do resto: se o backup falhar (dump vazio, disco cheio, PAR
+    # expirado), o script morre nesta linha, antes de tocar em código ou banco.
+    echo "→ Backup antes de qualquer alteração..."
+    bash scripts/backup.sh
 
-echo
-echo "→ Migrations pendentes:"
-php artisan migrate:status | grep -i pending || echo "  (nenhuma)"
-echo
+    # O `|| true` evita um falso negativo: o `ls` pode levar SIGPIPE quando o
+    # `head` fecha a entrada, e com pipefail isso derrubaria o deploy depois de o
+    # backup ter dado certo.
+    ARQUIVO="$(ls -1t /var/backups/nfs/nfs-*.sql.gz 2>/dev/null | head -1 || true)"
 
-# ─── 3. Código e dependências ─────────────────────────────────────────────────
+    # ─── 2. O que a migration vai fazer (à vista, antes de fazer) ─────────────
 
-echo "→ Atualizando código..."
-git pull
+    echo
+    echo "→ Migrations pendentes:"
+    php artisan migrate:status | grep -i pending || echo "  (nenhuma)"
+    echo
+
+    # ─── 3. Código (o pull vem ANTES de decidir os passos seguintes) ──────────
+
+    ASSINATURA_ANTES="$(sha1sum "${BASH_SOURCE[0]}" | cut -d' ' -f1)"
+
+    echo "→ Atualizando código..."
+    git pull
+
+    ASSINATURA_DEPOIS="$(sha1sum "${BASH_SOURCE[0]}" | cut -d' ' -f1)"
+
+    if [[ "${ASSINATURA_ANTES}" != "${ASSINATURA_DEPOIS}" ]]; then
+        echo "→ O próprio deploy.sh mudou neste pull — recomeçando pela versão nova."
+        echo "  (backup e git pull já estão feitos; não se repetem)"
+        echo
+        # `exec` troca o processo: o roteiro passa a ser lido do arquivo novo,
+        # do começo, sem sobrar nada do antigo em memória.
+        NFS_DEPLOY_REENTRADA=1 NFS_DEPLOY_BACKUP="${ARQUIVO}" \
+            exec bash "${BASH_SOURCE[0]}"
+    fi
+
+else
+    # Segunda passagem: backup e pull já aconteceram na primeira.
+    ARQUIVO="${NFS_DEPLOY_BACKUP:-(feito na primeira passagem)}"
+    echo "→ Seguindo na versão atualizada do deploy.sh."
+    echo
+fi
 
 echo "→ Dependências PHP..."
 composer install --no-dev --optimize-autoloader
