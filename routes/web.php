@@ -10,20 +10,16 @@ use App\Http\Controllers\NotificacaoController;
 use App\Http\Controllers\PrioridadeController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\UserController;
-use Illuminate\Foundation\Application;
 use Illuminate\Support\Facades\Route;
-use Inertia\Inertia;
 
-// ─── PÚBLICO ──────────────────────────────────────────────────────────────────
+// ─── PORTA DE ENTRADA ─────────────────────────────────────────────────────────
+//
+// Não existe página pública: quem chega vai para o login, e quem já está logado
+// vai direto para a fila (o logo da navbar aponta para cá). Antes aqui morava a
+// splash padrão do Laravel, que anunciava a versão do framework e do PHP para
+// quem varre a internet atrás de versão vulnerável.
 
-Route::get('/', function () {
-    return Inertia::render('Welcome', [
-        'canLogin'       => Route::has('login'),
-        'canRegister'    => Route::has('register'),
-        'laravelVersion' => Application::VERSION,
-        'phpVersion'     => PHP_VERSION,
-    ]);
-});
+Route::get('/', fn() => redirect()->route(auth()->check() ? 'notas.index' : 'login'));
 
 // ─── AUTENTICADO ──────────────────────────────────────────────────────────────
 
@@ -78,7 +74,9 @@ Route::middleware(['auth', 'verified'])->group(function () {
     });
 
     // ── Fornecedores ───────────────────────────────────────────────────────────
+    // Upsert em massa no cadastro que todas as notas referenciam: só admin.
     Route::post('/fornecedores/importar', [FornecedorController::class, 'importar'])
+         ->middleware('can:importar-fornecedores')
          ->name('fornecedores.importar');
 
     // ── Estatísticas (só admin) ────────────────────────────────────────────────

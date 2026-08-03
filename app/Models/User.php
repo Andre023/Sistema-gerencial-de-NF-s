@@ -205,6 +205,19 @@ class User extends Authenticatable
     }
 
     /**
+     * Importar a base de fornecedores (upsert em massa) — só admin.
+     *
+     * É o cadastro que TODAS as notas referenciam: um JSON errado renomeia
+     * fornecedor em massa e leva junto o histórico de quem já apontou para ele.
+     * Não ter tela não protege nada — o endpoint responde a qualquer requisição
+     * autenticada, então a trava tem de ser aqui.
+     */
+    public function podeImportarFornecedores(): bool
+    {
+        return $this->isAdmin();
+    }
+
+    /**
      * Ações leves na tela de notas — comentar e reservar ("estou olhando").
      * Todos os papéis operacionais podem; o visitante é só leitura.
      */
