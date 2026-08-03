@@ -49,9 +49,14 @@ class EstatisticaController extends Controller
         $deAnt  = (clone $de)->subDays($dias);
         $ateAnt = (clone $de)->subSecond();
 
+        // A janela e os filtros JÁ identificam o resultado — o que muda de um
+        // minuto para o outro é só a nota nova, e disso cuida o TTL de 5 min.
+        // Enquanto o minuto entrava aqui, cada acesso gerava uma chave inédita:
+        // o cache gravava e nunca era lido, e a página pesada rodava inteira
+        // toda vez (era exatamente o que o cacheado() abaixo queria evitar).
         $chave = 'stats:' . md5(json_encode([
             $de->toDateTimeString(), $ate->toDateTimeString(),
-            $lojas, $origem, $ceasa, now()->format('Y-m-d H:i'),
+            $lojas, $origem, $ceasa,
         ]));
 
         $dados = $this->cacheado($chave, function () use ($de, $ate, $deAnt, $ateAnt, $lojas, $origem, $ceasa) {

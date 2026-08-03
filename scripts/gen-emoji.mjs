@@ -1,6 +1,9 @@
-// Gera os SVGs de resources/js/assets/emoji/ (conjunto Noto/Google) a partir do
-// conjunto do picker (EMOJIS_BASE x tons de pele). Rode de novo quando mexer na
-// lista de emojis em resources/js/lib/avatares.ts.
+// Gera os SVGs de public/emoji/ (conjunto Noto/Google) a partir do conjunto do
+// picker (EMOJIS_BASE x tons de pele). Rode de novo quando mexer na lista de
+// emojis em resources/js/lib/avatares.ts.
+//
+// Eles ficam em public/ (e nao em resources/) de proposito: sao servidos como
+// arquivo estatico, sem passar pelo bundle. Ver o comentario em lib/emoji.ts.
 //
 // Baixa direto do repositorio oficial googlefonts/noto-emoji (via jsdelivr) e
 // salva cada SVG com o NOME que o runtime espera (lib/emoji.ts). Precisa de rede.
@@ -86,7 +89,7 @@ for (const base of EMOJIS_BASE) {
     for (const t of tons) emojis.add(aplicarTom(base, t));
 }
 
-const outDir = 'resources/js/assets/emoji';
+const outDir = 'public/emoji';
 const cdn = 'https://cdn.jsdelivr.net/gh/googlefonts/noto-emoji/svg';
 
 rmSync(outDir, { recursive: true, force: true });   // nao deixa SVG orfao

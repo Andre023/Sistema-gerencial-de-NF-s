@@ -296,15 +296,23 @@ class Notificador
         self::atualizarTelas($alvos->pluck('user_id')->all());
     }
 
-    /** Empurra o novo estado do sino para os navegadores dos envolvidos. */
+    /**
+     * Empurra o novo estado do sino para os navegadores dos envolvidos.
+     *
+     * Uma query só para todo mundo: antes era um User::find() DENTRO do laço,
+     * então avisar as cinco pessoas de compras custava cinco viagens ao banco
+     * — no meio do request de quem só queria abrir um card.
+     */
     private static function atualizarTelas(array $userIds): void
     {
-        foreach (array_unique($userIds) as $id) {
-            $user = User::find($id);
+        $ids = array_unique($userIds);
 
-            if ($user) {
-                event(new NotificacoesAtualizadas($user));
-            }
+        if (! $ids) {
+            return;
+        }
+
+        foreach (User::whereIn('id', $ids)->get() as $user) {
+            event(new NotificacoesAtualizadas($user));
         }
     }
 
