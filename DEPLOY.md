@@ -77,7 +77,35 @@ server {
     root /var/www/nfs/public;
     index index.php;
 
+    # Cabeçalhos de segurança. A aplicação já manda os mesmos (middleware
+    # CabecalhosDeSeguranca), mas o nginx entrega os arquivos estáticos sem
+    # passar pelo PHP — estes aqui cobrem esse caminho também.
+    # O HSTS só entra DEPOIS do certbot: mandá-lo antes de existir HTTPS tranca
+    # o domínio num protocolo que ainda não funciona.
+    add_header X-Content-Type-Options "nosniff" always;
+    add_header X-Frame-Options "DENY" always;
+    add_header Referrer-Policy "strict-origin-when-cross-origin" always;
+    add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;
+
+    # Compressão. O bundle é ~720 KB de texto (JS, CSS, JSON) e o gzip corta uns
+    # 70% disso — é o ganho de carregamento mais barato que existe aqui.
+    # image/svg+xml na lista importa: os 807 emojis de /emoji/ são SVG, ou seja,
+    # texto. Sem ele viajam crus.
+    gzip on;
+    gzip_vary on;
+    gzip_min_length 1024;
+    gzip_proxied any;
+    gzip_types text/plain text/css text/javascript application/javascript
+               application/json application/xml image/svg+xml;
+
     location / { try_files $uri $uri/ /index.php?$query_string; }
+
+    # Cache dos estáticos. Nestes dois blocos NÃO use add_header: no nginx, um
+    # location que declara qualquer add_header DESCARTA os herdados do server —
+    # os cabeçalhos de segurança acima sumiriam justamente aqui. O `expires`
+    # sozinho já emite o Cache-Control e não mexe nessa herança.
+    location /build/ { expires 1y; }    # nome com hash: conteúdo nunca muda
+    location /emoji/ { expires 30d; }   # nome estável, conteúdo praticamente fixo
 
     # WebSocket do Reverb (tempo real) — proxied como wss na mesma porta 443
     location /app {
@@ -105,6 +133,12 @@ sudo certbot --nginx -d nfs.SEU_DOMINIO      # HTTPS (Let's Encrypt)
 
 O Reverb e o worker de fila precisam ficar rodando sempre. Crie dois serviços.
 
+⚠️ O worker **não é opcional**: os avisos do sino (`NotificacoesAtualizadas`)
+passam pela fila. Com o `nfs-queue` parado, o sistema continua funcionando, mas
+o sino deixa de atualizar sozinho — o aviso só aparece quando a pessoa recarrega
+a página. Se alguém reclamar disso, `systemctl status nfs-queue` é a primeira
+coisa a olhar.
+
 `/etc/systemd/system/nfs-reverb.service`:
 ```ini
 [Unit]
@@ -127,28 +161,129 @@ After=network.target
 [Service]
 User=www-data
 WorkingDirectory=/var/www/nfs
-ExecStart=/usr/bin/php artisan queue:work --sleep=3 --tries=3
+ExecStart=/usr/bin/php artisan queue:work --sleep=3 --tries=3 --max-time=3600
 Restart=always
 [Install]
 WantedBy=multi-user.target
 ```
+
+O `--max-time=3600` faz o worker encerrar sozinho depois de uma hora, e o
+`Restart=always` o levanta de novo. Processo PHP de vida longa vai acumulando
+memória — numa VM de 1 GB isso termina em swap e lentidão geral. Reciclar de
+hora em hora resolve sem ninguém precisar olhar. O worker só sai entre um job e
+outro, então nada é interrompido no meio.
+
 ```bash
 sudo systemctl daemon-reload
 sudo systemctl enable --now nfs-reverb nfs-queue
 ```
 
-## 9. Backup automático (mysqldump diário)
+## 9. Backup automático (com cópia fora da VM)
+
+Backup no mesmo disco que ele protege **não é backup**: se a VM morrer, some
+tudo junto. O script [`scripts/backup.sh`](scripts/backup.sh) grava o dump
+localmente (restore rápido) e manda uma cópia para o Object Storage da Oracle,
+que também é Always Free.
+
+### 9.1 Criar o bucket e o link de envio (uma vez)
+
+No console da Oracle: **Storage → Buckets → Create Bucket** (nome: `nfs-backups`).
+
+Depois, dentro do bucket, **Create Pre-Authenticated Request**:
+
+| Campo | Valor |
+|---|---|
+| Target | Bucket |
+| Access type | **Permit object writes** (só escrita) |
+| Expiration | 1 ano (anote a data — expirou, o envio para) |
+
+Copie a URL que aparece **na hora** — a Oracle não mostra de novo depois.
+
+> Por que "só escrita": se alguém invadir a VM, o máximo que consegue é mandar
+> arquivo novo. Não lê nem apaga os backups anteriores. Com uma chave de acesso
+> completa, o invasor apagaria o backup junto com o banco.
+
+### 9.2 Configurar e agendar
+
+No `.env` do servidor:
+
+```ini
+BACKUP_PAR_URL=https://objectstorage.<regiao>.oraclecloud.com/p/<token>/n/<namespace>/b/nfs-backups/o/
+```
 
 ```bash
 sudo mkdir -p /var/backups/nfs
 sudo crontab -e
 ```
-Adicione (backup às 2h, mantém 14 dias):
 ```cron
-0 2 * * * mysqldump -u nfs_app -p'SENHA' sistema_notas | gzip > /var/backups/nfs/nfs-$(date +\%F).sql.gz && find /var/backups/nfs -name '*.sql.gz' -mtime +14 -delete
+0 2 * * * cd /var/www/nfs && bash scripts/backup.sh >> /var/log/nfs-backup.log 2>&1
 ```
 
-## 10. Primeiro acesso (dados reais)
+Sem `BACKUP_PAR_URL` o script continua funcionando, só que grava um aviso de que
+o backup existe apenas na VM.
+
+### 9.3 Testar o restore (uma vez por mês)
+
+```bash
+bash /var/www/nfs/scripts/testar-restore.sh /var/backups/nfs/nfs-2026-08-03-0200.sql.gz
+```
+
+Backup nunca restaurado é backup de fé: dump truncado, tabela faltando ou gzip
+corrompido só aparecem no dia em que você precisa — o pior dia possível para
+descobrir. O script restaura num banco **descartável**, confere as contagens
+contra produção e apaga o banco de teste no fim. O de produção não é aberto em
+momento nenhum.
+
+## 10. Monitoramento (o que cai sem ninguém notar)
+
+Reverb caído não quebra página nenhuma: a tela só para de atualizar sozinha, e
+alguém reclama horas depois. O [`scripts/monitorar.sh`](scripts/monitorar.sh)
+verifica a rota `/up`, a porta do Reverb e o worker da fila, reiniciando o que
+estiver fora do ar.
+
+```bash
+sudo crontab -e
+```
+```cron
+*/5 * * * * bash /var/www/nfs/scripts/monitorar.sh
+```
+
+(No cron do **root**, que é quem pode dar `systemctl restart`.)
+
+### 10.1 Heartbeat — para saber quando a VM inteira cai
+
+Monitor que roda dentro da VM nunca avisa que a VM caiu: a máquina morre e ele
+morre junto, e o silêncio parece "tudo bem".
+
+A saída é inverter a lógica. Crie um check gratuito no
+[healthchecks.io](https://healthchecks.io) (ou equivalente), configure para
+esperar um sinal a cada 15 minutos, e ponha a URL no `.env`:
+
+```ini
+MONITOR_HEARTBEAT_URL=https://hc-ping.com/<seu-uuid>
+```
+
+O script só envia o sinal quando está **tudo** de pé. É a AUSÊNCIA do sinal que
+dispara o e-mail — então tanto um serviço caído quanto a VM desligada chegam até
+você.
+
+## 11. Agendador do Laravel
+
+Uma única linha no cron liga o `schedule:run`, e a partir daí qualquer rotina
+futura (resumo diário, limpeza de notificação antiga) é só registrar em
+`routes/console.php` — sem mexer em servidor de novo.
+
+```bash
+sudo crontab -e
+```
+```cron
+* * * * * cd /var/www/nfs && php artisan schedule:run >> /dev/null 2>&1
+```
+
+Roda a cada minuto de propósito: quem decide o que executa e quando é o Laravel,
+não o cron. Hoje não há nada agendado — a linha existe para o dia em que houver.
+
+## 12. Primeiro acesso (dados reais)
 
 1. Entre com o admin e **troque a senha** imediatamente.
 2. Em **Usuários**, crie/ajuste as contas reais da equipe com os papéis certos
@@ -162,6 +297,17 @@ Adicione (backup às 2h, mantém 14 dias):
 ## Atualizações futuras
 
 ```bash
+cd /var/www/nfs && bash scripts/deploy.sh
+```
+
+O script faz o backup do banco ANTES de qualquer outra coisa e só continua se o
+dump sair de pé — se ele falhar, nada é alterado. Depois mostra as migrations
+pendentes, atualiza código e dependências, roda `migrate --force`, recria os
+caches e reinicia o Reverb e o worker.
+
+Se preferir passo a passo, é o equivalente a:
+
+```bash
 cd /var/www/nfs && git pull
 composer install --no-dev --optimize-autoloader
 npm ci && npm run build
@@ -169,3 +315,7 @@ php artisan migrate --force
 php artisan config:cache && php artisan route:cache && php artisan view:cache
 sudo systemctl restart nfs-reverb nfs-queue
 ```
+
+⚠️ `migrate --force` só APLICA o que ainda não rodou — nunca apaga. Quem destrói
+dado é `migrate:fresh`, `migrate:refresh`, `migrate:reset` e `db:wipe`: nenhum
+deles tem lugar em produção.
