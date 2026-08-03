@@ -64,8 +64,25 @@ Importante: rode DEPOIS do `.env` pronto — o domínio do Reverb é compilado a
 php artisan config:cache
 php artisan route:cache
 php artisan view:cache
-sudo chown -R www-data:www-data storage bootstrap/cache
 ```
+
+Permissões de `storage/` e `bootstrap/cache` — **dois** donos, não um:
+
+```bash
+sudo usermod -aG www-data ubuntu          # o deployer entra no grupo do servidor
+sudo chown -R ubuntu:www-data storage bootstrap/cache
+sudo chmod -R ug+rwX storage bootstrap/cache
+sudo find storage bootstrap/cache -type d -exec chmod g+s {} \;
+```
+
+Quem faz o deploy é o `ubuntu` (composer, artisan, build); quem serve o site é o
+`www-data` (grava log e cache de framework). Os dois precisam escrever ali. Dar
+tudo ao `www-data` — como dizia a receita antiga — funciona uma vez e trava o
+deploy seguinte com `Permission denied` no log e em `bootstrap/cache`.
+
+O `g+s` nos diretórios faz todo arquivo novo herdar o grupo `www-data`, então o
+arranjo se mantém sozinho. O `usermod` só vale depois de sair e entrar de novo
+no SSH.
 
 ## 7. nginx + HTTPS
 

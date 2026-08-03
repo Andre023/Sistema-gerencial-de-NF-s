@@ -50,9 +50,14 @@ ARQUIVO="${BACKUP_DIR}/${NOME}"
 
 # MYSQL_PWD em vez de -p: senha na linha de comando fica visível em `ps`.
 # --single-transaction tira o dump sem travar as tabelas (InnoDB).
+# --no-tablespaces: sem ele o mysqldump tenta ler metadado de tablespace, que no
+# MySQL 8 exige o privilégio PROCESS — global, que o usuário da aplicação não tem
+# (e não deve ter). O dump saía completo assim mesmo, mas cuspindo um "Access
+# denied" a cada execução: erro de mentira no log é erro de verdade escondido.
 MYSQL_PWD="${DB_SENHA}" mysqldump \
     --user="${DB_USER}" \
     --single-transaction \
+    --no-tablespaces \
     --routines \
     --triggers \
     "${DB_NOME}" | gzip > "${ARQUIVO}"

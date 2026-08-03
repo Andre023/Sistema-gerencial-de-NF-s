@@ -67,8 +67,16 @@ php artisan config:cache
 php artisan route:cache
 php artisan view:cache
 
+# DOIS donos, não um. Quem faz o deploy é o `ubuntu` (composer, artisan, build);
+# quem serve o site é o `www-data` (grava log, cache de framework). Entregar tudo
+# para o www-data — como fazia a receita antiga — funcionava uma vez e travava o
+# deploy SEGUINTE, porque o ubuntu perdia a escrita em storage/ e bootstrap/cache.
+#
+# Vai DEPOIS dos comandos do artisan de propósito: assim os arquivos recém-criados
+# por eles (log do dia, caches) também entram no ajuste.
 echo "→ Permissões..."
-sudo chown -R www-data:www-data storage bootstrap/cache
+sudo chown -R ubuntu:www-data storage bootstrap/cache
+sudo chmod -R ug+rwX storage bootstrap/cache
 
 echo "→ Reiniciando Reverb e worker..."
 sudo systemctl restart nfs-reverb nfs-queue
