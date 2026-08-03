@@ -63,17 +63,30 @@ if ! command -v npm > /dev/null 2>&1; then
     done
 fi
 
-if ! command -v npm > /dev/null 2>&1; then
-    echo "✗ npm não encontrado — nem no PATH, nem via nvm." >&2
-    echo "  O backup desta rodada está de pé e o banco não foi tocado." >&2
-    echo "  Para descobrir onde ele está, rode no terminal:" >&2
-    echo "      which -a npm node; ls -d ~/.nvm 2>/dev/null" >&2
-    exit 1
-fi
+if command -v npm > /dev/null 2>&1; then
+    echo "→ Dependências JS + build... (npm: $(command -v npm))"
+    npm ci
+    npm run build
+else
+    # Sem Node nesta VM, e é de propósito: o `vite build` é a etapa mais pesada
+    # do deploy, e num servidor de 1 GB o OOM killer escolhe a vítima pelo
+    # consumo — o MySQL e o php-fpm são os primeiros da fila. Os assets são
+    # compilados na máquina de desenvolvimento e enviados prontos
+    # (scripts/enviar-assets.sh).
+    if [[ ! -f public/build/manifest.json ]]; then
+        echo "✗ Sem npm nesta máquina E sem public/build/manifest.json." >&2
+        echo "  Não há assets para servir. O backup está de pé e o banco não foi tocado." >&2
+        echo "  Na SUA máquina, rode:  bash scripts/enviar-assets.sh" >&2
+        exit 1
+    fi
 
-echo "→ Dependências JS + build... (npm: $(command -v npm))"
-npm ci
-npm run build
+    # A data é o que separa "assets prontos" de "assets esquecidos". Sem ela, um
+    # build de três semanas atrás passaria por atual sem ninguém desconfiar.
+    echo "→ Build: usando os assets já enviados."
+    echo "  manifest.json de $(date -r public/build/manifest.json '+%d/%m/%Y %H:%M')"
+    echo "  (se essa data não bate com a sua última alteração de tela, rode"
+    echo "   'bash scripts/enviar-assets.sh' na sua máquina antes de seguir)"
+fi
 
 # ─── 4. Banco ─────────────────────────────────────────────────────────────────
 

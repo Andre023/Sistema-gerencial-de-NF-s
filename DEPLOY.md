@@ -313,9 +313,31 @@ não o cron. Hoje não há nada agendado — a linha existe para o dia em que ho
 
 ## Atualizações futuras
 
+São **dois** comandos, em duas máquinas. Se você não mexeu em tela (só PHP), o
+primeiro é dispensável.
+
+**1. Na sua máquina** — compila e envia os assets:
+
 ```bash
-cd /var/www/nfs && bash scripts/deploy.sh
+bash scripts/enviar-assets.sh
 ```
+
+**2. No servidor** — o resto:
+
+```bash
+cd /var/www/nfs && git pull && bash scripts/deploy.sh
+```
+
+### Por que o build não roda no servidor
+
+A VM é uma Always Free de 1 GB. O `vite build` é a etapa mais pesada do processo,
+e um pico de memória lá não trava só o build: o OOM killer do Linux escolhe a
+vítima pelo consumo, e os maiores candidatos são justamente o MySQL e o php-fpm.
+Um build apertado derrubaria o site que ele deveria atualizar.
+
+Por isso **não há Node instalado na VM**, e nem deve haver. O `deploy.sh` detecta
+a ausência do npm, usa os assets já enviados e mostra a data do `manifest.json` —
+se ela não bate com a sua última alteração de tela, você esqueceu do passo 1.
 
 O script faz o backup do banco ANTES de qualquer outra coisa e só continua se o
 dump sair de pé — se ele falhar, nada é alterado. Depois mostra as migrations
