@@ -171,7 +171,7 @@ export default function Index({
         <AuthenticatedLayout header={null}>
             <Head title="Estatísticas" />
 
-            <div className="min-h-screen py-8 px-4 sm:px-6 lg:px-8 max-w-screen-2xl mx-auto space-y-6 transition-colors duration-200"
+            <div className="flex-1 w-full py-8 px-4 sm:px-6 lg:px-8 max-w-screen-2xl mx-auto space-y-6 transition-colors duration-200"
                 style={{ background: p.BG }}>
 
                 {/* ── Cabeçalho ─────────────────────────────────────────────── */}
@@ -188,13 +188,13 @@ export default function Index({
                     </div>
 
                     {/* Seletor de período */}
-                    <div className="flex items-center gap-1 rounded-lg p-1"
+                    <div className="flex items-center gap-1 rounded-lg p-1 rolagem-x scrollbar-oculta max-w-full"
                         style={{ background: p.SURFACE, border: `1px solid ${p.BORDER}` }}>
                         {PERIODOS.map(per => (
                             <button
                                 key={per}
                                 onClick={() => mudarPeriodo(per)}
-                                className="px-3.5 py-1.5 text-sm rounded-md font-medium transition-all"
+                                className="px-3.5 py-1.5 text-sm rounded-md font-medium transition-all shrink-0"
                                 style={!intervalo.livre && per === periodo
                                     ? { background: p.ACCENT, color: '#fff' }
                                     : { color: p.MUTED, background: 'transparent' }
@@ -209,16 +209,16 @@ export default function Index({
                 {/* ── Intervalo (de/até) + atalhos ──────────────────────────── */}
                 <div className="flex flex-wrap items-center gap-x-4 gap-y-2 rounded-xl px-4 py-3"
                     style={{ background: p.SURFACE, border: `1px solid ${p.BORDER}` }}>
-                    <div className="flex items-center gap-2">
+                    <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
                         <span className="text-xs font-medium" style={{ color: p.MUTED }}>De</span>
                         <input type="date" value={intervalo.de} max={intervalo.ate}
                             onChange={e => e.target.value && usarIntervalo(e.target.value, intervalo.ate)}
-                            className="rounded-lg text-xs px-2 py-1.5 outline-none"
+                            className="rounded-lg text-xs px-2 py-1.5 outline-none min-w-0 flex-1 sm:flex-none"
                             style={{ background: p.BG, color: p.TEXT, border: `1px solid ${p.BORDER}`, colorScheme: isDark ? 'dark' : 'light' }} />
                         <span className="text-xs font-medium" style={{ color: p.MUTED }}>até</span>
                         <input type="date" value={intervalo.ate} min={intervalo.de}
                             onChange={e => e.target.value && usarIntervalo(intervalo.de, e.target.value)}
-                            className="rounded-lg text-xs px-2 py-1.5 outline-none"
+                            className="rounded-lg text-xs px-2 py-1.5 outline-none min-w-0 flex-1 sm:flex-none"
                             style={{ background: p.BG, color: p.TEXT, border: `1px solid ${p.BORDER}`, colorScheme: isDark ? 'dark' : 'light' }} />
                     </div>
 
@@ -262,7 +262,7 @@ export default function Index({
                 {/* ── Filtros (loja / fila / CEASA) ─────────────────────────── */}
                 <div className="flex flex-wrap items-center gap-x-4 gap-y-2 rounded-xl px-4 py-3"
                     style={{ background: p.SURFACE, border: `1px solid ${p.BORDER}` }}>
-                    <div className="flex items-center gap-1.5 flex-wrap">
+                    <div className="flex items-center gap-1.5 flex-wrap max-w-full">
                         <span className="text-xs font-medium" style={{ color: p.MUTED }}>Lojas:</span>
                         {opcoes.lojas.map(l => {
                             const ativo = filtros.loja.includes(l);
@@ -664,7 +664,7 @@ export default function Index({
                 {/* ── Pendentes mais antigas ─────────────────────────────────── */}
                 {pendentesMaisAntigas.length > 0 && (
                     <Card title="⚠ Pendentes mais antigas — possíveis travadas" p={p}>
-                        <div className="overflow-x-auto">
+                        <div className="rolagem-x">
                             <table className="min-w-full text-sm">
                                 <thead>
                                     <tr style={{ borderBottom: `1px solid ${p.BORDER}` }}>

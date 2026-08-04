@@ -2,7 +2,12 @@
 <html lang="{{ str_replace('_', '-', app()->getLocale()) }}">
     <head>
         <meta charset="utf-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1">
+        {{-- viewport-fit=cover: usa a tela toda em celular com "notch" (iPhone) --}}
+        <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+
+        {{-- Pinta a barra do navegador no celular com a cor do tema --}}
+        <meta name="theme-color" media="(prefers-color-scheme: light)" content="#ffffff">
+        <meta name="theme-color" media="(prefers-color-scheme: dark)" content="#161b22">
 
         <title inertia>{{ config('app.name', 'Laravel') }}</title>
 

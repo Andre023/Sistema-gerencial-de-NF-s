@@ -10,3 +10,54 @@
 .scrollbar-oculta::-webkit-scrollbar {
     display: none;                /* Chrome / Safari / Edge */
 }
+
+/* ── Ações que só aparecem no hover ─────────────────────────────────────────
+   Nas linhas das tabelas os botões (editar, excluir, liberar…) ficam
+   invisíveis até o mouse passar por cima — no desktop isso limpa a tela.
+   Em celular e tablet NÃO existe hover: se a regra valesse lá, os botões
+   ficariam invisíveis e o operador não teria como agir na nota.
+   Por isso o padrão aqui é VISÍVEL, e só some em aparelho com mouse de
+   verdade. */
+.acoes-hover {
+    opacity: 1;
+}
+
+@media (hover: hover) and (pointer: fine) {
+    .acoes-hover {
+        opacity: 0;
+        transition: opacity 0.15s ease;
+    }
+    .group:hover .acoes-hover,
+    .group:focus-within .acoes-hover,
+    .acoes-hover:focus-within {
+        opacity: 1;
+    }
+}
+
+/* ── Rolagem lateral das tabelas ────────────────────────────────────────────
+   As tabelas largas rolam para o lado no celular. `contain` impede que o
+   gesto "vaze" e faça o navegador voltar a página anterior. */
+.rolagem-x {
+    overflow-x: auto;
+    overscroll-behavior-x: contain;
+    -webkit-overflow-scrolling: touch;
+}
+
+/* ── Celular ────────────────────────────────────────────────────────────── */
+@media (max-width: 639.98px) {
+    /* O Safari do iPhone dá zoom sozinho quando o campo tem fonte menor que
+       16px — a tela "pula" e o usuário precisa afastar de novo a cada toque.
+       16px no celular resolve, e de quebra o campo fica mais fácil de acertar. */
+    /* Os `:not()` não são enfeite: sem eles a regra perde em especificidade
+       para o `.text-sm` do Tailwind e o campo continua com 14px. */
+    input:not([type='checkbox']):not([type='radio']),
+    select:not([hidden]),
+    textarea:not([hidden]) {
+        font-size: 16px;
+    }
+}
+
+html {
+    /* Impede o iOS de aumentar a fonte sozinho ao girar a tela */
+    -webkit-text-size-adjust: 100%;
+}

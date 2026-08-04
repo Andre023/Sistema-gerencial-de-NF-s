@@ -101,12 +101,12 @@ function FormUsuario({ papeis, inicial, onSubmit, onCancelar, carregando, erros,
                     {papeis.map(r => <option key={r} value={r}>{PAPEL_LABEL[r]}</option>)}
                 </select>, erros.role
             )}
-            <div className="flex justify-end gap-3 pt-3 mt-1" style={{ borderTop: `1px solid ${p.BORDER}` }}>
-                <button type="button" onClick={onCancelar} className="px-4 py-2 text-sm" style={{ color: p.MUTED }}>
+            <div className="flex flex-col-reverse sm:flex-row sm:justify-end gap-2 sm:gap-3 pt-3 mt-1" style={{ borderTop: `1px solid ${p.BORDER}` }}>
+                <button type="button" onClick={onCancelar} className="px-4 py-2.5 text-sm rounded-lg" style={{ color: p.MUTED }}>
                     Cancelar
                 </button>
                 <button type="submit" disabled={carregando}
-                    className="px-5 py-2 text-sm font-medium text-white rounded-lg transition disabled:opacity-50"
+                    className="px-5 py-2.5 text-sm font-medium text-white rounded-lg transition disabled:opacity-50"
                     style={{ background: p.ACCENT }}>
                     {carregando ? 'Salvando...' : labelSubmit}
                 </button>
@@ -153,7 +153,14 @@ export default function Index({ usuarios, papeis }: Props) {
         router.delete(route('usuarios.destroy', u.id));
     };
 
-    const COLS = ['Nome', 'E-mail', 'Papel', ''];
+    // No celular a coluna de e-mail sai (ela sozinha fazia a tabela passar de
+    // 550px) e o endereço aparece embaixo do nome.
+    const COLS: { rotulo: string; cls?: string }[] = [
+        { rotulo: 'Nome' },
+        { rotulo: 'E-mail', cls: 'hidden sm:table-cell' },
+        { rotulo: 'Papel' },
+        { rotulo: '' },
+    ];
 
     return (
         <AuthenticatedLayout header={null}>
@@ -172,13 +179,13 @@ export default function Index({ usuarios, papeis }: Props) {
                 )}
             </Modal>
 
-            <div className="min-h-screen py-6 px-4 sm:px-6 lg:px-8 max-w-4xl mx-auto space-y-4 transition-colors duration-200"
+            <div className="flex-1 w-full py-6 px-4 sm:px-6 lg:px-8 max-w-4xl mx-auto space-y-4 transition-colors duration-200"
                 style={{ background: p.BG }}>
 
-                <div className="flex items-center justify-between">
+                <div className="flex flex-wrap items-center justify-between gap-3">
                     <h1 className="text-lg font-semibold" style={{ color: p.TEXT }}>Usuários</h1>
                     <button onClick={() => setModalNovo(true)}
-                        className="flex items-center gap-1.5 px-4 py-2 text-sm font-medium text-white rounded-lg transition"
+                        className="w-full sm:w-auto flex items-center justify-center gap-1.5 px-4 py-2.5 text-sm font-medium text-white rounded-lg transition"
                         style={{ background: p.ACCENT }}
                         onMouseEnter={e => (e.currentTarget.style.filter = 'brightness(1.1)')}
                         onMouseLeave={e => (e.currentTarget.style.filter = 'none')}>
@@ -187,34 +194,40 @@ export default function Index({ usuarios, papeis }: Props) {
                 </div>
 
                 <div className="rounded-xl overflow-hidden" style={{ background: p.SURFACE, border: `1px solid ${p.BORDER}` }}>
-                    <div className="overflow-x-auto">
+                    <div className="rolagem-x">
                         <table className="min-w-full">
                             <thead>
                                 <tr style={{ borderBottom: `1px solid ${p.BORDER}` }}>
                                     {COLS.map(c => (
-                                        <th key={c} className="px-4 py-2.5 text-left text-xs font-semibold uppercase tracking-wide whitespace-nowrap"
-                                            style={{ color: p.MUTED }}>{c}</th>
+                                        <th key={c.rotulo} className={`px-4 py-2.5 text-left text-xs font-semibold uppercase tracking-wide whitespace-nowrap ${c.cls ?? ''}`}
+                                            style={{ color: p.MUTED }}>{c.rotulo}</th>
                                     ))}
                                 </tr>
                             </thead>
                             <tbody>
                                 {usuarios.map(u => (
                                     <tr key={u.id} className="group" style={{ borderBottom: `1px solid ${p.BORDER}` }}>
-                                        <td className="px-4 py-3 text-sm font-medium" style={{ color: p.TEXT }}>
-                                            {u.name}
-                                            {u.id === meuId && (
-                                                <span className="ml-2 text-xs" style={{ color: p.MUTED }}>(você)</span>
-                                            )}
+                                        <td className="px-3 sm:px-4 py-3 text-sm font-medium max-w-[40vw] sm:max-w-none" style={{ color: p.TEXT }}>
+                                            <span className="block truncate">
+                                                {u.name}
+                                                {u.id === meuId && (
+                                                    <span className="ml-2 text-xs font-normal" style={{ color: p.MUTED }}>(você)</span>
+                                                )}
+                                            </span>
+                                            {/* O e-mail perde a coluna no celular e vem para cá */}
+                                            <span className="sm:hidden block text-xs truncate font-normal mt-0.5" style={{ color: p.MUTED }}>
+                                                {u.email}
+                                            </span>
                                         </td>
-                                        <td className="px-4 py-3 text-sm" style={{ color: p.MUTED }}>{u.email}</td>
-                                        <td className="px-4 py-3">
+                                        <td className="hidden sm:table-cell px-3 sm:px-4 py-3 text-sm max-w-[220px] truncate" style={{ color: p.MUTED }} title={u.email}>{u.email}</td>
+                                        <td className="px-3 sm:px-4 py-3">
                                             <span className="inline-flex items-center rounded px-2 py-0.5 text-xs font-medium"
                                                 style={{ background: papelCor(u.role, p) + '1a', color: papelCor(u.role, p), border: `1px solid ${papelCor(u.role, p)}40` }}>
                                                 {PAPEL_LABEL[u.role]}
                                             </span>
                                         </td>
-                                        <td className="px-4 py-3 text-right">
-                                            <div className="flex items-center justify-end gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                                        <td className="px-3 sm:px-4 py-3 text-right">
+                                            <div className="flex items-center justify-end gap-0.5 acoes-hover">
                                                 <button onClick={() => { setErros({}); setModalEditar(u); }} title="Editar"
                                                     className="p-1.5 rounded-lg transition" style={{ color: p.ACCENT }}
                                                     onMouseEnter={e => (e.currentTarget.style.background = p.ACCENT + '1a')}

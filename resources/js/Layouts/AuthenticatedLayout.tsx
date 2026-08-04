@@ -6,7 +6,7 @@ import OnlineSidebar from '@/Components/OnlineSidebar';
 import SinoNotificacoes from '@/Components/painel/SinoNotificacoes';
 import NotificacoesProvider from '@/Components/painel/NotificacoesProvider';
 import Avatar from '@/Components/painel/Avatar';
-import { Link, usePage } from '@inertiajs/react';
+import { Link, usePage, router } from '@inertiajs/react';
 import { PropsWithChildren, ReactNode, useState, useEffect } from 'react';
 import { User, Permissoes } from '@/types';
 import { useTheme } from '@/Contexts/ThemeContext';
@@ -56,6 +56,10 @@ export default function AuthenticatedLayout({
         }
     }, [flash]);
 
+    // Trocou de tela pelo menu do celular: fecha o menu, senão ele fica aberto
+    // por cima da página que acabou de abrir.
+    useEffect(() => router.on('navigate', () => setShowingNavDropdown(false)), []);
+
     // ── Tokens de cor conforme tema
     const navBg     = isDark ? 'bg-[#161b22]'   : 'bg-white';
     const navBorder = isDark ? 'border-[#21262d]' : 'border-gray-100';
@@ -68,15 +72,17 @@ export default function AuthenticatedLayout({
             {/* ── NAVBAR ── */}
             <nav className={`border-b ${navBorder} ${navBg} shadow-sm sticky top-0 z-40 transition-colors duration-200`}>
                 <div className="mx-auto max-w-screen-2xl px-4 sm:px-6 lg:px-8">
-                    <div className="flex h-16 justify-between items-center">
+                    <div className="flex h-16 justify-between items-center gap-2">
 
-                        {/* Logo + Links */}
-                        <div className="flex items-center gap-10">
+                        {/* Logo + Links — os links completos só cabem a partir de
+                            1024px (5 abas + e-mail + usuário); abaixo disso o menu
+                            vira a sanfona do celular. */}
+                        <div className="flex items-center gap-6 xl:gap-10 min-w-0">
                             <Link href="/" className="flex shrink-0 items-center">
                                 <ApplicationLogo className={`block h-8 w-auto fill-current ${isDark ? 'text-blue-400' : 'text-blue-700'}`} />
                             </Link>
 
-                            <div className="hidden sm:flex gap-2">
+                            <div className="hidden lg:flex gap-2">
                                 <NavLink href={route('notas.index')} active={route().current('notas.*')}>
                                     Notas
                                 </NavLink>
@@ -104,7 +110,7 @@ export default function AuthenticatedLayout({
                         </div>
 
                         {/* Direita: sino + toggle + usuário */}
-                        <div className="hidden sm:flex items-center gap-3">
+                        <div className="hidden lg:flex items-center gap-3 shrink-0">
 
                             <SinoNotificacoes />
 
@@ -123,7 +129,9 @@ export default function AuthenticatedLayout({
                                 {isDark ? <IconeSol /> : <IconeLua />}
                             </button>
 
-                            <span className={`text-sm ${isDark ? 'text-[#7d8590]' : 'text-gray-500'}`}>
+                            {/* O e-mail é o primeiro a sair quando o espaço aperta:
+                                o nome já aparece no botão ao lado. */}
+                            <span className={`hidden xl:block text-sm truncate max-w-[220px] ${isDark ? 'text-[#7d8590]' : 'text-gray-500'}`}>
                                 {user.email}
                             </span>
 
@@ -150,17 +158,20 @@ export default function AuthenticatedLayout({
                         </div>
 
                         {/* Mobile menu button */}
-                        <div className="sm:hidden flex items-center gap-2">
+                        <div className="lg:hidden flex items-center gap-1.5 shrink-0">
                             <SinoNotificacoes />
                             <button
                                 onClick={toggleTheme}
-                                className={`flex items-center justify-center w-8 h-8 rounded-lg transition ${isDark ? 'bg-[#21262d] text-yellow-400' : 'bg-gray-100 text-gray-600'}`}
+                                aria-label={isDark ? 'Mudar para modo claro' : 'Mudar para modo escuro'}
+                                className={`flex items-center justify-center w-10 h-10 rounded-lg transition ${isDark ? 'bg-[#21262d] text-yellow-400' : 'bg-gray-100 text-gray-600'}`}
                             >
                                 {isDark ? <IconeSol /> : <IconeLua />}
                             </button>
                             <button
                                 onClick={() => setShowingNavDropdown(s => !s)}
-                                className={`inline-flex items-center justify-center rounded-md p-2 transition ${isDark ? 'text-[#7d8590] hover:bg-[#21262d]' : 'text-gray-400 hover:bg-gray-100'}`}
+                                aria-label="Abrir menu"
+                                aria-expanded={showingNavDropdown}
+                                className={`inline-flex items-center justify-center rounded-md p-2.5 transition ${isDark ? 'text-[#7d8590] hover:bg-[#21262d]' : 'text-gray-400 hover:bg-gray-100'}`}
                             >
                                 <svg className="h-6 w-6" stroke="currentColor" fill="none" viewBox="0 0 24 24">
                                     {showingNavDropdown
@@ -172,8 +183,10 @@ export default function AuthenticatedLayout({
                     </div>
                 </div>
 
-                {/* Mobile menu */}
-                <div className={`${showingNavDropdown ? 'block' : 'hidden'} sm:hidden border-t ${navBorder}`}>
+                {/* Mobile menu — com altura máxima e rolagem própria: em tela
+                    baixa (celular deitado) a lista não cabia e o "Sair" ficava
+                    fora do alcance. */}
+                <div className={`${showingNavDropdown ? 'block' : 'hidden'} lg:hidden border-t ${navBorder} max-h-[calc(100dvh-4rem)] overflow-y-auto overscroll-contain`}>
                     <div className="space-y-1 px-4 pb-3 pt-2">
                         <ResponsiveNavLink href={route('notas.index')} active={route().current('notas.*')}>
                             Notas
@@ -212,7 +225,7 @@ export default function AuthenticatedLayout({
 
             {/* ── FLASH ── */}
             {flashMsg && (
-                <div className={`fixed top-20 right-4 z-50 rounded-lg px-4 py-3 shadow-lg text-sm font-medium transition-all ${
+                <div className={`fixed top-20 right-4 left-4 sm:left-auto sm:max-w-sm z-50 rounded-lg px-4 py-3 shadow-lg text-sm font-medium transition-all ${
                     flashMsg.sucesso
                         ? 'bg-green-50 border border-green-200 text-green-800'
                         : 'bg-red-50 border border-red-200 text-red-800'
@@ -236,7 +249,12 @@ export default function AuthenticatedLayout({
                             </div>
                         </header>
                     )}
-                    <main className="flex-1 min-w-0 overflow-auto">
+                    {/* `flex flex-col` aqui + `flex-1` no conteúdo da página: o
+                        fundo preenche a tela sem precisar de `min-h-screen` na
+                        página. Com `min-h-screen` a página media 100vh DENTRO de
+                        uma área que já era 100vh−navbar, e sobrava sempre uma
+                        rolagem de 64px que não levava a lugar nenhum. */}
+                    <main className="flex-1 min-w-0 overflow-auto flex flex-col">
                         {children}
                     </main>
                 </div>

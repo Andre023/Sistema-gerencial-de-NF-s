@@ -132,7 +132,7 @@ export default function ModalComentarios({ aberto, onFechar, baseUrl, titulo, on
                                     <span className="text-xs" style={{ color: p.MUTED }}>{quando(item.em)}</span>
                                     {item.pode_excluir && (
                                         <button onClick={() => excluir(item.id)} title="Excluir comentário"
-                                            className="ml-auto opacity-0 group-hover:opacity-100 transition-opacity p-0.5 rounded"
+                                            className="ml-auto acoes-hover p-1.5 -m-1 rounded"
                                             style={{ color: p.RED }}>
                                             <Icone path="M6 18L18 6M6 6l12 12" className="w-3 h-3" />
                                         </button>

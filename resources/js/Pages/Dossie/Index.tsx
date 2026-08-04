@@ -76,7 +76,7 @@ export default function Index({ busca, periodo, resultados, fornecedor, dossie }
         <AuthenticatedLayout header={null}>
             <Head title="Dossiê do fornecedor" />
 
-            <div className="min-h-screen py-6 px-4 sm:px-6 lg:px-8 max-w-screen-xl mx-auto space-y-5 transition-colors duration-200"
+            <div className="flex-1 w-full py-6 px-4 sm:px-6 lg:px-8 max-w-screen-xl mx-auto space-y-5 transition-colors duration-200"
                 style={{ background: p.BG }}>
 
                 <div>
@@ -132,7 +132,7 @@ export default function Index({ busca, periodo, resultados, fornecedor, dossie }
                                 </h2>
                                 {fornecedor.cnpj && <p className="text-xs mt-0.5" style={{ color: p.MUTED }}>CNPJ {fornecedor.cnpj}</p>}
                             </div>
-                            <div className="flex gap-1.5">
+                            <div className="flex flex-wrap gap-1.5">
                                 {[30, 90, 180, 365].map(d => (
                                     <button key={d} onClick={() => mudarPeriodo(d)}
                                         className="text-xs font-medium px-2.5 py-1.5 rounded-lg transition"
@@ -189,7 +189,7 @@ export default function Index({ busca, periodo, resultados, fornecedor, dossie }
                                     <div className="space-y-3">
                                         {dossie.divergencias.map(d => (
                                             <div key={d.motivo} className="flex items-center gap-3">
-                                                <span className="text-xs w-24 truncate shrink-0 text-right" style={{ color: p.MUTED }}>{d.motivo}</span>
+                                                <span className="text-xs w-16 sm:w-24 truncate shrink-0 text-right" style={{ color: p.MUTED }}>{d.motivo}</span>
                                                 <div className="flex-1 rounded-full h-5 overflow-hidden" style={{ background: p.BAR_BG }}>
                                                     <div className="h-5 rounded-full flex items-center justify-end pr-2"
                                                         style={{
@@ -199,7 +199,7 @@ export default function Index({ busca, periodo, resultados, fornecedor, dossie }
                                                         <span className="text-xs font-semibold text-white">{d.total}</span>
                                                     </div>
                                                 </div>
-                                                <span className="text-[11px] w-24 shrink-0"
+                                                <span className="text-[11px] w-16 sm:w-24 shrink-0"
                                                     style={{ color: d.vezes && d.vezes >= 1.5 ? p.RED : p.MUTED }}>
                                                     {d.vezes !== null
                                                         ? `${d.vezes.toString().replace('.', ',')}× a rede`
@@ -282,7 +282,7 @@ export default function Index({ busca, periodo, resultados, fornecedor, dossie }
 
                         {/* ── Últimas notas ── */}
                         <Card title="Últimas notas" p={p}>
-                            <div className="overflow-x-auto">
+                            <div className="rolagem-x">
                                 <table className="min-w-full">
                                     <thead>
                                         <tr style={{ borderBottom: `1px solid ${p.BORDER}` }}>

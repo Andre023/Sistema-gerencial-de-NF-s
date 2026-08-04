@@ -45,7 +45,7 @@ export default function SinoNotificacoes() {
                 type="button"
                 onClick={() => setAberto(a => !a)}
                 title={estado.ativas ? 'Notificações' : 'Notificações desligadas no perfil'}
-                className={`relative flex items-center justify-center w-9 h-9 rounded-lg transition-all duration-200 ${
+                className={`relative flex items-center justify-center w-10 h-10 lg:w-9 lg:h-9 rounded-lg transition-all duration-200 ${
                     isDark ? 'bg-[#21262d] text-[#e6edf3] hover:bg-[#30363d]' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
                 }`}
             >
@@ -62,8 +62,11 @@ export default function SinoNotificacoes() {
             </button>
 
             {aberto && (
+                /* No celular a caixa é larga demais para pendurar no sino (ela
+                   sairia pela esquerda da tela): vira uma faixa presa às duas
+                   bordas, logo abaixo da navbar. No desktop segue pendurada. */
                 <div
-                    className="absolute right-0 mt-2 w-[22rem] rounded-lg shadow-xl overflow-hidden z-50"
+                    className="fixed left-3 right-3 top-[4.25rem] sm:absolute sm:left-auto sm:right-0 sm:top-auto sm:mt-2 sm:w-[22rem] rounded-lg shadow-xl overflow-hidden z-50"
                     style={{ background: p.SURFACE, border: `1px solid ${p.BORDER}` }}
                 >
                     <div
@@ -111,7 +114,7 @@ export default function SinoNotificacoes() {
                         </p>
                     )}
 
-                    <div className="max-h-[26rem] overflow-y-auto">
+                    <div className="max-h-[60vh] sm:max-h-[26rem] overflow-y-auto overscroll-contain">
                         {estado.itens.length === 0 ? (
                             <p className="px-4 py-8 text-center text-sm" style={{ color: p.MUTED }}>
                                 {estado.ativas

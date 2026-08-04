@@ -50,13 +50,13 @@ export function Card({ title, children, className = '', action, p }: {
         <div className={`rounded-xl overflow-hidden ${className}`}
             style={{ background: p.SURFACE, border: `1px solid ${p.BORDER}` }}>
             {title && (
-                <div className="flex items-center justify-between px-5 py-3.5 gap-3 flex-wrap"
+                <div className="flex items-center justify-between px-4 sm:px-5 py-3.5 gap-3 flex-wrap"
                     style={{ borderBottom: `1px solid ${p.BORDER}` }}>
                     <h3 className="text-sm font-semibold" style={{ color: p.TEXT }}>{title}</h3>
                     {action}
                 </div>
             )}
-            <div className="p-5">{children}</div>
+            <div className="p-4 sm:p-5">{children}</div>
         </div>
     );
 }
@@ -132,7 +132,11 @@ export function Linha({ dados, cor, altura = 200, onPonto, p }: {
     const gradId = `grad-${cor.replace('#', '')}-${altura}`;
 
     return (
-        <svg viewBox={`0 0 ${w} ${h}`} className="w-full" style={{ height: altura }}>
+        /* O desenho tem 800 de largura interna. Espremido numa tela de 375px os
+           rótulos dos eixos viravam borrões de 4px — aqui ele mantém um mínimo
+           legível e rola para o lado no celular. */
+        <div className="rolagem-x">
+        <svg viewBox={`0 0 ${w} ${h}`} className="w-full min-w-[560px]" style={{ height: altura }}>
             <defs>
                 <linearGradient id={gradId} x1="0" y1="0" x2="0" y2="1">
                     <stop offset="0%" stopColor={cor} stopOpacity="0.25" />
@@ -166,6 +170,7 @@ export function Linha({ dados, cor, altura = 200, onPonto, p }: {
                 );
             })}
         </svg>
+        </div>
     );
 }
 
@@ -186,7 +191,7 @@ export function BarrasH({ items, cor, p }: {
 
                 return (
                     <div key={i} className="flex items-center gap-2.5">
-                        <span className="text-xs w-28 sm:w-32 truncate shrink-0 text-right"
+                        <span className="text-xs w-20 sm:w-32 truncate shrink-0 text-right"
                             style={{ color: p.MUTED }} title={item.label}>
                             {item.label}
                         </span>
@@ -228,7 +233,7 @@ export function BarrasV({ items, altura = 160, cor, p }: {
     }
 
     return (
-        <div className="flex items-end gap-1 overflow-x-auto pb-1" style={{ height: altura + 40 }}>
+        <div className="flex items-end gap-1 rolagem-x pb-1" style={{ height: altura + 40 }}>
             {items.map((item, i) => {
                 const h = Math.max((item.valor / maximo) * altura, item.valor > 0 ? 4 : 0);
                 return (
@@ -289,7 +294,7 @@ export function Donut({ itens, size = 120, p }: {
                 </text>
                 <text x="60" y="70" textAnchor="middle" fontSize="9" fill={p.MUTED}>total</text>
             </svg>
-            <div className="flex flex-col gap-2 min-w-0">
+            <div className="flex flex-col gap-2 min-w-0 flex-1 basis-[220px]">
                 {itens.map((item, i) => (
                     <div key={i} className="flex items-center gap-2 text-xs" style={{ color: p.MUTED }}>
                         <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ background: item.cor }} />

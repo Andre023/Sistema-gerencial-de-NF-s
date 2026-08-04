@@ -15,21 +15,31 @@ export default function Modal({ aberto, onFechar, titulo, children, p }: {
     if (!aberto) return null;
 
     return (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-            <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={onFechar} />
-            <div className="relative rounded-2xl shadow-2xl w-full max-w-lg"
+        /* No celular o modal encosta embaixo (estilo "gaveta"): fica perto do
+           polegar e ocupa a largura toda. No desktop segue centralizado. */
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4">
+            {/* touch-none: sem isso, arrastar o dedo sobre o fundo escuro rolava
+                a página lá atrás enquanto o modal estava aberto. */}
+            <div className="absolute inset-0 bg-black/50 backdrop-blur-sm touch-none" onClick={onFechar} />
+
+            {/* Altura limitada + corpo com rolagem própria: formulário grande em
+                tela pequena antes vazava para fora e não dava para rolar. */}
+            <div className="relative rounded-t-2xl sm:rounded-2xl shadow-2xl w-full sm:max-w-lg flex flex-col max-h-[92dvh] sm:max-h-[88dvh]"
                 style={{ background: p.SURFACE, border: `1px solid ${p.BORDER}` }}>
-                <div className="flex items-center justify-between px-6 pt-5 pb-4"
+                <div className="flex items-center justify-between gap-3 px-4 sm:px-6 pt-5 pb-4 shrink-0"
                     style={{ borderBottom: `1px solid ${p.BORDER}` }}>
-                    <h3 className="text-sm font-semibold" style={{ color: p.TEXT }}>{titulo}</h3>
-                    <button onClick={onFechar} className="p-0.5 rounded transition-colors"
+                    <h3 className="text-sm font-semibold min-w-0" style={{ color: p.TEXT }}>{titulo}</h3>
+                    <button onClick={onFechar} aria-label="Fechar"
+                        className="p-1.5 -m-1.5 rounded transition-colors shrink-0"
                         style={{ color: p.MUTED }}
                         onMouseEnter={e => (e.currentTarget.style.color = p.TEXT)}
                         onMouseLeave={e => (e.currentTarget.style.color = p.MUTED)}>
                         <Icone path="M6 18L18 6M6 6l12 12" />
                     </button>
                 </div>
-                <div className="px-6 py-5">{children}</div>
+                <div className="px-4 sm:px-6 py-5 overflow-y-auto overscroll-contain pb-[max(1.25rem,env(safe-area-inset-bottom))]">
+                    {children}
+                </div>
             </div>
         </div>
     );

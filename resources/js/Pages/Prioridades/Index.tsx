@@ -47,7 +47,7 @@ export default function Index({ prioritarios, resultados, busca }: Props) {
         <AuthenticatedLayout header={null}>
             <Head title="Prioridades" />
 
-            <div className="min-h-screen py-6 px-4 sm:px-6 lg:px-8 max-w-3xl mx-auto space-y-5 transition-colors duration-200"
+            <div className="flex-1 w-full py-6 px-4 sm:px-6 lg:px-8 max-w-3xl mx-auto space-y-5 transition-colors duration-200"
                 style={{ background: p.BG }}>
 
                 <div>
@@ -104,7 +104,7 @@ export default function Index({ prioritarios, resultados, busca }: Props) {
                                     <span className="text-sm truncate" style={{ color: p.TEXT }}>{f.nome}</span>
                                 </div>
                                 <button onClick={() => alternar(f)}
-                                    className="text-xs px-2.5 py-1 rounded-lg transition opacity-0 group-hover:opacity-100"
+                                    className="text-xs px-3 py-2 rounded-lg transition acoes-hover"
                                     style={{ color: p.RED }}
                                     onMouseEnter={e => (e.currentTarget.style.background = p.RED + '1a')}
                                     onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}>

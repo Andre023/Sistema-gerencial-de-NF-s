@@ -106,7 +106,7 @@ function FormNota({ fornecedores, opcoes, inicial, origemDefault, onSubmit, onCa
                     <span className="text-sm" style={{ color: p.MUTED }}>Fornecedor novo — cadastra ao lançar</span>
                 </label>
             </div>
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 {campo('Loja', true,
                     <select value={form.loja} onChange={e => set('loja', Number(e.target.value) || '')}
                         className="block w-full rounded-lg text-sm px-3 py-2 outline-none"
@@ -128,7 +128,7 @@ function FormNota({ fornecedores, opcoes, inicial, origemDefault, onSubmit, onCa
                 <span className="block text-sm font-medium mb-1.5" style={{ color: p.MUTED }}>
                     CEASA <span className="font-normal">(opcional — compras também pode abrir cards)</span>
                 </span>
-                <div className="flex gap-2">
+                <div className="flex flex-wrap gap-2">
                     {[
                         { v: 3, l: 'CEASA', t: 'CEASA sem saber se é 1 ou 2' },
                         { v: 1, l: 'CEASA 1', t: '' },
@@ -137,7 +137,7 @@ function FormNota({ fornecedores, opcoes, inicial, origemDefault, onSubmit, onCa
                         const ativo = form.ceasa === v;
                         return (
                             <button key={v} type="button" title={t || undefined} onClick={() => set('ceasa', ativo ? 0 : v)}
-                                className="px-4 py-2 text-sm font-medium rounded-lg transition"
+                                className="flex-1 sm:flex-none px-4 py-2.5 text-sm font-medium rounded-lg transition"
                                 style={{
                                     background: ativo ? p.PURPLE + '22' : p.INPUT_BG,
                                     color: ativo ? p.PURPLE : p.MUTED,
@@ -155,12 +155,14 @@ function FormNota({ fornecedores, opcoes, inicial, origemDefault, onSubmit, onCa
                     className="block w-full rounded-lg text-sm px-3 py-2 outline-none resize-none"
                     style={inputStyle()} />
             )}
-            <div className="flex justify-end gap-3 pt-3 mt-1" style={{ borderTop: `1px solid ${p.BORDER}` }}>
-                <button type="button" onClick={onCancelar} className="px-4 py-2 text-sm" style={{ color: p.MUTED }}>
+            {/* No celular o botão de confirmar vem primeiro e ocupa a linha
+                inteira — é o que a pessoa quer tocar; "Cancelar" fica embaixo. */}
+            <div className="flex flex-col-reverse sm:flex-row sm:justify-end gap-2 sm:gap-3 pt-3 mt-1" style={{ borderTop: `1px solid ${p.BORDER}` }}>
+                <button type="button" onClick={onCancelar} className="px-4 py-2.5 text-sm rounded-lg" style={{ color: p.MUTED }}>
                     Cancelar
                 </button>
                 <button type="submit" disabled={carregando}
-                    className="px-5 py-2 text-sm font-medium text-white rounded-lg transition disabled:opacity-50"
+                    className="px-5 py-2.5 text-sm font-medium text-white rounded-lg transition disabled:opacity-50"
                     style={{ background: p.ACCENT }}>
                     {carregando ? 'Salvando...' : labelSubmit}
                 </button>
@@ -240,7 +242,7 @@ function ModalCards({ nota, onFechar, can, tiposCompras, isDark, p }: {
 
     const btn = (label: string, cor: string, onClick: () => void) => (
         <button onClick={onClick} disabled={ocupado}
-            className="px-2.5 py-1 text-xs font-medium rounded-md transition disabled:opacity-40"
+            className="px-2.5 py-1.5 text-xs font-medium rounded-md transition disabled:opacity-40"
             style={{ background: cor + '1a', color: cor, border: `1px solid ${cor}44` }}>
             {label}
         </button>
@@ -250,7 +252,7 @@ function ModalCards({ nota, onFechar, can, tiposCompras, isDark, p }: {
         <Modal aberto={!!nota} onFechar={onFechar} titulo={`Nota ${nota.numero_nota} — ${nota.fornecedor.nome}`} p={p}>
             <div className="space-y-4">
 
-                <div className="flex items-center gap-2 text-sm">
+                <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm">
                     <span className="font-medium px-2 py-0.5 rounded" style={{ background: statusCor + '1a', color: statusCor, border: `1px solid ${statusCor}44` }}>
                         {STATUS_NOTA_LABEL[nota.status]}
                     </span>
@@ -265,14 +267,18 @@ function ModalCards({ nota, onFechar, can, tiposCompras, isDark, p }: {
                         </p>
                     )}
                     {nota.cards.map(c => (
-                        <div key={c.id} className="flex items-center gap-2 rounded-lg px-3 py-2"
+                        /* No celular vira duas linhas: badge+detalhe em cima, os
+                           botões embaixo — lado a lado eles espremiam o texto. */
+                        <div key={c.id} className="flex flex-col sm:flex-row sm:items-center gap-2 rounded-lg px-3 py-2"
                             style={{ border: `1px solid ${p.BORDER}`, background: p.SURFACE }}>
-                            <CardBadge card={c} isDark={isDark} />
-                            <span className="text-xs truncate flex-1" style={{ color: p.MUTED }} title={c.detalhe ?? ''}>
-                                {c.detalhe || ''}
-                                {c.reaberturas > 0 && <em> · reaberto {c.reaberturas}x</em>}
-                            </span>
-                            <div className="flex items-center gap-1.5 shrink-0">
+                            <div className="flex items-center gap-2 min-w-0 flex-1">
+                                <CardBadge card={c} isDark={isDark} />
+                                <span className="text-xs truncate" style={{ color: p.MUTED }} title={c.detalhe ?? ''}>
+                                    {c.detalhe || ''}
+                                    {c.reaberturas > 0 && <em> · reaberto {c.reaberturas}x</em>}
+                                </span>
+                            </div>
+                            <div className="flex flex-wrap items-center gap-1.5 shrink-0">
                                 {c.status === 'aberto' && podeCorrigirEste(c) && btn('Corrigido ✓', p.GREEN, () => corrigir(c))}
                                 {c.status === 'aberto' && can.gerirCards && btn('Resolver', p.GREEN, () => resolver(c))}
                                 {c.status === 'aberto' && can.gerirCards && btn('Excluir', p.RED, () => excluirCard(c))}
@@ -284,19 +290,19 @@ function ModalCards({ nota, onFechar, can, tiposCompras, isDark, p }: {
 
                 {/* ── Abrir novo card (pré-lote; e compras quando a nota é de CEASA) ── */}
                 {!liberada && tiposParaAbrir.length > 0 && (
-                    <form onSubmit={abrirCard} className="flex items-center gap-2 pt-3" style={{ borderTop: `1px solid ${p.BORDER}` }}>
+                    <form onSubmit={abrirCard} className="flex flex-wrap items-center gap-2 pt-3" style={{ borderTop: `1px solid ${p.BORDER}` }}>
                         <select value={tipoNovo} onChange={e => setTipoNovo(e.target.value as TipoCard)}
-                            className="rounded-lg text-sm px-2.5 py-1.5 outline-none"
+                            className="w-full sm:w-auto rounded-lg text-sm px-2.5 py-2 outline-none"
                             style={{ background: p.INPUT_BG, color: p.TEXT, border: `1px solid ${p.INPUT_BORDER}` }}>
                             <option value="">Divergência...</option>
                             {tiposParaAbrir.map(t => <option key={t} value={t}>{TIPO_CARD_LABEL[t]}</option>)}
                         </select>
                         <input type="text" value={detalheNovo} onChange={e => setDetalheNovo(e.target.value)}
                             placeholder="Detalhe (opcional)" maxLength={500}
-                            className="flex-1 rounded-lg text-sm px-3 py-1.5 outline-none"
+                            className="w-full sm:w-auto sm:flex-1 min-w-0 rounded-lg text-sm px-3 py-2 outline-none"
                             style={{ background: p.INPUT_BG, color: p.TEXT, border: `1px solid ${p.INPUT_BORDER}` }} />
                         <button type="submit" disabled={!tipoNovo || ocupado}
-                            className="px-3 py-1.5 text-sm font-medium text-white rounded-lg disabled:opacity-40"
+                            className="w-full sm:w-auto px-3 py-2 text-sm font-medium text-white rounded-lg disabled:opacity-40"
                             style={{ background: p.ACCENT }}>
                             Abrir card
                         </button>
@@ -307,10 +313,10 @@ function ModalCards({ nota, onFechar, can, tiposCompras, isDark, p }: {
 
                 {/* ── Liberar ── */}
                 {can.liberarNota && !liberada && (
-                    <div className="flex justify-end pt-3" style={{ borderTop: `1px solid ${p.BORDER}` }}>
+                    <div className="flex justify-stretch sm:justify-end pt-3" style={{ borderTop: `1px solid ${p.BORDER}` }}>
                         <button onClick={liberar} disabled={!podeLiberar || ocupado}
                             title={podeLiberar ? 'Liberar a nota para o recebimento' : 'Resolva os cards em aberto antes de liberar'}
-                            className="px-4 py-2 text-sm font-medium text-white rounded-lg transition disabled:opacity-40"
+                            className="w-full sm:w-auto px-4 py-2.5 text-sm font-medium text-white rounded-lg transition disabled:opacity-40"
                             style={{ background: p.GREEN }}>
                             ✓ Liberar nota
                         </button>
@@ -389,12 +395,12 @@ function ModalEditarLiberada({ nota, can, onFechar, p }: {
                         </div>
                     </div>
                 )}
-                <div className="flex justify-end gap-3 pt-3" style={{ borderTop: `1px solid ${p.BORDER}` }}>
-                    <button type="button" onClick={onFechar} className="px-4 py-2 text-sm" style={{ color: p.MUTED }}>
+                <div className="flex flex-col-reverse sm:flex-row sm:justify-end gap-2 sm:gap-3 pt-3" style={{ borderTop: `1px solid ${p.BORDER}` }}>
+                    <button type="button" onClick={onFechar} className="px-4 py-2.5 text-sm rounded-lg" style={{ color: p.MUTED }}>
                         Cancelar
                     </button>
                     <button type="button" onClick={salvar} disabled={salvando}
-                        className="px-5 py-2 text-sm font-medium text-white rounded-lg transition disabled:opacity-50"
+                        className="px-5 py-2.5 text-sm font-medium text-white rounded-lg transition disabled:opacity-50"
                         style={{ background: p.ACCENT }}>
                         {salvando ? 'Salvando...' : 'Salvar'}
                     </button>
@@ -412,18 +418,27 @@ function opcoesTipos(nota: Nota): TipoCard[] {
     return base.filter(t => !ativos.includes(t));
 }
 
-// ─── Linha da fila ──────────────────────────────────────────────────────────────
+// ─── Ações da nota ──────────────────────────────────────────────────────────────
 
-function LinhaFila({ nota, onCards, onComentar, onEditar, onExcluir, onLiberar, onVisualizar, onCancelar, onObservacao, usuarioId, can, isDark, p }: {
+/** O que a linha da tabela e o cartão do celular precisam receber. */
+interface AcoesProps {
     nota: Nota; onCards: (n: Nota) => void; onComentar: (n: Nota) => void;
     onEditar: (n: Nota) => void; onExcluir: (n: Nota) => void; onLiberar: (n: Nota) => void;
     onVisualizar: (n: Nota) => void; onCancelar: (n: Nota) => void;
     onObservacao: (n: Nota) => void; usuarioId: number;
-    can: Permissoes; isDark: boolean; p: Palette;
-}) {
-    const cor = nivelCor(nota.nivel, p);
-    const rowBg = nota.nivel === 'normal' ? 'transparent' : cor + (nota.nivel === 'critico' ? '1f' : '12');
-    const ativos = nota.cards.filter(c => c.status !== 'resolvido');
+    can: Permissoes; p: Palette;
+}
+
+/**
+ * Os botões da nota — os mesmos na tabela do desktop e no cartão do celular.
+ *
+ * A classe `acoes-hover` (em app.css) é o pulo do gato: no desktop os botões
+ * secundários continuam aparecendo só no hover, mas em aparelho sem mouse eles
+ * nascem visíveis. Antes, com `opacity-0 group-hover:opacity-100`, no celular
+ * eles ficavam invisíveis e a nota virava só leitura.
+ */
+function AcoesNota({ nota, onCards, onComentar, onEditar, onExcluir, onLiberar, onVisualizar, onCancelar, onObservacao, usuarioId, can, p, alinhar }:
+    AcoesProps & { alinhar: 'start' | 'end' }) {
 
     // Reserva (🙋‍♂️): se ninguém pegou, só aparece no hover; reservada, fica fixa.
     const olhando = nota.visualizando_por;
@@ -435,6 +450,323 @@ function LinhaFila({ nota, onCards, onComentar, onEditar, onExcluir, onLiberar, 
             ? `${olhando.name.split(' ')[0]} está olhando esta nota`
             : 'Avisar que você está olhando esta nota';
 
+    // Alvo de dedo no celular, discreto no desktop (onde a tabela é densa)
+    const btn = 'p-2.5 lg:p-1.5 rounded-lg transition';
+
+    return (
+        <div className={`flex items-center gap-0.5 ${alinhar === 'end' ? 'justify-end' : ''}`}>
+            {/* Reserva: clicável só p/ papéis operacionais; visitante só vê o indicador */}
+            {can.interagir ? (
+                <button onClick={() => onVisualizar(nota)} title={reservaTitulo}
+                    className={`flex items-center ${btn} ${olhando ? '' : 'acoes-hover'}`}
+                    style={{ background: olhando ? reservaCor + '22' : 'transparent' }}
+                    onMouseEnter={e => !olhando && (e.currentTarget.style.background = p.HOVER_ROW)}
+                    onMouseLeave={e => !olhando && (e.currentTarget.style.background = 'transparent')}>
+                    {olhando
+                        ? <Avatar user={olhando} size={22} ring={reservaCor} />
+                        : <span style={{ color: p.MUTED }}>
+                            <Icone path="M2.036 12.322a1.012 1.012 0 010-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178z M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                          </span>}
+                </button>
+            ) : olhando ? (
+                <span className="flex items-center p-1.5" title={reservaTitulo}>
+                    <Avatar user={olhando} size={22} ring={reservaCor} />
+                </span>
+            ) : null}
+
+            <button onClick={() => onComentar(nota)} title="Comentários"
+                className={`flex items-center gap-1 ${btn} ${nota.comentarios_count > 0 ? '' : 'acoes-hover'}`}
+                style={{ color: nota.comentarios_count > 0 ? p.ACCENT : p.MUTED }}
+                onMouseEnter={e => (e.currentTarget.style.background = p.HOVER_ROW)}
+                onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}>
+                <Icone path="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.8 9.8 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+                {nota.comentarios_count > 0 && <span className="text-xs font-medium">{nota.comentarios_count}</span>}
+            </button>
+
+            <div className="flex items-center gap-0.5 acoes-hover">
+                <button onClick={() => onCards(nota)} title="Cards / divergências"
+                    className={btn} style={{ color: p.AMBER }}
+                    onMouseEnter={e => (e.currentTarget.style.background = p.AMBER + '1a')}
+                    onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}>
+                    <Icone path="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
+                </button>
+                {can.liberarNota && nota.status === 'pendente' && (
+                    <button onClick={() => onLiberar(nota)} title="Liberar nota"
+                        className={btn} style={{ color: p.GREEN }}
+                        onMouseEnter={e => (e.currentTarget.style.background = p.GREEN + '1a')}
+                        onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}>
+                        <Icone path="M5 13l4 4L19 7" />
+                    </button>
+                )}
+                {can.editarNotas ? (
+                    <button onClick={() => onEditar(nota)} title="Editar"
+                        className={btn} style={{ color: p.ACCENT }}
+                        onMouseEnter={e => (e.currentTarget.style.background = p.ACCENT + '1a')}
+                        onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}>
+                        <Icone path="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                    </button>
+                ) : can.editarObservacao ? (
+                    /* Compras não edita a nota, mas registra o combinado na observação */
+                    <button onClick={() => onObservacao(nota)} title="Editar observação"
+                        className={btn} style={{ color: p.ACCENT }}
+                        onMouseEnter={e => (e.currentTarget.style.background = p.ACCENT + '1a')}
+                        onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}>
+                        <Icone path="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                    </button>
+                ) : null}
+                {/* Fornecedor cancelou a NF: sai da fila e vai para "Canceladas" */}
+                {can.cancelarNota && (
+                    <button onClick={() => onCancelar(nota)} title="Nota cancelada pelo fornecedor"
+                        className={btn} style={{ color: p.ORANGE }}
+                        onMouseEnter={e => (e.currentTarget.style.background = p.ORANGE + '1a')}
+                        onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}>
+                        <Icone path="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636" />
+                    </button>
+                )}
+                {can.gerenciarNotas && (
+                    <button onClick={() => onExcluir(nota)} title="Excluir"
+                        className={btn} style={{ color: p.RED }}
+                        onMouseEnter={e => (e.currentTarget.style.background = p.RED + '1a')}
+                        onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}>
+                        <Icone path="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                    </button>
+                )}
+            </div>
+        </div>
+    );
+}
+
+/** Selos que andam junto com o número da nota (CEASA, idade, fila anterior). */
+function SelosNota({ nota, p }: { nota: Nota; p: Palette }) {
+    const cor = nivelCor(nota.nivel, p);
+    return (
+        <>
+            {nota.ceasa > 0 && (
+                <span className="inline-flex items-center rounded px-1.5 py-0.5 text-[10px] font-bold tracking-wide"
+                    style={{ background: p.PURPLE + '22', color: p.PURPLE, border: `1px solid ${p.PURPLE}44` }}
+                    title="Nota de CEASA — compras pode abrir cards">
+                    {nota.ceasa === 3 ? 'CEASA' : `CEASA ${nota.ceasa}`}
+                </span>
+            )}
+            {nota.nivel !== 'normal' && (
+                <span className="inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-xs font-semibold whitespace-nowrap"
+                    style={{ background: cor + '22', color: cor, border: `1px solid ${cor}44` }}
+                    title={nota.origem_anterior
+                        ? `Nesta fila desde ${nota.origem_alterada_em ? new Date(nota.origem_alterada_em).toLocaleDateString('pt-BR') : '—'}`
+                        : `Aberta desde ${nota.data_origem}`}>
+                    {idadeTexto(nota.dias_aberta)}
+                </span>
+            )}
+            {/* Trocou de fila: o relógio reiniciou aqui, mas ela esperou na fila anterior */}
+            {nota.origem_anterior && (
+                <span className="inline-flex items-center rounded px-1.5 py-0.5 text-[10px] font-medium whitespace-nowrap"
+                    style={{ background: p.MUTED + '1a', color: p.MUTED, border: `1px solid ${p.MUTED}33` }}
+                    title={`Esteve em ${ORIGEM_LABEL[nota.origem_anterior]} desde ${nota.origem_anterior_data} — a contagem de cores recomeçou ao mudar de fila`}>
+                    {ORIGEM_LABEL[nota.origem_anterior]} desde {nota.origem_anterior_data}
+                </span>
+            )}
+        </>
+    );
+}
+
+// ─── Cartão da fila (celular) ───────────────────────────────────────────────────
+
+/**
+ * A mesma nota da tabela, empilhada. Abaixo de 1024px as 7 colunas só cabiam
+ * rolando para o lado — e rolar uma fila inteira de lado, com o caminhão na
+ * porta, não é trabalho: é obstáculo.
+ */
+function CartaoFila(props: AcoesProps & { isDark: boolean }) {
+    const { nota, can, p, isDark, onCards } = props;
+    const cor = nivelCor(nota.nivel, p);
+    const ativos = nota.cards.filter(c => c.status !== 'resolvido');
+
+    return (
+        <div className="group px-4 py-3 space-y-2"
+            style={{
+                borderBottom: `1px solid ${p.BORDER}`,
+                background: nota.nivel === 'normal' ? 'transparent' : cor + (nota.nivel === 'critico' ? '1f' : '12'),
+            }}>
+
+            <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                <span className="font-semibold text-sm" style={{ color: p.TEXT }}>{nota.numero_nota}</span>
+                <SelosNota nota={nota} p={p} />
+            </div>
+
+            <div className="flex items-center gap-1.5 text-sm min-w-0" style={{ color: p.TEXT }}>
+                {nota.fornecedor.prioridade && (
+                    <span title="Fornecedor prioritário" style={{ color: p.AMBER }}>★</span>
+                )}
+                <span className="truncate">{nota.fornecedor.nome}</span>
+            </div>
+
+            <button onClick={() => onCards(nota)} className="flex flex-wrap items-center gap-1 text-left"
+                title="Abrir cards da nota">
+                {ativos.length > 0
+                    ? ativos.map(c => <CardBadge key={c.id} card={c} isDark={isDark} />)
+                    : nota.status === 'reconferir'
+                        ? <span className="inline-flex items-center gap-1 rounded px-2 py-0.5 text-xs font-medium"
+                            style={{ background: p.AMBER + '22', color: p.AMBER, border: `1px solid ${p.AMBER}44` }}>
+                            Reconferir
+                          </span>
+                        : <span className="text-xs" style={{ color: p.MUTED }}>aguardando análise</span>}
+            </button>
+
+            {nota.observacao && (
+                <p className="text-xs break-words" style={{ color: p.MUTED }}>{nota.observacao}</p>
+            )}
+
+            <div className="flex items-center justify-between gap-2 pt-1">
+                <span className="text-xs truncate" style={{ color: p.MUTED }}>
+                    {lojaNome(nota.loja)} · {nota.user.name.split(' ')[0]}
+                </span>
+                <AcoesNota {...props} can={can} alinhar="end" />
+            </div>
+        </div>
+    );
+}
+
+/** Botão de ícone dos cartões de histórico (liberadas / canceladas). */
+function BotaoIcone({ titulo, cor, path, onClick, sempre, children }: {
+    titulo: string; cor: string; path: string; onClick: () => void;
+    /** true = visível sempre; false = só no hover (desktop) */
+    sempre?: boolean; children?: React.ReactNode;
+}) {
+    return (
+        <button onClick={onClick} title={titulo}
+            className={`inline-flex items-center gap-1 p-2.5 lg:p-1.5 rounded-lg transition ${sempre ? '' : 'acoes-hover'}`}
+            style={{ color: cor }}
+            onMouseEnter={e => (e.currentTarget.style.background = cor + '1a')}
+            onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}>
+            <Icone path={path} />
+            {children}
+        </button>
+    );
+}
+
+const ICONE_COMENTARIO = 'M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.8 9.8 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z';
+const ICONE_EDITAR = 'M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z';
+const ICONE_VOLTAR = 'M9 15L3 9m0 0l6-6M3 9h12a6 6 0 010 12h-3';
+const ICONE_LIXEIRA = 'M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16';
+
+/** Nota liberada, no formato de cartão (celular). */
+function CartaoLiberada({ nota, can, isDark, p, onCards, onComentar, onEditarObs, onDevolver, onExcluir }: {
+    nota: Nota; can: Permissoes; isDark: boolean; p: Palette;
+    onCards: (n: Nota) => void; onComentar: (n: Nota) => void; onEditarObs: (n: Nota) => void;
+    onDevolver: (n: Nota) => void; onExcluir: (n: Nota) => void;
+}) {
+    return (
+        <div className="group px-4 py-3 space-y-2 opacity-80" style={{ borderBottom: `1px solid ${p.BORDER}` }}>
+            <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                <span className="font-semibold text-sm line-through" style={{ color: p.TEXT }}>{nota.numero_nota}</span>
+                {nota.ceasa > 0 && (
+                    <span className="inline-flex items-center rounded px-1.5 py-0.5 text-[10px] font-bold tracking-wide"
+                        style={{ background: p.PURPLE + '22', color: p.PURPLE, border: `1px solid ${p.PURPLE}44` }}
+                        title="Nota de CEASA">
+                        {nota.ceasa === 3 ? 'CEASA' : `CEASA ${nota.ceasa}`}
+                    </span>
+                )}
+                {/* Liberada em outro dia, mas o caminhão trouxe hoje */}
+                {nota.recebida_em?.slice(0, 10) === hoje() && nota.liberada_em?.slice(0, 10) !== hoje() && (
+                    <span className="text-[11px] font-medium px-1.5 py-0.5 rounded"
+                        style={{ background: p.GREEN + '22', color: p.GREEN }}
+                        title={`Liberada no pré-lote em ${nota.liberada_em ? new Date(nota.liberada_em).toLocaleDateString('pt-BR') : '—'}`}>
+                        recebida hoje
+                    </span>
+                )}
+            </div>
+
+            <p className="text-sm truncate" style={{ color: p.TEXT }}>{nota.fornecedor.nome}</p>
+
+            <button onClick={() => onCards(nota)} className="flex flex-wrap items-center gap-1 text-left"
+                title="Ver histórico de cards">
+                {nota.cards.length === 0
+                    ? <span className="text-xs" style={{ color: p.MUTED }}>sem divergência</span>
+                    : nota.cards.map(c => <CardBadge key={c.id} card={c} isDark={isDark} />)}
+            </button>
+
+            {nota.observacao && <p className="text-xs break-words" style={{ color: p.MUTED }}>{nota.observacao}</p>}
+
+            <div className="flex items-center justify-between gap-2 pt-1">
+                <span className="text-xs truncate" style={{ color: p.MUTED }}>
+                    {lojaNome(nota.loja)} · liberada por {nota.liberada_por?.name.split(' ')[0] ?? '—'}
+                </span>
+                <div className="flex items-center gap-0.5 shrink-0">
+                    <BotaoIcone titulo="Comentários" cor={nota.comentarios_count > 0 ? p.ACCENT : p.MUTED}
+                        path={ICONE_COMENTARIO} onClick={() => onComentar(nota)} sempre={nota.comentarios_count > 0}>
+                        {nota.comentarios_count > 0 && <span className="text-xs font-medium">{nota.comentarios_count}</span>}
+                    </BotaoIcone>
+                    {(can.editarObservacao || can.editarCeasaLiberada) && (
+                        <BotaoIcone titulo="Editar observação / CEASA" cor={p.ACCENT}
+                            path={ICONE_EDITAR} onClick={() => onEditarObs(nota)} />
+                    )}
+                    {can.devolverNota && (
+                        <BotaoIcone titulo="Devolver ao recebimento (conferido errado)" cor={p.AMBER}
+                            path={ICONE_VOLTAR} onClick={() => onDevolver(nota)} />
+                    )}
+                    {can.excluirNotaLiberada && (
+                        <BotaoIcone titulo="Excluir nota liberada" cor={p.RED}
+                            path={ICONE_LIXEIRA} onClick={() => onExcluir(nota)} />
+                    )}
+                </div>
+            </div>
+        </div>
+    );
+}
+
+/** Nota cancelada pelo fornecedor, no formato de cartão (celular). */
+function CartaoCancelada({ nota, can, p, onComentar, onDescancelar }: {
+    nota: Nota; can: Permissoes; p: Palette;
+    onComentar: (n: Nota) => void; onDescancelar: (n: Nota) => void;
+}) {
+    return (
+        <div className="group px-4 py-3 space-y-2 opacity-80" style={{ borderBottom: `1px solid ${p.BORDER}` }}>
+            <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                <span className="font-semibold text-sm line-through" style={{ color: p.TEXT }}>{nota.numero_nota}</span>
+                {nota.ceasa > 0 && (
+                    <span className="inline-flex items-center rounded px-1.5 py-0.5 text-[10px] font-bold tracking-wide"
+                        style={{ background: p.PURPLE + '22', color: p.PURPLE, border: `1px solid ${p.PURPLE}44` }}
+                        title="Nota de CEASA">
+                        {nota.ceasa === 3 ? 'CEASA' : `CEASA ${nota.ceasa}`}
+                    </span>
+                )}
+                <span className="text-xs" style={{ color: p.MUTED }}>{ORIGEM_LABEL[nota.origem]}</span>
+            </div>
+
+            <p className="text-sm truncate" style={{ color: p.TEXT }}>{nota.fornecedor.nome}</p>
+
+            {nota.motivo_cancelamento && (
+                <p className="text-xs break-words" style={{ color: p.TEXT }}>{nota.motivo_cancelamento}</p>
+            )}
+
+            <div className="flex items-center justify-between gap-2 pt-1">
+                <span className="text-xs truncate" style={{ color: p.MUTED }}>
+                    {lojaNome(nota.loja)} · cancelada por {nota.cancelada_por?.name.split(' ')[0] ?? '—'}
+                </span>
+                <div className="flex items-center gap-0.5 shrink-0">
+                    <BotaoIcone titulo="Comentários" cor={nota.comentarios_count > 0 ? p.ACCENT : p.MUTED}
+                        path={ICONE_COMENTARIO} onClick={() => onComentar(nota)} sempre={nota.comentarios_count > 0}>
+                        {nota.comentarios_count > 0 && <span className="text-xs font-medium">{nota.comentarios_count}</span>}
+                    </BotaoIcone>
+                    {/* Cancelou por engano: volta para a fila */}
+                    {can.cancelarNota && (
+                        <BotaoIcone titulo="Desfazer cancelamento" cor={p.GREEN}
+                            path={ICONE_VOLTAR} onClick={() => onDescancelar(nota)} />
+                    )}
+                </div>
+            </div>
+        </div>
+    );
+}
+
+// ─── Linha da fila (tabela, a partir de 1024px) ──────────────────────────────────
+
+function LinhaFila({ nota, onCards, onComentar, onEditar, onExcluir, onLiberar, onVisualizar, onCancelar, onObservacao, usuarioId, can, isDark, p }:
+    AcoesProps & { isDark: boolean }) {
+    const cor = nivelCor(nota.nivel, p);
+    const rowBg = nota.nivel === 'normal' ? 'transparent' : cor + (nota.nivel === 'critico' ? '1f' : '12');
+    const ativos = nota.cards.filter(c => c.status !== 'resolvido');
+
     return (
         <tr className="group transition-colors"
             style={{ borderBottom: `1px solid ${p.BORDER}`, background: rowBg }}
@@ -443,30 +775,7 @@ function LinhaFila({ nota, onCards, onComentar, onEditar, onExcluir, onLiberar, 
             <td className="px-4 py-3 text-sm">
                 <div className="flex items-center gap-2">
                     <span className="font-medium" style={{ color: p.TEXT }}>{nota.numero_nota}</span>
-                    {nota.ceasa > 0 && (
-                        <span className="inline-flex items-center rounded px-1.5 py-0.5 text-[10px] font-bold tracking-wide"
-                            style={{ background: p.PURPLE + '22', color: p.PURPLE, border: `1px solid ${p.PURPLE}44` }}
-                            title="Nota de CEASA — compras pode abrir cards">
-                            {nota.ceasa === 3 ? 'CEASA' : `CEASA ${nota.ceasa}`}
-                        </span>
-                    )}
-                    {nota.nivel !== 'normal' && (
-                        <span className="inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-xs font-semibold whitespace-nowrap"
-                            style={{ background: cor + '22', color: cor, border: `1px solid ${cor}44` }}
-                            title={nota.origem_anterior
-                                ? `Nesta fila desde ${nota.origem_alterada_em ? new Date(nota.origem_alterada_em).toLocaleDateString('pt-BR') : '—'}`
-                                : `Aberta desde ${nota.data_origem}`}>
-                            {idadeTexto(nota.dias_aberta)}
-                        </span>
-                    )}
-                    {/* Trocou de fila: o relógio reiniciou aqui, mas ela esperou na fila anterior */}
-                    {nota.origem_anterior && (
-                        <span className="inline-flex items-center rounded px-1.5 py-0.5 text-[10px] font-medium whitespace-nowrap"
-                            style={{ background: p.MUTED + '1a', color: p.MUTED, border: `1px solid ${p.MUTED}33` }}
-                            title={`Esteve em ${ORIGEM_LABEL[nota.origem_anterior]} desde ${nota.origem_anterior_data} — a contagem de cores recomeçou ao mudar de fila`}>
-                            {ORIGEM_LABEL[nota.origem_anterior]} desde {nota.origem_anterior_data}
-                        </span>
-                    )}
+                    <SelosNota nota={nota} p={p} />
                 </div>
             </td>
             <td className="px-4 py-3 text-sm max-w-[180px] truncate" style={{ color: p.TEXT }}>
@@ -493,85 +802,10 @@ function LinhaFila({ nota, onCards, onComentar, onEditar, onExcluir, onLiberar, 
             </td>
             <td className="px-4 py-3 text-sm whitespace-nowrap" style={{ color: p.TEXT }}>{nota.user.name.split(' ')[0]}</td>
             <td className="px-4 py-3 text-right">
-                <div className="flex items-center justify-end gap-0.5">
-                    {/* Reserva: clicável só p/ papéis operacionais; visitante só vê o indicador */}
-                    {can.interagir ? (
-                        <button onClick={() => onVisualizar(nota)} title={reservaTitulo}
-                            className={`flex items-center p-1.5 rounded-lg transition ${olhando ? '' : 'opacity-0 group-hover:opacity-100'}`}
-                            style={{ background: olhando ? reservaCor + '22' : 'transparent' }}
-                            onMouseEnter={e => !olhando && (e.currentTarget.style.background = p.HOVER_ROW)}
-                            onMouseLeave={e => !olhando && (e.currentTarget.style.background = 'transparent')}>
-                            {olhando
-                                ? <Avatar user={olhando} size={22} ring={reservaCor} />
-                                : <span style={{ color: p.MUTED }}>
-                                    <Icone path="M2.036 12.322a1.012 1.012 0 010-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178z M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                                  </span>}
-                        </button>
-                    ) : olhando ? (
-                        <span className="flex items-center p-1.5" title={reservaTitulo}>
-                            <Avatar user={olhando} size={22} ring={reservaCor} />
-                        </span>
-                    ) : null}
-
-                    <button onClick={() => onComentar(nota)} title="Comentários"
-                        className={`flex items-center gap-1 p-1.5 rounded-lg transition ${nota.comentarios_count > 0 ? '' : 'opacity-0 group-hover:opacity-100'}`}
-                        style={{ color: nota.comentarios_count > 0 ? p.ACCENT : p.MUTED }}
-                        onMouseEnter={e => (e.currentTarget.style.background = p.HOVER_ROW)}
-                        onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}>
-                        <Icone path="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.8 9.8 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
-                        {nota.comentarios_count > 0 && <span className="text-xs font-medium">{nota.comentarios_count}</span>}
-                    </button>
-
-                    <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
-                        <button onClick={() => onCards(nota)} title="Cards / divergências"
-                            className="p-1.5 rounded-lg transition" style={{ color: p.AMBER }}
-                            onMouseEnter={e => (e.currentTarget.style.background = p.AMBER + '1a')}
-                            onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}>
-                            <Icone path="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
-                        </button>
-                        {can.liberarNota && nota.status === 'pendente' && (
-                            <button onClick={() => onLiberar(nota)} title="Liberar nota"
-                                className="p-1.5 rounded-lg transition" style={{ color: p.GREEN }}
-                                onMouseEnter={e => (e.currentTarget.style.background = p.GREEN + '1a')}
-                                onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}>
-                                <Icone path="M5 13l4 4L19 7" />
-                            </button>
-                        )}
-                        {can.editarNotas ? (
-                            <button onClick={() => onEditar(nota)} title="Editar"
-                                className="p-1.5 rounded-lg transition" style={{ color: p.ACCENT }}
-                                onMouseEnter={e => (e.currentTarget.style.background = p.ACCENT + '1a')}
-                                onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}>
-                                <Icone path="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                            </button>
-                        ) : can.editarObservacao ? (
-                            /* Compras não edita a nota, mas registra o combinado na observação */
-                            <button onClick={() => onObservacao(nota)} title="Editar observação"
-                                className="p-1.5 rounded-lg transition" style={{ color: p.ACCENT }}
-                                onMouseEnter={e => (e.currentTarget.style.background = p.ACCENT + '1a')}
-                                onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}>
-                                <Icone path="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                            </button>
-                        ) : null}
-                        {/* Fornecedor cancelou a NF: sai da fila e vai para "Canceladas" */}
-                        {can.cancelarNota && (
-                            <button onClick={() => onCancelar(nota)} title="Nota cancelada pelo fornecedor"
-                                className="p-1.5 rounded-lg transition" style={{ color: p.ORANGE }}
-                                onMouseEnter={e => (e.currentTarget.style.background = p.ORANGE + '1a')}
-                                onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}>
-                                <Icone path="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636" />
-                            </button>
-                        )}
-                        {can.gerenciarNotas && (
-                            <button onClick={() => onExcluir(nota)} title="Excluir"
-                                className="p-1.5 rounded-lg transition" style={{ color: p.RED }}
-                                onMouseEnter={e => (e.currentTarget.style.background = p.RED + '1a')}
-                                onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}>
-                                <Icone path="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                            </button>
-                        )}
-                    </div>
-                </div>
+                <AcoesNota nota={nota} can={can} p={p} usuarioId={usuarioId} alinhar="end"
+                    onCards={onCards} onComentar={onComentar} onEditar={onEditar}
+                    onExcluir={onExcluir} onLiberar={onLiberar} onVisualizar={onVisualizar}
+                    onCancelar={onCancelar} onObservacao={onObservacao} />
             </td>
         </tr>
     );
@@ -845,7 +1079,9 @@ export default function Index({ recebimento, preLote, liberadas, canceladas, for
                     </span>
                 </h2>
             </div>
-            <div className="overflow-x-auto">
+            {/* Tabela no desktop, cartões empilhados no celular — mesmos dados,
+                mesmas ações, sem rolagem lateral. */}
+            <div className="hidden lg:block rolagem-x">
                 <table className="min-w-full">
                     <THead colunas={COLS_FILA} p={p} />
                     <tbody>
@@ -862,6 +1098,20 @@ export default function Index({ recebimento, preLote, liberadas, canceladas, for
                         ))}
                     </tbody>
                 </table>
+            </div>
+
+            <div className="lg:hidden">
+                {notas.length === 0 ? (
+                    <p className="px-4 py-8 text-center text-sm" style={{ color: p.MUTED }}>
+                        Nenhuma nota nesta fila.
+                    </p>
+                ) : notas.map(n => (
+                    <CartaoFila key={n.id} nota={n} can={can} isDark={isDark} p={p}
+                        onCards={x => setCardsId(x.id)} onComentar={setComentariosNota}
+                        onEditar={setModalEditar} onExcluir={excluir} onLiberar={liberarRapido}
+                        onVisualizar={visualizar} onCancelar={cancelar}
+                        onObservacao={setEditarLiberadaNota} usuarioId={user.id} />
+                ))}
             </div>
         </div>
     );
@@ -902,82 +1152,89 @@ export default function Index({ recebimento, preLote, liberadas, canceladas, for
             <ModalEditarLiberada nota={editarLiberadaNota} can={can}
                 onFechar={() => setEditarLiberadaNota(null)} p={p} />
 
-            <div className="min-h-screen py-6 px-4 sm:px-6 lg:px-8 max-w-screen-2xl mx-auto space-y-4 transition-colors duration-200"
+            <div className="flex-1 w-full py-6 px-4 sm:px-6 lg:px-8 max-w-screen-2xl mx-auto space-y-4 transition-colors duration-200"
                 style={{ background: p.BG }}>
 
-                {/* ── Barra de controles ─────────────────────────────────────── */}
-                <div className="flex flex-wrap items-center gap-2.5">
-                    <div className="flex items-center gap-1 rounded-lg px-2 py-1.5"
-                        style={{ background: p.SURFACE, border: `1px solid ${p.BORDER}` }}>
-                        <button onClick={diaAnterior} className="p-1 rounded transition" style={{ color: p.MUTED }} title="Dia anterior">
-                            <Icone path="M15 19l-7-7 7-7" />
-                        </button>
-                        <input type="date" value={dataFiltro} onChange={e => mudarData(e.target.value)}
-                            className="border-none text-sm font-medium focus:ring-0 p-0 bg-transparent cursor-pointer"
-                            style={{ color: p.TEXT }} />
-                        <button onClick={diaSeguinte} disabled={isHoje}
-                            className="p-1 rounded transition disabled:opacity-30" style={{ color: p.MUTED }} title="Próximo dia">
-                            <Icone path="M9 5l7 7-7 7" />
-                        </button>
+                {/* ── Barra de controles ───────────────────────────────────────
+                    No desktop é uma faixa só. No celular vira três: dia +
+                    lançar nota, busca, e as lojas (que rolam para o lado — são
+                    nove botões e não cabem numa tela de 375px). */}
+                <div className="space-y-2.5">
+                    <div className="flex flex-wrap items-center gap-2.5">
+                        <div className="flex items-center gap-1 rounded-lg px-2 py-1.5"
+                            style={{ background: p.SURFACE, border: `1px solid ${p.BORDER}` }}>
+                            <button onClick={diaAnterior} className="p-1.5 rounded transition" style={{ color: p.MUTED }} title="Dia anterior">
+                                <Icone path="M15 19l-7-7 7-7" />
+                            </button>
+                            <input type="date" value={dataFiltro} onChange={e => mudarData(e.target.value)}
+                                className="border-none text-sm font-medium focus:ring-0 p-0 bg-transparent cursor-pointer min-w-0"
+                                style={{ color: p.TEXT, colorScheme: isDark ? 'dark' : 'light' }} />
+                            <button onClick={diaSeguinte} disabled={isHoje}
+                                className="p-1.5 rounded transition disabled:opacity-30" style={{ color: p.MUTED }} title="Próximo dia">
+                                <Icone path="M9 5l7 7-7 7" />
+                            </button>
+                        </div>
+
+                        {isHoje && (
+                            <span className="text-xs font-medium px-2.5 py-1 rounded-md"
+                                style={{ background: p.ACCENT + '22', color: p.ACCENT, border: `1px solid ${p.ACCENT}44` }}>
+                                Hoje
+                            </span>
+                        )}
+
+                        {can.lancarNota && (
+                            <button onClick={() => setModalNova(true)}
+                                className="w-full sm:w-auto sm:ml-auto flex items-center justify-center gap-1.5 px-4 py-2.5 text-sm font-medium text-white rounded-lg transition"
+                                style={{ background: p.ACCENT }}
+                                onMouseEnter={e => (e.currentTarget.style.filter = 'brightness(1.1)')}
+                                onMouseLeave={e => (e.currentTarget.style.filter = 'none')}>
+                                <Icone path="M12 4v16m8-8H4" /> Lançar nota
+                            </button>
+                        )}
                     </div>
 
-                    {isHoje && (
-                        <span className="text-xs font-medium px-2.5 py-1 rounded-md"
-                            style={{ background: p.ACCENT + '22', color: p.ACCENT, border: `1px solid ${p.ACCENT}44` }}>
-                            Hoje
-                        </span>
-                    )}
+                    <div className="flex flex-wrap items-center gap-2.5">
+                        <div className="relative w-full sm:w-56">
+                            <input type="search" placeholder="Buscar nota ou fornecedor..."
+                                value={buscaLocal} onChange={e => setBuscaLocal(e.target.value)}
+                                onKeyDown={e => e.key === 'Enter' && aplicarFiltros()}
+                                className="w-full rounded-lg text-sm pl-8 pr-3 py-2 outline-none" style={inputCtrl} />
+                            <span className="absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none" style={{ color: p.MUTED }}>
+                                <Icone path="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                            </span>
+                        </div>
 
-                    <div className="relative">
-                        <input type="search" placeholder="Buscar nota ou fornecedor..."
-                            value={buscaLocal} onChange={e => setBuscaLocal(e.target.value)}
-                            onKeyDown={e => e.key === 'Enter' && aplicarFiltros()}
-                            className="rounded-lg text-sm pl-8 pr-3 py-2 outline-none w-56" style={inputCtrl} />
-                        <span className="absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none" style={{ color: p.MUTED }}>
-                            <Icone path="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                        </span>
-                    </div>
+                        <div className="flex items-center gap-1.5 max-w-full rolagem-x scrollbar-oculta -my-1 py-1">
+                            <span className="text-sm shrink-0" style={{ color: p.MUTED }}>Lojas:</span>
+                            {opcoes.lojas.map(l => {
+                                const ativo = lojasSel.includes(l);
+                                return (
+                                    <button key={l} onClick={() => alternarLoja(l)}
+                                        title={ativo ? `Desmarcar loja ${String(l).padStart(2, '0')}` : `Mostrar só as lojas marcadas`}
+                                        className="text-sm px-2.5 py-2 rounded-lg transition font-medium shrink-0"
+                                        style={{
+                                            background: ativo ? p.ACCENT + '22' : 'transparent',
+                                            border: `1px solid ${ativo ? p.ACCENT : p.BORDER}`,
+                                            color: ativo ? p.ACCENT : p.TEXT,
+                                        }}>
+                                        {String(l).padStart(2, '0')}
+                                    </button>
+                                );
+                            })}
+                        </div>
 
-                    <div className="flex items-center gap-1.5">
-                        <span className="text-sm" style={{ color: p.MUTED }}>Lojas:</span>
-                        {opcoes.lojas.map(l => {
-                            const ativo = lojasSel.includes(l);
-                            return (
-                                <button key={l} onClick={() => alternarLoja(l)}
-                                    title={ativo ? `Desmarcar loja ${String(l).padStart(2, '0')}` : `Mostrar só as lojas marcadas`}
-                                    className="text-sm px-2.5 py-2 rounded-lg transition font-medium"
-                                    style={{
-                                        background: ativo ? p.ACCENT + '22' : 'transparent',
-                                        border: `1px solid ${ativo ? p.ACCENT : p.BORDER}`,
-                                        color: ativo ? p.ACCENT : p.TEXT,
-                                    }}>
-                                    {String(l).padStart(2, '0')}
-                                </button>
-                            );
-                        })}
-                    </div>
-
-                    <button onClick={aplicarFiltros}
-                        className="px-3.5 py-2 text-sm font-medium rounded-lg transition"
-                        style={{ background: p.SURFACE, color: p.TEXT, border: `1px solid ${p.BORDER}` }}>
-                        Filtrar
-                    </button>
-
-                    {filtrosAtivos && (
-                        <button onClick={limparFiltros} className="text-xs flex items-center gap-1" style={{ color: p.MUTED }}>
-                            <Icone path="M6 18L18 6M6 6l12 12" className="w-3 h-3" /> Limpar
+                        <button onClick={aplicarFiltros}
+                            className="px-3.5 py-2 text-sm font-medium rounded-lg transition shrink-0"
+                            style={{ background: p.SURFACE, color: p.TEXT, border: `1px solid ${p.BORDER}` }}>
+                            Filtrar
                         </button>
-                    )}
 
-                    {can.lancarNota && (
-                        <button onClick={() => setModalNova(true)}
-                            className="ml-auto flex items-center gap-1.5 px-4 py-2 text-sm font-medium text-white rounded-lg transition"
-                            style={{ background: p.ACCENT }}
-                            onMouseEnter={e => (e.currentTarget.style.filter = 'brightness(1.1)')}
-                            onMouseLeave={e => (e.currentTarget.style.filter = 'none')}>
-                            <Icone path="M12 4v16m8-8H4" /> Lançar nota
-                        </button>
-                    )}
+                        {filtrosAtivos && (
+                            <button onClick={limparFiltros} className="text-xs flex items-center gap-1 px-1 py-2" style={{ color: p.MUTED }}>
+                                <Icone path="M6 18L18 6M6 6l12 12" className="w-3 h-3" /> Limpar
+                            </button>
+                        )}
+                    </div>
                 </div>
 
                 {/* ── Chips de filtro: envelhecimento + prontas p/ liberar ────── */}
@@ -1087,7 +1344,7 @@ export default function Index({ recebimento, preLote, liberadas, canceladas, for
                             })}
                         </div>
                     </div>
-                    <div className="overflow-x-auto">
+                    <div className="hidden lg:block rolagem-x">
                         <table className="min-w-full">
                             <THead colunas={COLS_LIBERADAS} p={p} />
                             <tbody>
@@ -1133,7 +1390,7 @@ export default function Index({ recebimento, preLote, liberadas, canceladas, for
                                         <td className="px-4 py-3 text-sm" style={{ color: p.TEXT }}>{n.liberada_por?.name.split(' ')[0] ?? '—'}</td>
                                         <td className="px-4 py-3 text-right">
                                             <button onClick={() => setComentariosNota(n)} title="Comentários"
-                                                className={`inline-flex items-center gap-1 p-1.5 rounded-lg transition ${n.comentarios_count > 0 ? '' : 'opacity-0 group-hover:opacity-100'}`}
+                                                className={`inline-flex items-center gap-1 p-1.5 rounded-lg transition ${n.comentarios_count > 0 ? '' : 'acoes-hover'}`}
                                                 style={{ color: n.comentarios_count > 0 ? p.ACCENT : p.MUTED }}>
                                                 <Icone path="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.8 9.8 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
                                                 {n.comentarios_count > 0 && <span className="text-xs font-medium">{n.comentarios_count}</span>}
@@ -1142,7 +1399,7 @@ export default function Index({ recebimento, preLote, liberadas, canceladas, for
                                             {/* Editar observação (recebimento/compras/pré-lote) e lembrete CEASA (recebimento) */}
                                             {(can.editarObservacao || can.editarCeasaLiberada) && (
                                                 <button onClick={() => setEditarLiberadaNota(n)} title="Editar observação / CEASA"
-                                                    className="inline-flex items-center p-1.5 rounded-lg transition opacity-0 group-hover:opacity-100"
+                                                    className="inline-flex items-center p-1.5 rounded-lg transition acoes-hover"
                                                     style={{ color: p.ACCENT }}
                                                     onMouseEnter={e => (e.currentTarget.style.background = p.ACCENT + '1a')}
                                                     onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}>
@@ -1153,7 +1410,7 @@ export default function Index({ recebimento, preLote, liberadas, canceladas, for
                                             {/* Conferiu errado: devolve ao recebimento para reajuste (pré-lote/recebimento) */}
                                             {can.devolverNota && (
                                                 <button onClick={() => devolver(n)} title="Devolver ao recebimento (conferido errado)"
-                                                    className="inline-flex items-center p-1.5 rounded-lg transition opacity-0 group-hover:opacity-100"
+                                                    className="inline-flex items-center p-1.5 rounded-lg transition acoes-hover"
                                                     style={{ color: p.AMBER }}
                                                     onMouseEnter={e => (e.currentTarget.style.background = p.AMBER + '1a')}
                                                     onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}>
@@ -1164,7 +1421,7 @@ export default function Index({ recebimento, preLote, liberadas, canceladas, for
                                             {/* Apagar o que já foi liberado é ato de admin — some para os outros papéis */}
                                             {can.excluirNotaLiberada && (
                                                 <button onClick={() => excluir(n)} title="Excluir nota liberada"
-                                                    className="inline-flex items-center p-1.5 rounded-lg transition opacity-0 group-hover:opacity-100"
+                                                    className="inline-flex items-center p-1.5 rounded-lg transition acoes-hover"
                                                     style={{ color: p.RED }}
                                                     onMouseEnter={e => (e.currentTarget.style.background = p.RED + '1a')}
                                                     onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}>
@@ -1176,6 +1433,20 @@ export default function Index({ recebimento, preLote, liberadas, canceladas, for
                                 ))}
                             </tbody>
                         </table>
+                    </div>
+
+                    <div className="lg:hidden">
+                        {liberadasFiltradas.length === 0 ? (
+                            <p className="px-4 py-8 text-center text-sm" style={{ color: p.MUTED }}>
+                                {liberadasL.length === 0
+                                    ? 'Nenhuma nota liberada neste dia.'
+                                    : `Nenhuma nota liberada em ${ORIGEM_LABEL[origemLiberadas!]} neste dia.`}
+                            </p>
+                        ) : liberadasFiltradas.map(n => (
+                            <CartaoLiberada key={n.id} nota={n} can={can} isDark={isDark} p={p}
+                                onCards={x => setCardsId(x.id)} onComentar={setComentariosNota}
+                                onEditarObs={setEditarLiberadaNota} onDevolver={devolver} onExcluir={excluir} />
+                        ))}
                     </div>
                 </div>
 
@@ -1191,7 +1462,7 @@ export default function Index({ recebimento, preLote, liberadas, canceladas, for
                         </h2>
                         <span className="text-xs" style={{ color: p.MUTED }}>NF cancelada pelo fornecedor</span>
                     </div>
-                    <div className="overflow-x-auto">
+                    <div className="hidden lg:block rolagem-x">
                         <table className="min-w-full">
                             <THead colunas={COLS_CANCELADAS} p={p} />
                             <tbody>
@@ -1222,7 +1493,7 @@ export default function Index({ recebimento, preLote, liberadas, canceladas, for
                                         <td className="px-4 py-3 text-sm" style={{ color: p.TEXT }}>{n.cancelada_por?.name.split(' ')[0] ?? '—'}</td>
                                         <td className="px-4 py-3 text-right">
                                             <button onClick={() => setComentariosNota(n)} title="Comentários"
-                                                className={`inline-flex items-center gap-1 p-1.5 rounded-lg transition ${n.comentarios_count > 0 ? '' : 'opacity-0 group-hover:opacity-100'}`}
+                                                className={`inline-flex items-center gap-1 p-1.5 rounded-lg transition ${n.comentarios_count > 0 ? '' : 'acoes-hover'}`}
                                                 style={{ color: n.comentarios_count > 0 ? p.ACCENT : p.MUTED }}>
                                                 <Icone path="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.8 9.8 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
                                                 {n.comentarios_count > 0 && <span className="text-xs font-medium">{n.comentarios_count}</span>}
@@ -1231,7 +1502,7 @@ export default function Index({ recebimento, preLote, liberadas, canceladas, for
                                             {/* Cancelou por engano: volta para a fila */}
                                             {can.cancelarNota && (
                                                 <button onClick={() => descancelar(n)} title="Desfazer cancelamento"
-                                                    className="inline-flex items-center p-1.5 rounded-lg transition opacity-0 group-hover:opacity-100"
+                                                    className="inline-flex items-center p-1.5 rounded-lg transition acoes-hover"
                                                     style={{ color: p.GREEN }}
                                                     onMouseEnter={e => (e.currentTarget.style.background = p.GREEN + '1a')}
                                                     onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}>
@@ -1243,6 +1514,17 @@ export default function Index({ recebimento, preLote, liberadas, canceladas, for
                                 ))}
                             </tbody>
                         </table>
+                    </div>
+
+                    <div className="lg:hidden">
+                        {canceladasL.length === 0 ? (
+                            <p className="px-4 py-8 text-center text-sm" style={{ color: p.MUTED }}>
+                                Nenhuma nota cancelada neste dia.
+                            </p>
+                        ) : canceladasL.map(n => (
+                            <CartaoCancelada key={n.id} nota={n} can={can} p={p}
+                                onComentar={setComentariosNota} onDescancelar={descancelar} />
+                        ))}
                     </div>
                 </div>
 
