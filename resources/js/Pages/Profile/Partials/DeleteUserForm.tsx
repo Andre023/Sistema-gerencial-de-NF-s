@@ -106,6 +106,14 @@ export default function DeleteUserForm({
                             message={errors.password}
                             className="mt-2"
                         />
+
+                        {/* Motivo para a conta não poder ser apagada (último
+                            admin, ou já tem nota lançada). Sem isto o modal
+                            só fecharia sem explicar nada. */}
+                        <InputError
+                            message={(errors as Record<string, string>).conta}
+                            className="mt-2"
+                        />
                     </div>
 
                     <div className="mt-6 flex justify-end">

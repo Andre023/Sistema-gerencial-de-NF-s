@@ -21,13 +21,20 @@ Route::middleware('guest')->group(function () {
     Route::get('forgot-password', [PasswordResetLinkController::class, 'create'])
         ->name('password.request');
 
+    // Sem limite, este endpoint responde diferente para e-mail que existe e para
+    // e-mail que não existe — dá para varrer a lista de quem tem conta aqui, e
+    // ainda enche a caixa de quem existe de mensagem de redefinição.
+    // O login já tem trava própria (5 tentativas, em LoginRequest).
     Route::post('forgot-password', [PasswordResetLinkController::class, 'store'])
+        ->middleware('throttle:6,1')
         ->name('password.email');
 
     Route::get('reset-password/{token}', [NewPasswordController::class, 'create'])
         ->name('password.reset');
 
+    // Trava o chute de token de redefinição na força bruta.
     Route::post('reset-password', [NewPasswordController::class, 'store'])
+        ->middleware('throttle:6,1')
         ->name('password.store');
 });
 

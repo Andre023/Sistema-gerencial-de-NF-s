@@ -6,6 +6,7 @@ use App\Models\User;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Vite;
 use Illuminate\Support\ServiceProvider;
+use Illuminate\Validation\Rules\Password;
 
 class AppServiceProvider extends ServiceProvider
 {
@@ -23,6 +24,21 @@ class AppServiceProvider extends ServiceProvider
     public function boot(): void
     {
         Vite::prefetch(concurrency: 3);
+
+        // ─── Senha ──────────────────────────────────────────────────────────────
+        //
+        // Password::defaults() sem configuração exige só 8 caracteres — "12345678"
+        // passa. Como o login é a única porta do sistema e ele fica exposto na
+        // internet, a senha fraca é o caminho mais curto para dentro; nenhuma das
+        // outras travas ajuda depois que alguém entra com credencial válida.
+        //
+        // uncompromised() consulta a base pública de senhas vazadas mandando só o
+        // começo do hash (a senha em si nunca sai daqui). Se o serviço estiver
+        // fora do ar a regra passa — não trava o cadastro de usuário por isso.
+        // Fora de produção fica leve, para os testes não dependerem de rede.
+        Password::defaults(fn() => app()->isProduction()
+            ? Password::min(10)->letters()->numbers()->uncompromised()
+            : Password::min(8));
 
         // ─── Autorização por função ─────────────────────────────────────────────
         // As regras vivem no model User (fonte única, reaproveitada pelo frontend).

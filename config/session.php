@@ -169,7 +169,11 @@ return [
     |
     */
 
-    'secure' => env('SESSION_SECURE_COOKIE'),
+    // Sem valor no .env, o padrão do Laravel é "manda o cookie por http também".
+    // Em produção isso é o cookie de sessão viajando em claro se alguém abrir o
+    // site por http:// — e quem estiver na mesma rede leva a sessão inteira.
+    // Aqui o padrão vira: produção exige HTTPS, desenvolvimento (http local) não.
+    'secure' => env('SESSION_SECURE_COOKIE', env('APP_ENV') === 'production'),
 
     /*
     |--------------------------------------------------------------------------

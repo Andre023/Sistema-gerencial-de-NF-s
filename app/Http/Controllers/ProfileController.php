@@ -75,7 +75,12 @@ class ProfileController extends Controller
     }
 
     /**
-     * Delete the user's account.
+     * Apagar a própria conta.
+     *
+     * As mesmas travas da tela de Usuários valem aqui — senão esta é a porta
+     * dos fundos: o único admin se apagava por conta própria e o sistema ficava
+     * sem quem cria usuário; e quem já tinha lançado nota esbarrava na FK
+     * restritiva depois do logout, com a conta num limbo.
      */
     public function destroy(Request $request): RedirectResponse
     {
@@ -84,6 +89,10 @@ class ProfileController extends Controller
         ]);
 
         $user = $request->user();
+
+        if ($impedimento = $user->impedimentoParaExclusao()) {
+            return back()->withErrors(['conta' => $impedimento]);
+        }
 
         Auth::logout();
 

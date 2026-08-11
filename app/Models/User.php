@@ -8,6 +8,8 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 
 class User extends Authenticatable
 {
@@ -96,6 +98,52 @@ class User extends Authenticatable
     public function notificacoes(): HasMany
     {
         return $this->hasMany(Notificacao::class);
+    }
+
+    // ─── Exclusão de conta ──────────────────────────────────────────────────────
+
+    /**
+     * Por que esta conta NÃO pode ser apagada — null quando pode.
+     *
+     * Vive aqui porque são duas portas para o mesmo ato: o admin apagando
+     * alguém (tela de Usuários) e a pessoa apagando a si mesma (Perfil). A do
+     * Perfil não tinha trava nenhuma, e por ali o único admin conseguia se
+     * apagar — ninguém mais criaria usuário nem veria as estatísticas depois
+     * disso. Pior: com nota lançada, a FK restritiva derrubava o pedido com
+     * erro em vez de explicar o motivo.
+     */
+    public function impedimentoParaExclusao(): ?string
+    {
+        if ($this->isAdmin() && static::where('role', self::ROLE_ADMIN)->count() <= 1) {
+            return 'Esta é a única conta de administrador — promova outra pessoa antes de excluí-la.';
+        }
+
+        if ($this->temHistorico()) {
+            return 'Esta conta tem notas no histórico e não pode ser excluída. '
+                 . 'Mude o papel dela para Visitante se quiser limitar o acesso.';
+        }
+
+        return null;
+    }
+
+    /**
+     * O usuário é o criador (user_id) de notas — a FK é restritiva, então o
+     * histórico manda: preserva-se a conta em vez de apagar o rastro.
+     * (As tabelas legadas requisicoes/cadastros também têm FK e podem existir.)
+     */
+    private function temHistorico(): bool
+    {
+        if (Nota::withTrashed()->where('user_id', $this->id)->exists()) {
+            return true;
+        }
+
+        foreach (['requisicoes', 'cadastros'] as $legada) {
+            if (Schema::hasTable($legada) && DB::table($legada)->where('user_id', $this->id)->exists()) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     // ─── Helpers de papel ───────────────────────────────────────────────────────

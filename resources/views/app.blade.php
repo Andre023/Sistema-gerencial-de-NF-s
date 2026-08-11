@@ -21,7 +21,10 @@
         <link href="https://fonts.bunny.net/css?family=figtree:400,500,600&display=swap" rel="stylesheet" />
 
         <!-- Scripts -->
-        @routes
+        {{-- O @routes escreve um <script> inline com as rotas nomeadas. Com a
+             CSP ligada, script inline só roda com o nonce da resposta — o mesmo
+             que o middleware CabecalhosDeSeguranca gerou e mandou no cabeçalho. --}}
+        @routes(nonce: \Illuminate\Support\Facades\Vite::cspNonce())
         @viteReactRefresh
         @vite(['resources/js/app.tsx', "resources/js/Pages/{$page['component']}.tsx"])
         @inertiaHead

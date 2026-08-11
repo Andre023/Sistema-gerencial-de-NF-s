@@ -1,2 +1,8 @@
+# Sistema interno: não existe página pública — a raiz redireciona para o login.
+# "Disallow:" vazio (o que havia aqui antes) LIBERA tudo; a barra é o que fecha.
+#
+# Isto vale para robô que respeita a regra — buscador. Não é trava de segurança:
+# quem varre a internet atrás de alvo ignora este arquivo. A trava de verdade é
+# o middleware 'auth' em toda rota (routes/web.php).
 User-agent: *
-Disallow:
+Disallow: /

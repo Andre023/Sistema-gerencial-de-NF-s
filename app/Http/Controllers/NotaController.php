@@ -22,7 +22,11 @@ class NotaController extends Controller
 
     public function index(Request $request): Response
     {
-        $dataFiltro = $request->input('data', Carbon::today()->toDateString());
+        // A data vai parar em Carbon::parse() (TemIdade::diasEmAberto) para
+        // calcular a idade de cada nota. Texto que o Carbon não entende vira
+        // exceção e derruba a fila inteira com 500 — daí a validação de formato
+        // ANTES de usar: o que não for YYYY-MM-DD válido cai no dia de hoje.
+        $dataFiltro = $this->dataValida($request->input('data'));
 
         $busca  = $request->input('busca');
         $nivel  = $request->input('nivel');
@@ -159,6 +163,23 @@ class NotaController extends Controller
                 ],
             ],
         ]);
+    }
+
+    /**
+     * Data do filtro em YYYY-MM-DD, ou hoje quando a entrada não presta.
+     *
+     * Só o formato não basta: "2026-02-31" casa com a expressão e não existe no
+     * calendário. checkdate() é quem fecha essa brecha.
+     */
+    private function dataValida(mixed $entrada): string
+    {
+        $hoje = Carbon::today()->toDateString();
+
+        if (! is_string($entrada) || ! preg_match('/^(\d{4})-(\d{2})-(\d{2})$/', $entrada, $m)) {
+            return $hoje;
+        }
+
+        return checkdate((int) $m[2], (int) $m[3], (int) $m[1]) ? $entrada : $hoje;
     }
 
     /**

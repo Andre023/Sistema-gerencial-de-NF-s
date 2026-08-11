@@ -2,7 +2,6 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\Nota;
 use App\Models\User;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -101,23 +100,10 @@ class UserController extends Controller
             return back()->withErrors(['usuario' => 'Você não pode excluir a própria conta.']);
         }
 
-        if ($user->isAdmin() && User::where('role', User::ROLE_ADMIN)->count() <= 1) {
-            return back()->withErrors(['usuario' => 'Não é possível excluir o único administrador.']);
-        }
-
-        // O usuário é o criador (user_id) de notas — a FK é restritiva,
-        // então preservamos o histórico em vez de apagar a conta.
-        // (As tabelas legadas requisicoes/cadastros também têm FK e podem ainda existir no banco.)
-        $temHistorico = Nota::withTrashed()->where('user_id', $user->id)->exists()
-            || (\Illuminate\Support\Facades\Schema::hasTable('requisicoes')
-                && \Illuminate\Support\Facades\DB::table('requisicoes')->where('user_id', $user->id)->exists())
-            || (\Illuminate\Support\Facades\Schema::hasTable('cadastros')
-                && \Illuminate\Support\Facades\DB::table('cadastros')->where('user_id', $user->id)->exists());
-
-        if ($temHistorico) {
-            return back()->withErrors([
-                'usuario' => 'Usuário tem notas no histórico e não pode ser excluído. Mude o papel dele se quiser limitar o acesso.',
-            ]);
+        // Último admin e histórico de notas: a regra mora no model porque o
+        // Perfil (a pessoa apagando a si mesma) precisa exatamente da mesma.
+        if ($impedimento = $user->impedimentoParaExclusao()) {
+            return back()->withErrors(['usuario' => $impedimento]);
         }
 
         $user->delete();
