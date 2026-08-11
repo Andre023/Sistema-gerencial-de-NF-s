@@ -17,6 +17,12 @@
 #
 set -euo pipefail
 
+# O dump é o sistema inteiro em texto: notas, e-mails, hashes de senha. Nascendo
+# com a permissão padrão (644) qualquer usuário da máquina lê. O umask aqui faz
+# TODO arquivo criado por este script sair 600 — inclusive os das próximas noites.
+# (Ajustar a permissão só dos arquivos existentes não resolve: o script recria.)
+umask 077
+
 APP_DIR="/var/www/nfs"
 BACKUP_DIR="/var/backups/nfs"
 MANTER_DIAS=14
