@@ -103,6 +103,7 @@ export default function Index({
         Custo: p.AMBER,
         Quantidade: p.PURPLE,
         'Sem pedido': '#2dd4bf',
+        'Item n pedido': '#eab308',
         'Importar nf': p.GREEN,
         Reconferir: '#e3954a',
         'Sem divergência': p.GREEN,

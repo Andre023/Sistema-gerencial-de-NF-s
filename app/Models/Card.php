@@ -34,7 +34,7 @@ class Card extends Model
         'reaberturas'  => 'integer',
     ];
 
-    public const TIPOS = ['cadastro', 'regra', 'custo', 'quantidade', 'sem_pedido', 'importar_nf', 'reconferir', 'trocar_nota'];
+    public const TIPOS = ['cadastro', 'regra', 'custo', 'quantidade', 'sem_pedido', 'item_n_pedido', 'importar_nf', 'reconferir', 'trocar_nota'];
 
     /**
      * Tipos que só existem em nota de CEASA. "Reconferir": compras pede que o
@@ -47,9 +47,10 @@ class Card extends Model
      * Tipos que o comprador corrige no ERP e marca aqui.
      * "Regra" fica de fora: é o pré-lote que resolve direto quando estiver acertada.
      * "Sem pedido" (nota chegou sem o pedido de compra) é de compras: quem lança
-     * o pedido no ERP é o setor de compras.
+     * o pedido no ERP é o setor de compras. "Item n pedido" segue a mesma regra —
+     * o acerto do item no pedido é feito por compras.
      */
-    public const TIPOS_COMPRAS = ['cadastro', 'custo', 'quantidade', 'sem_pedido'];
+    public const TIPOS_COMPRAS = ['cadastro', 'custo', 'quantidade', 'sem_pedido', 'item_n_pedido'];
 
     /**
      * Tipos que NÃO são erro de um setor só: recebimento, pré-lote e compras

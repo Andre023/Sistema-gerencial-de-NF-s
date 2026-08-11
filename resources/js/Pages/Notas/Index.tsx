@@ -412,7 +412,7 @@ function ModalEditarLiberada({ nota, can, onFechar, p }: {
 
 function opcoesTipos(nota: Nota): TipoCard[] {
     const ativos = nota.cards.filter(c => c.status !== 'resolvido').map(c => c.tipo);
-    const base: TipoCard[] = ['cadastro', 'regra', 'custo', 'quantidade', 'sem_pedido', 'importar_nf', 'trocar_nota'];
+    const base: TipoCard[] = ['cadastro', 'regra', 'custo', 'quantidade', 'sem_pedido', 'item_n_pedido', 'importar_nf', 'trocar_nota'];
     // "Reconferir" só existe em nota de CEASA (pedido de nova conferência)
     if (nota.ceasa > 0) base.push('reconferir');
     return base.filter(t => !ativos.includes(t));
@@ -1137,7 +1137,7 @@ export default function Index({ recebimento, preLote, liberadas, canceladas, for
             </Modal>
 
             <ModalCards nota={notaCards} onFechar={() => setCardsId(null)} can={can}
-                tiposCompras={opcoes.tiposCompras ?? ['cadastro', 'custo', 'quantidade']} isDark={isDark} p={p} />
+                tiposCompras={opcoes.tiposCompras ?? ['cadastro', 'custo', 'quantidade', 'sem_pedido', 'item_n_pedido']} isDark={isDark} p={p} />
 
             <ModalComentarios
                 aberto={!!comentariosNota}
