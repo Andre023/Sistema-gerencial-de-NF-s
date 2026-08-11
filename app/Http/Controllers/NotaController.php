@@ -260,6 +260,23 @@ class NotaController extends Controller
      */
     private function tratarDuplicada(Request $request, Nota $existente, array $dados): RedirectResponse
     {
+        // CANCELADA vem antes de tudo. Ela não está em fila nenhuma, então o
+        // teste de origem lá embaixo mandava procurar "no recebimento" uma nota
+        // que não aparece lá — e, se tivesse sido liberada antes do
+        // cancelamento, o ramo de baixo ainda a marcava como "recebida hoje"
+        // sem erro nenhum. Aqui o cancelamento manda, e a mensagem diz o que
+        // de fato aconteceu com ela.
+        if ($existente->cancelada_em) {
+            throw ValidationException::withMessages([
+                'numero_nota' => 'Esta nota foi cancelada em '
+                    . $existente->cancelada_em->format('d/m/Y')
+                    . ($existente->motivo_cancelamento
+                        ? ' (motivo: ' . $existente->motivo_cancelamento . ')'
+                        : '')
+                    . '. Se ela voltou, o pré-lote ou compras precisa desfazer o cancelamento.',
+            ]);
+        }
+
         if ($existente->liberada_em) {
             $existente->update(['recebida_em' => now()]);
             event(new NotaAtualizada($existente));

@@ -69,6 +69,63 @@ class DuplicataNotaTest extends TestCase
         $this->assertDatabaseCount('notas', 2);
     }
 
+    // ── Nota cancelada em dia anterior ────────────────────────────────────────
+
+    /**
+     * O caso que o recebimento reportou: a nota foi cancelada ontem e hoje
+     * tentam lançá-la de novo. A cancelada não era testada em lugar nenhum —
+     * caía no teste de "mesma fila" e recebia "já está lançada em ...", que
+     * manda procurar na fila uma nota que não está lá.
+     */
+    public function test_cancelada_avisa_o_cancelamento_e_nao_a_fila(): void
+    {
+        $this->nota([
+            'origem'       => 'recebimento',
+            'cancelada_em' => now()->subDays(3),
+        ]);
+
+        $resposta = $this->lancar($this->recebimento, ['origem' => 'recebimento']);
+
+        $erro = session('errors')->first('numero_nota');
+
+        $this->assertStringContainsString('cancelada', mb_strtolower($erro));
+        $this->assertStringContainsString(now()->subDays(3)->format('d/m'), $erro);
+        $this->assertStringNotContainsString('já está lançada', $erro);
+
+        $this->assertDatabaseCount('notas', 1); // não duplicou
+    }
+
+    /** Vale para a outra fila também — cancelamento manda antes de mover. */
+    public function test_cancelada_avisa_mesmo_vindo_de_outra_fila(): void
+    {
+        $this->nota([
+            'origem'       => 'pre_lote',
+            'cancelada_em' => now()->subDay(),
+        ]);
+
+        $this->lancar($this->recebimento, ['origem' => 'recebimento']);
+
+        $erro = session('errors')->first('numero_nota');
+
+        $this->assertStringContainsString('cancelada', mb_strtolower($erro));
+    }
+
+    /** Cancelada e já liberada antes disso: o cancelamento é o que vale. */
+    public function test_cancelada_manda_mesmo_tendo_sido_liberada_antes(): void
+    {
+        $nota = $this->nota([
+            'origem'       => 'recebimento',
+            'liberada_em'  => now()->subDays(5),
+            'cancelada_em' => now()->subDays(2),
+        ]);
+
+        $this->lancar($this->recebimento, ['origem' => 'recebimento']);
+
+        $this->assertStringContainsString('cancelada', mb_strtolower(session('errors')->first('numero_nota')));
+        // não pode marcar "recebida hoje" numa nota cancelada
+        $this->assertNull($nota->fresh()->recebida_em);
+    }
+
     public function test_nota_excluida_nao_bloqueia_relancar(): void
     {
         $this->nota()->delete(); // soft delete

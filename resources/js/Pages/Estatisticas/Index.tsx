@@ -106,6 +106,8 @@ export default function Index({
         'Item n pedido': '#eab308',
         'Importar nf': p.GREEN,
         Reconferir: '#e3954a',
+        Recusa: '#64748b',
+        'Devolução': '#6366f1',
         'Sem divergência': p.GREEN,
     };
 

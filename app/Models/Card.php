@@ -34,7 +34,20 @@ class Card extends Model
         'reaberturas'  => 'integer',
     ];
 
-    public const TIPOS = ['cadastro', 'regra', 'custo', 'quantidade', 'sem_pedido', 'item_n_pedido', 'importar_nf', 'reconferir', 'trocar_nota'];
+    public const TIPOS = ['cadastro', 'regra', 'custo', 'quantidade', 'sem_pedido', 'item_n_pedido', 'importar_nf', 'reconferir', 'trocar_nota', 'recusa', 'devolucao'];
+
+    /**
+     * Rótulo legível. Só entra aqui o tipo que o padrão não resolve bem —
+     * "devolucao" viraria "Devolucao", sem cedilha, nas Estatísticas e no Dossiê.
+     */
+    public const ROTULOS = [
+        'devolucao' => 'Devolução',
+    ];
+
+    public static function rotulo(string $tipo): string
+    {
+        return self::ROTULOS[$tipo] ?? ucfirst(str_replace('_', ' ', $tipo));
+    }
 
     /**
      * Tipos que só existem em nota de CEASA. "Reconferir": compras pede que o
@@ -60,6 +73,31 @@ class Card extends Model
      *   • trocar_nota  — a nota tem de ser trocada com o fornecedor
      */
     public const TIPOS_TODOS = ['importar_nf', 'trocar_nota'];
+
+    /**
+     * Recusa e devolução — a mercadoria não fica.
+     *
+     * ABRIR é de qualquer papel: compras costuma ser quem descobre primeiro
+     * (o fornecedor liga avisando), mas quem está na doca também vê na hora.
+     *
+     * FECHAR é só de quem tem a mercadoria na mão — recebimento e pré-lote.
+     * Compras fica de fora de propósito: ela não vê a doca, e marcar "resolvido"
+     * daqui seria afirmar que a carga saiu sem ter olhado para ela.
+     *
+     * Por isso não estão em TIPOS_COMPRAS (que faria o sino cobrar compras por
+     * algo que ela não pode encerrar) nem em TIPOS_TODOS (que deixaria compras
+     * fechar).
+     */
+    public const TIPOS_DOCA = ['recusa', 'devolucao'];
+
+    /**
+     * Tipos que qualquer papel operacional ABRE — os que não são erro de um
+     * setor só. Fonte única: o controller e a tela perguntam aqui.
+     */
+    public static function abertosPorQualquerPapel(): array
+    {
+        return [...self::TIPOS_TODOS, ...self::TIPOS_DOCA];
+    }
 
     // Corrigir (compras) já resolve o card — não há estado intermediário.
     public const STATUS_ABERTO    = 'aberto';
@@ -111,6 +149,12 @@ class Card extends Model
             return $user->podeLancarNota()   // recebimento + pré-lote
                 || $user->podeGerirCards()   // pré-lote
                 || $user->podeCorrigirCard(); // compras
+        }
+
+        // Recusa/devolução: fecha quem está com a mercadoria. podeLancarNota()
+        // é exatamente recebimento + pré-lote — compras não entra.
+        if (in_array($this->tipo, self::TIPOS_DOCA, true)) {
+            return $user->podeLancarNota();
         }
 
         return $user->podeCorrigirCard() && in_array($this->tipo, self::TIPOS_COMPRAS, true);

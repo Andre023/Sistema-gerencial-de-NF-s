@@ -58,6 +58,8 @@ export const TIPO_CARD_LABEL: Record<string, string> = {
     importar_nf: 'Importar NF',
     reconferir: 'Reconferir',
     trocar_nota: 'Trocar nota',
+    recusa: 'Recusa',
+    devolucao: 'Devolução',
 };
 
 export const CARD_COR_DARK: Record<string, { bg: string; text: string; border: string }> = {
@@ -71,6 +73,10 @@ export const CARD_COR_DARK: Record<string, { bg: string; text: string; border: s
     importar_nf: { bg: 'rgba(63,185,80,0.15)', text: '#56d364', border: 'rgba(63,185,80,0.35)' },
     reconferir: { bg: 'rgba(227,149,74,0.15)', text: '#f0a868', border: 'rgba(227,149,74,0.35)' },
     trocar_nota: { bg: 'rgba(219,112,199,0.15)', text: '#d2a8ff', border: 'rgba(219,112,199,0.35)' },
+    // Cinza-ardósia: lê como "parou aqui" e não disputa com o vermelho de "regra"
+    recusa: { bg: 'rgba(100,116,139,0.18)', text: '#a6b3c2', border: 'rgba(100,116,139,0.4)' },
+    // Índigo — a única faixa do azul ainda livre (cadastro usa o azul aberto)
+    devolucao: { bg: 'rgba(99,102,241,0.15)', text: '#a5b4fc', border: 'rgba(99,102,241,0.35)' },
 };
 
 export const CARD_COR_LIGHT: Record<string, { bg: string; text: string; border: string }> = {
@@ -83,6 +89,8 @@ export const CARD_COR_LIGHT: Record<string, { bg: string; text: string; border: 
     importar_nf: { bg: '#dcfce7', text: '#15803d', border: '#86efac' },
     reconferir: { bg: '#ffedd5', text: '#9a3412', border: '#fed7aa' },
     trocar_nota: { bg: '#fce7f3', text: '#9d174d', border: '#fbcfe8' },
+    recusa: { bg: '#e2e8f0', text: '#334155', border: '#94a3b8' },
+    devolucao: { bg: '#e0e7ff', text: '#4338ca', border: '#a5b4fc' },
 };
 
 export const STATUS_NOTA_LABEL: Record<string, string> = {

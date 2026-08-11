@@ -148,7 +148,7 @@ class EstatisticaController extends Controller
                           SUM(CASE WHEN cards.status = "resolvido" THEN 1 ELSE 0 END) as atendidas')
             ->groupBy('cards.tipo')->orderByDesc('total')->get()
             ->map(fn($r) => [
-                'motivo' => ucfirst(str_replace('_', ' ', $r->motivo)),
+                'motivo' => Card::rotulo($r->motivo),
                 'total' => (int) $r->total, 'atendidas' => (int) $r->atendidas,
             ]);
 
@@ -188,7 +188,7 @@ class EstatisticaController extends Controller
             ->orderByDesc('total')->get();
 
         foreach ($linhas->groupBy('tipo') as $tipo => $grupo) {
-            $fornecedoresPorMotivo[ucfirst(str_replace('_', ' ', $tipo))] = $grupo->take(8)
+            $fornecedoresPorMotivo[Card::rotulo($tipo)] = $grupo->take(8)
                 ->map(fn($r) => ['fornecedor' => $r->fornecedor, 'total' => (int) $r->total])->values();
         }
 
@@ -214,7 +214,7 @@ class EstatisticaController extends Controller
                 'id' => $n->id, 'numero_nota' => $n->numero_nota,
                 'fornecedor' => $n->fornecedor->nome ?? '—',
                 'motivo' => $n->cards->where('status', '!=', Card::STATUS_RESOLVIDO)
-                    ->pluck('tipo')->map(fn($t) => ucfirst(str_replace('_', ' ', $t)))->implode(', ') ?: 'Sem divergência',
+                    ->pluck('tipo')->map(fn($t) => Card::rotulo($t))->implode(', ') ?: 'Sem divergência',
                 'loja' => $n->loja, 'dias_aberta' => $n->diasEmAberto($hojeStr),
                 'nivel' => $n->nivelAlerta($hojeStr), 'created_at' => $n->created_at->format('d/m/Y H:i'),
             ]);
@@ -288,7 +288,7 @@ class EstatisticaController extends Controller
             ->selectRaw('cards.tipo, COUNT(*) as cards, SUM(cards.reaberturas) as reaberturas')
             ->groupBy('cards.tipo')->orderByDesc('reaberturas')->get()
             ->map(fn($r) => [
-                'motivo' => ucfirst(str_replace('_', ' ', $r->tipo)),
+                'motivo' => Card::rotulo($r->tipo),
                 'cards' => (int) $r->cards, 'reaberturas' => (int) $r->reaberturas,
             ]);
 

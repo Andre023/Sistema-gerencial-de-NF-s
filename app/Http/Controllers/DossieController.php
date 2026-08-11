@@ -108,7 +108,7 @@ class DossieController extends Controller
             $taxaRede = $totalRede > 0 ? round(((int) ($daRede[$tipo] ?? 0) / $totalRede) * 100, 1) : 0;
 
             return [
-                'motivo'   => ucfirst(str_replace('_', ' ', $tipo)),
+                'motivo'   => Card::rotulo($tipo),
                 'total'    => $qtd,
                 'taxa'     => $taxa,
                 'taxaRede' => $taxaRede,

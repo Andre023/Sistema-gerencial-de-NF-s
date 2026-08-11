@@ -183,8 +183,13 @@ function ModalCards({ nota, onFechar, can, tiposCompras, isDark, p }: {
     // Cards "de todo mundo" (Importar NF, Trocar nota): recebimento e compras
     // marcam via "Corrigido"; o pré-lote usa "Resolver" (já tem o botão dele).
     const DE_TODOS: TipoCard[] = ['importar_nf', 'trocar_nota'];
+    // Recusa e Devolução: qualquer papel ABRE, mas fecha só quem está com a
+    // mercadoria. Compras não aparece aqui de propósito — marcar "resolvido"
+    // sem ver a doca seria afirmar que a carga saiu. (Card::TIPOS_DOCA)
+    const DE_DOCA: TipoCard[] = ['recusa', 'devolucao'];
     const podeCorrigirEste = (c: Card) => {
         if (DE_TODOS.includes(c.tipo)) return !can.gerirCards && (meuPapel === 'recebimento' || meuPapel === 'compras');
+        if (DE_DOCA.includes(c.tipo)) return !can.gerirCards && meuPapel === 'recebimento';
         return can.corrigirCard && (!ehCompras || tiposCompras.includes(c.tipo));
     };
 
@@ -413,7 +418,7 @@ function ModalEditarLiberada({ nota, can, onFechar, p }: {
 
 function opcoesTipos(nota: Nota): TipoCard[] {
     const ativos = nota.cards.filter(c => c.status !== 'resolvido').map(c => c.tipo);
-    const base: TipoCard[] = ['cadastro', 'regra', 'custo', 'quantidade', 'sem_pedido', 'item_n_pedido', 'importar_nf', 'trocar_nota'];
+    const base: TipoCard[] = ['cadastro', 'regra', 'custo', 'quantidade', 'sem_pedido', 'item_n_pedido', 'importar_nf', 'trocar_nota', 'recusa', 'devolucao'];
     // "Reconferir" só existe em nota de CEASA (pedido de nova conferência)
     if (nota.ceasa > 0) base.push('reconferir');
     return base.filter(t => !ativos.includes(t));
