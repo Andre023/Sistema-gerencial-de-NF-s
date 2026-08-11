@@ -416,6 +416,54 @@ function ModalEditarLiberada({ nota, can, onFechar, p }: {
     );
 }
 
+/**
+ * Preferência de tela guardada no navegador, como o tema.
+ *
+ * Fica fora do banco de propósito: é gosto de quem está olhando, não dado da
+ * operação — quem confere no celular quer a barra diferente de quem passa o
+ * dia no desktop, e são a mesma conta.
+ */
+function usePreferencia(chave: string, inicial: boolean) {
+    const [valor, setValor] = useState<boolean>(() => {
+        if (typeof window === 'undefined') return inicial;
+        const salvo = localStorage.getItem(chave);
+        return salvo === null ? inicial : salvo === '1';
+    });
+
+    useEffect(() => {
+        localStorage.setItem(chave, valor ? '1' : '0');
+    }, [chave, valor]);
+
+    return [valor, setValor] as const;
+}
+
+/**
+ * Botão de recolher um grupo de chips.
+ *
+ * Recolhido continua mostrando o TOTAL: some o detalhe de qual tipo, nunca o
+ * fato de que existe pendência. Uma seta pura esconderia as duas coisas.
+ */
+function BotaoGrupo({ aberto, onAlternar, rotulo, total, travado, p }: {
+    aberto: boolean; onAlternar: () => void; rotulo: string; total: number;
+    /** Filtro ativo neste grupo: recolher esconderia o filtro que está valendo. */
+    travado: boolean; p: Palette;
+}) {
+    return (
+        <button type="button" onClick={onAlternar} disabled={travado}
+            title={travado
+                ? 'Há filtro ativo aqui — remova para poder recolher'
+                : aberto ? `Recolher ${rotulo.toLowerCase()}` : `Mostrar ${rotulo.toLowerCase()}`}
+            className="flex items-center gap-1.5 text-sm px-2.5 py-1.5 rounded-lg transition disabled:opacity-50 disabled:cursor-not-allowed"
+            style={{ color: p.MUTED, border: `1px solid ${p.BORDER}` }}
+            onMouseEnter={e => !travado && (e.currentTarget.style.background = p.HOVER_ROW)}
+            onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}>
+            <Icone path={aberto ? 'M19 9l-7 7-7-7' : 'M9 5l7 7-7 7'} className="w-3.5 h-3.5" />
+            <span>{rotulo}</span>
+            {!aberto && <strong style={{ color: p.TEXT }}>{total}</strong>}
+        </button>
+    );
+}
+
 function opcoesTipos(nota: Nota): TipoCard[] {
     const ativos = nota.cards.filter(c => c.status !== 'resolvido').map(c => c.tipo);
     const base: TipoCard[] = ['cadastro', 'regra', 'custo', 'quantidade', 'sem_pedido', 'item_n_pedido', 'importar_nf', 'trocar_nota', 'recusa', 'devolucao'];
@@ -1083,6 +1131,30 @@ export default function Index({ recebimento, preLote, liberadas, canceladas, for
     const temFiltros = temAlertas || totalReconferirEfetivo > 0 || tiposComPendencia.length > 0;
     const filtrandoReconferir = filtros.status === 'reconferir';
 
+    // ── Recolher os dois grupos de chips ──────────────────────────────────────
+    //
+    // PRAZOS (críticas/alerta/atenção) são a idade da nota. Nota não envelhece
+    // na doca: ela envelhece esperando resposta do fornecedor ou correção no
+    // ERP — coisa que a equipe já sabe e não consegue destravar olhando a fila.
+    // Por isso são o grupo que mais compensa fechar, e não o contrário.
+    //
+    // DIVERGÊNCIAS é onde está o trabalho que dá para fazer hoje. "Reconferir"
+    // (nota com tudo corrigido, esperando o pré-lote liberar) mora aqui, e não
+    // com os prazos: é fase do card, não idade.
+    const [verPrazos, setVerPrazos] = usePreferencia('nfs:filtros:prazos', true);
+    const [verDivergencias, setVerDivergencias] = usePreferencia('nfs:filtros:divergencias', true);
+
+    // Grupo com filtro ativo não recolhe: sumir com o chip que está filtrando a
+    // tela deixaria a pessoa vendo uma fila cortada sem nada explicando por quê.
+    const prazosTravados = !!filtros.nivel;
+    const divergenciasTravadas = !!filtros.tipo || filtrandoReconferir;
+    const prazosAbertos = verPrazos || prazosTravados;
+    const divergenciasAbertas = verDivergencias || divergenciasTravadas;
+
+    const totalPrazos = resumoEfetivo.critico + resumoEfetivo.alerta + resumoEfetivo.atencao;
+    const totalDivergencias = totalReconferirEfetivo
+        + tiposComPendencia.reduce((soma, t) => soma + (resumoTiposEfetivo[t] ?? 0), 0);
+
     const COLS_FILA = ['Nota', 'Fornecedor', 'Divergências', 'Loja', 'Observação', 'Lançado', ''];
     const COLS_LIBERADAS = ['Nota', 'Fornecedor', 'Divergências', 'Loja', 'Observação', 'Liberada por', ''];
     const COLS_CANCELADAS = ['Nota', 'Fornecedor', 'Loja', 'Fila', 'Motivo', 'Cancelada por', ''];
@@ -1270,10 +1342,15 @@ export default function Index({ recebimento, preLote, liberadas, canceladas, for
                     </div>
                 </div>
 
-                {/* ── Chips de filtro: envelhecimento + prontas p/ liberar ────── */}
+                {/* ── Chips de filtro: prazos | divergências ──────────────────── */}
                 {temFiltros && (
                     <div className="flex flex-wrap items-center gap-2">
-                        {(['critico', 'alerta', 'atencao'] as const).map(n => {
+                        {temAlertas && (
+                            <BotaoGrupo aberto={prazosAbertos} onAlternar={() => setVerPrazos(v => !v)}
+                                rotulo="Prazos" total={totalPrazos} travado={prazosTravados} p={p} />
+                        )}
+
+                        {prazosAbertos && (['critico', 'alerta', 'atencao'] as const).map(n => {
                             const qtd = resumoEfetivo[n];
                             if (!qtd) return null;
                             const cor = nivelCor(n, p);
@@ -1294,8 +1371,19 @@ export default function Index({ recebimento, preLote, liberadas, canceladas, for
                             );
                         })}
 
-                        {/* Reconferir: tudo corrigido, esperando o pré-lote conferir e liberar */}
-                        {totalReconferirEfetivo > 0 && (
+                        {/* Divisória só quando há algo dos dois lados dela */}
+                        {temAlertas && (totalReconferirEfetivo > 0 || tiposComPendencia.length > 0) && (
+                            <span className="w-px h-5 mx-0.5" style={{ background: p.BORDER }} />
+                        )}
+
+                        {(totalReconferirEfetivo > 0 || tiposComPendencia.length > 0) && (
+                            <BotaoGrupo aberto={divergenciasAbertas} onAlternar={() => setVerDivergencias(v => !v)}
+                                rotulo="Divergências" total={totalDivergencias} travado={divergenciasTravadas} p={p} />
+                        )}
+
+                        {/* Reconferir: tudo corrigido, esperando o pré-lote conferir e liberar.
+                            Fica com as divergências porque é fase do card, não idade da nota. */}
+                        {divergenciasAbertas && totalReconferirEfetivo > 0 && (
                             <button onClick={() => filtrarStatus(filtrandoReconferir ? null : 'reconferir')}
                                 title={filtrandoReconferir ? 'Remover filtro' : 'Ver só as prontas p/ liberar'}
                                 className="flex items-center gap-1.5 text-sm px-3 py-1.5 rounded-lg transition"
@@ -1311,11 +1399,7 @@ export default function Index({ recebimento, preLote, liberadas, canceladas, for
                         )}
 
                         {/* Divergências em aberto: "quais notas estão travadas no custo?" */}
-                        {tiposComPendencia.length > 0 && (
-                            <span className="w-px h-5 mx-0.5" style={{ background: p.BORDER }} />
-                        )}
-
-                        {tiposComPendencia.map(t => {
+                        {divergenciasAbertas && tiposComPendencia.map(t => {
                             const cor = (isDark ? CARD_COR_DARK : CARD_COR_LIGHT)[t];
                             const ativo = filtros.tipo === t;
                             return (
