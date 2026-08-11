@@ -59,5 +59,6 @@ class AppServiceProvider extends ServiceProvider
         Gate::define('cancelar-nota',      fn(User $u) => $u->podeCancelarNota());
         Gate::define('editar-observacao',  fn(User $u) => $u->podeEditarObservacao());
         Gate::define('editar-ceasa-liberada',      fn(User $u) => $u->podeEditarCeasaLiberada());
+        Gate::define('anexar-nota',        fn(User $u) => $u->podeAnexarNota());
     }
 }

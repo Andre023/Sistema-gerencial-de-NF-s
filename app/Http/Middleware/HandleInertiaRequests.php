@@ -54,6 +54,7 @@ class HandleInertiaRequests extends Middleware
                     'cancelarNota'         => $user->podeCancelarNota(),
                     'editarObservacao'     => $user->podeEditarObservacao(),
                     'editarCeasaLiberada'      => $user->podeEditarCeasaLiberada(),
+                    'anexarNota'              => $user->podeAnexarNota(),
                 ] : null,
             ],
             // O sino: estado inicial da lista. Depois disso quem mantém ao vivo

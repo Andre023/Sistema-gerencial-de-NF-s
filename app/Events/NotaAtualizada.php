@@ -54,7 +54,10 @@ class NotaAtualizada implements ShouldBroadcastNow
             return []; // sem payload → o cliente faz um reload de segurança
         }
 
-        $nota->loadCount('comentarios');
+        // Sem contar os anexos aqui, paraTabela() cai no `?? 0` e o contador do
+        // botão zera na tela de todo mundo a cada evento — inclusive no evento
+        // disparado pelo próprio upload que acabou de acontecer.
+        $nota->loadCount(['comentarios', 'anexos']);
 
         return ['nota' => $nota->paraTabela(now()->toDateString())];
     }

@@ -38,6 +38,23 @@ return [
             'report' => false,
         ],
 
+        /*
+         * Anexos das notas (documento fiscal). Fica FORA de public/: o nginx
+         * não alcança, então não existe URL que abra sem passar pelo Laravel.
+         * Quem entrega o arquivo é o AnexoController, depois de checar o Gate.
+         *
+         * Tem nome próprio em vez de reaproveitar o 'local' para o destino ser
+         * óbvio na leitura: quem for mexer aqui vê "privado" e pensa duas vezes
+         * antes de apontar para o disco 'public' logo abaixo.
+         */
+        'privado' => [
+            'driver' => 'local',
+            'root' => storage_path('app/private'),
+            'serve' => false,
+            'throw' => false,
+            'report' => false,
+        ],
+
         'public' => [
             'driver' => 'local',
             'root' => storage_path('app/public'),

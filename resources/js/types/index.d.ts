@@ -45,6 +45,24 @@ export interface Permissoes {
     editarObservacao: boolean;
     /** Editar o lembrete CEASA de uma nota já liberada — só recebimento */
     editarCeasaLiberada: boolean;
+    /** Anexar e remover documento/foto da nota — recebimento e pré-lote */
+    anexarNota: boolean;
+}
+
+/**
+ * Documento ou foto preso à nota. O arquivo NÃO vem aqui: só o ponteiro e o
+ * que a tela mostra sem abri-lo. O conteúdo sai pela rota notas.anexos.download,
+ * que confere a sessão antes de entregar.
+ */
+export interface Anexo {
+    id: number;
+    nome: string;
+    mime: string;
+    /** bytes */
+    tamanho: number;
+    imagem: boolean;
+    enviado_por: string | null;
+    created_at: string;
 }
 
 export interface Fornecedor {
@@ -97,6 +115,7 @@ export interface Nota {
     visualizando_por: (Pick<User, 'id' | 'name'> & { avatar?: Avatar }) | null;
     visualizando_em: string | null;
     comentarios_count: number;
+    anexos_count: number;
     created_at: string;
     atrasada: boolean;
     dias_aberta: number;

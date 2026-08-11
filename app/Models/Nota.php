@@ -120,6 +120,32 @@ class Nota extends Model
         return $this->morphMany(Comentario::class, 'comentavel');
     }
 
+    /** Documentos e fotos da nota (canhoto, avaria). Vida curta — ver Anexo. */
+    public function anexos(): HasMany
+    {
+        return $this->hasMany(Anexo::class);
+    }
+
+    /**
+     * Apaga os anexos com os arquivos do disco.
+     *
+     * Usado quando a nota sai de cena (cancelada, excluída) e pelo job dos 2
+     * dias. Vai um a um de propósito: `->delete()` na relação limparia as
+     * linhas e deixaria os arquivos ocupando disco sem ninguém apontando
+     * para eles — órfãos que só apareceriam quando a partição enchesse.
+     */
+    public function apagarAnexos(): int
+    {
+        $quantos = 0;
+
+        foreach ($this->anexos()->get() as $anexo) {
+            $anexo->apagarComArquivo();
+            $quantos++;
+        }
+
+        return $quantos;
+    }
+
     // ─── Escopos ────────────────────────────────────────────────────────────────
 
     /**
@@ -216,6 +242,7 @@ class Nota extends Model
                 : null,
             'visualizando_em'  => $this->visualizando_em,
             'comentarios_count' => $this->comentarios_count ?? 0,
+            'anexos_count'      => $this->anexos_count ?? 0,
             'created_at'   => $this->created_at,
             'atrasada'     => $this->isAtrasada($dataFiltro),
             'dias_aberta'  => $this->diasEmAberto($dataFiltro),

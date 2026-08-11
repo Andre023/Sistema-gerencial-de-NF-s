@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Events\NotaAtualizada;
+use App\Jobs\LimparAnexosDaNota;
 use App\Models\Card;
 use App\Models\Fornecedor;
 use App\Models\Nota;
@@ -61,7 +62,7 @@ class NotaController extends Controller
                 'visualizadaPor:id,name,avatar_tipo,avatar_valor',
                 'cards',
             ])
-            ->withCount('comentarios')
+            ->withCount(['comentarios', 'anexos'])
             ->when($lojas, fn($q) => $q->whereIn('loja', $lojas))
             ->when($busca, fn($q) => $q->where(function ($q) use ($busca) {
                 $q->where('numero_nota', 'like', "%{$busca}%")
@@ -372,6 +373,13 @@ class NotaController extends Controller
             'visualizando_em'  => null,
         ]);
 
+        // A liberação agenda a própria limpeza: os documentos servem até a nota
+        // fechar, e daí a dois dias já não têm uso. O worker (nfs-queue) executa
+        // na data — sem cron, sem varredura. Se a nota for devolvida nesse meio
+        // tempo, o job reconfere e não apaga nada.
+        LimparAnexosDaNota::dispatch($nota->id)
+            ->delay(now()->addDays(LimparAnexosDaNota::DIAS));
+
         event(new NotaAtualizada($nota));
         Notificador::notaLiberada($nota, $request->user());
 
@@ -404,6 +412,10 @@ class NotaController extends Controller
             'visualizando_por'    => null,
             'visualizando_em'     => null,
         ]);
+
+        // Cancelada não tem o que esperar: a mercadoria não entrou e o documento
+        // não serve mais a ninguém. Sai na hora, sem os 2 dias da liberação.
+        $nota->apagarAnexos();
 
         event(new NotaAtualizada($nota));
         Notificador::notaCancelada($nota); // saiu da fila: nada nela pede ação
@@ -554,6 +566,10 @@ class NotaController extends Controller
         }
 
         Notificador::notaRemovida($nota);
+
+        // Soft delete não dispara FK nenhuma: sem isto o arquivo ficaria em
+        // disco para sempre, sem nada na tela apontando para ele.
+        $nota->apagarAnexos();
 
         $nota->delete();
 

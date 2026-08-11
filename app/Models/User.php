@@ -298,4 +298,17 @@ class User extends Authenticatable
     {
         return $this->ehUmDe(self::ROLE_RECEBIMENTO);
     }
+
+    /**
+     * Anexar documento/foto à nota (e remover) — recebimento e pré-lote.
+     *
+     * São os dois que têm a mercadoria e o papel na mão: o recebimento na
+     * chegada do caminhão, o pré-lote na conferência. Compras não anexa, mas
+     * VÊ — a foto da avaria é justamente o que ela precisa para resolver o
+     * card, e sem isso o anexo não serviria para nada.
+     */
+    public function podeAnexarNota(): bool
+    {
+        return $this->ehUmDe(self::ROLE_RECEBIMENTO, self::ROLE_PRE_LOTE);
+    }
 }

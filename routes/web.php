@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\AnexoController;
 use App\Http\Controllers\CardController;
 use App\Http\Controllers\ComentarioController;
 use App\Http\Controllers\DossieController;
@@ -62,6 +63,17 @@ Route::middleware(['auth', 'verified'])->group(function () {
             Route::patch('/{card}/resolver',      [CardController::class, 'resolver'])->name('resolver');
             Route::patch('/{card}/reabrir',       [CardController::class, 'reabrir'])->name('reabrir');
             Route::delete('/{card}',              [CardController::class, 'destroy'])->name('destroy');
+        });
+
+        // Anexos: documento/foto da nota. Enviar e remover é do recebimento e do
+        // pré-lote (Gate dentro do controller); VER é de qualquer conta logada —
+        // compras precisa da foto da avaria para resolver o card.
+        // O arquivo mora fora de public/ e só sai por aqui, com 'auth' na frente.
+        Route::prefix('{nota}/anexos')->name('anexos.')->group(function () {
+            Route::get('/',                  [AnexoController::class, 'index'])->name('index');
+            Route::post('/',                 [AnexoController::class, 'store'])->name('store');
+            Route::get('/{anexo}',           [AnexoController::class, 'download'])->name('download');
+            Route::delete('/{anexo}',        [AnexoController::class, 'destroy'])->name('destroy');
         });
 
         // Comentários (JSON — o modal busca a thread sob demanda). Todos os papéis

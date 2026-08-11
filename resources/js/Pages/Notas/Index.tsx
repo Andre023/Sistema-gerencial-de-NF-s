@@ -11,6 +11,7 @@ import THead from '@/Components/painel/THead';
 import CampoFornecedor from '@/Components/painel/CampoFornecedor';
 import CardBadge from '@/Components/painel/CardBadge';
 import ModalComentarios from '@/Components/painel/ModalComentarios';
+import ModalAnexos from '@/Components/painel/ModalAnexos';
 import Avatar from '@/Components/painel/Avatar';
 
 interface Props {
@@ -423,6 +424,7 @@ function opcoesTipos(nota: Nota): TipoCard[] {
 /** O que a linha da tabela e o cartão do celular precisam receber. */
 interface AcoesProps {
     nota: Nota; onCards: (n: Nota) => void; onComentar: (n: Nota) => void;
+    onAnexos: (n: Nota) => void;
     onEditar: (n: Nota) => void; onExcluir: (n: Nota) => void; onLiberar: (n: Nota) => void;
     onVisualizar: (n: Nota) => void; onCancelar: (n: Nota) => void;
     onObservacao: (n: Nota) => void; usuarioId: number;
@@ -437,7 +439,7 @@ interface AcoesProps {
  * nascem visíveis. Antes, com `opacity-0 group-hover:opacity-100`, no celular
  * eles ficavam invisíveis e a nota virava só leitura.
  */
-function AcoesNota({ nota, onCards, onComentar, onEditar, onExcluir, onLiberar, onVisualizar, onCancelar, onObservacao, usuarioId, can, p, alinhar }:
+function AcoesNota({ nota, onCards, onComentar, onAnexos, onEditar, onExcluir, onLiberar, onVisualizar, onCancelar, onObservacao, usuarioId, can, p, alinhar }:
     AcoesProps & { alinhar: 'start' | 'end' }) {
 
     // Reserva (🙋‍♂️): se ninguém pegou, só aparece no hover; reservada, fica fixa.
@@ -481,6 +483,18 @@ function AcoesNota({ nota, onCards, onComentar, onEditar, onExcluir, onLiberar, 
                 onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}>
                 <Icone path="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.8 9.8 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
                 {nota.comentarios_count > 0 && <span className="text-xs font-medium">{nota.comentarios_count}</span>}
+            </button>
+
+            {/* Anexos: fica visível quando já tem arquivo (igual comentários),
+                senão só no hover. Todo mundo vê — compras precisa da foto da
+                avaria; quem ENVIA é recebimento e pré-lote (trava no servidor). */}
+            <button onClick={() => onAnexos(nota)} title="Documentos e fotos"
+                className={`flex items-center gap-1 ${btn} ${nota.anexos_count > 0 ? '' : 'acoes-hover'}`}
+                style={{ color: nota.anexos_count > 0 ? p.PURPLE : p.MUTED }}
+                onMouseEnter={e => (e.currentTarget.style.background = p.HOVER_ROW)}
+                onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}>
+                <Icone path={ICONE_ANEXO} />
+                {nota.anexos_count > 0 && <span className="text-xs font-medium">{nota.anexos_count}</span>}
             </button>
 
             <div className="flex items-center gap-0.5 acoes-hover">
@@ -645,6 +659,8 @@ function BotaoIcone({ titulo, cor, path, onClick, sempre, children }: {
 }
 
 const ICONE_COMENTARIO = 'M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.8 9.8 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z';
+/** Clipe de papel — documentos e fotos da nota */
+const ICONE_ANEXO = 'M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13';
 const ICONE_EDITAR = 'M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z';
 const ICONE_VOLTAR = 'M9 15L3 9m0 0l6-6M3 9h12a6 6 0 010 12h-3';
 const ICONE_LIXEIRA = 'M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16';
@@ -761,7 +777,7 @@ function CartaoCancelada({ nota, can, p, onComentar, onDescancelar }: {
 
 // ─── Linha da fila (tabela, a partir de 1024px) ──────────────────────────────────
 
-function LinhaFila({ nota, onCards, onComentar, onEditar, onExcluir, onLiberar, onVisualizar, onCancelar, onObservacao, usuarioId, can, isDark, p }:
+function LinhaFila({ nota, onCards, onComentar, onAnexos, onEditar, onExcluir, onLiberar, onVisualizar, onCancelar, onObservacao, usuarioId, can, isDark, p }:
     AcoesProps & { isDark: boolean }) {
     const cor = nivelCor(nota.nivel, p);
     const rowBg = nota.nivel === 'normal' ? 'transparent' : cor + (nota.nivel === 'critico' ? '1f' : '12');
@@ -803,7 +819,7 @@ function LinhaFila({ nota, onCards, onComentar, onEditar, onExcluir, onLiberar, 
             <td className="px-4 py-3 text-sm whitespace-nowrap" style={{ color: p.TEXT }}>{nota.user.name.split(' ')[0]}</td>
             <td className="px-4 py-3 text-right">
                 <AcoesNota nota={nota} can={can} p={p} usuarioId={usuarioId} alinhar="end"
-                    onCards={onCards} onComentar={onComentar} onEditar={onEditar}
+                    onCards={onCards} onComentar={onComentar} onAnexos={onAnexos} onEditar={onEditar}
                     onExcluir={onExcluir} onLiberar={onLiberar} onVisualizar={onVisualizar}
                     onCancelar={onCancelar} onObservacao={onObservacao} />
             </td>
@@ -822,6 +838,7 @@ export default function Index({ recebimento, preLote, liberadas, canceladas, for
     const [modalEditar, setModalEditar] = useState<Nota | null>(null);
     const [cardsId, setCardsId] = useState<number | null>(null);
     const [comentariosNota, setComentariosNota] = useState<Nota | null>(null);
+    const [anexosNota, setAnexosNota] = useState<Nota | null>(null);
     const [editarLiberadaNota, setEditarLiberadaNota] = useState<Nota | null>(null);
     const [echoTick, setEchoTick] = useState(0);
     const [erros, setErros] = useState<Record<string, string>>({});
@@ -1092,6 +1109,7 @@ export default function Index({ recebimento, preLote, liberadas, canceladas, for
                         ) : notas.map(n => (
                             <LinhaFila key={n.id} nota={n} can={can} isDark={isDark} p={p}
                                 onCards={x => setCardsId(x.id)} onComentar={setComentariosNota}
+                                onAnexos={setAnexosNota}
                                 onEditar={setModalEditar} onExcluir={excluir} onLiberar={liberarRapido}
                                 onVisualizar={visualizar} onCancelar={cancelar}
                                 onObservacao={setEditarLiberadaNota} usuarioId={user.id} />
@@ -1108,6 +1126,7 @@ export default function Index({ recebimento, preLote, liberadas, canceladas, for
                 ) : notas.map(n => (
                     <CartaoFila key={n.id} nota={n} can={can} isDark={isDark} p={p}
                         onCards={x => setCardsId(x.id)} onComentar={setComentariosNota}
+                        onAnexos={setAnexosNota}
                         onEditar={setModalEditar} onExcluir={excluir} onLiberar={liberarRapido}
                         onVisualizar={visualizar} onCancelar={cancelar}
                         onObservacao={setEditarLiberadaNota} usuarioId={user.id} />
@@ -1147,6 +1166,15 @@ export default function Index({ recebimento, preLote, liberadas, canceladas, for
                 onMudou={() => router.reload({ only: ['recebimento', 'preLote', 'liberadas'] })}
                 recarregarToken={echoTick}
                 podeComentar={can.interagir}
+                p={p} />
+
+            <ModalAnexos
+                aberto={!!anexosNota}
+                onFechar={() => setAnexosNota(null)}
+                baseUrl={anexosNota ? `/notas/${anexosNota.id}/anexos` : null}
+                titulo={anexosNota ? `Nota ${anexosNota.numero_nota} — ${anexosNota.fornecedor.nome}` : ''}
+                onMudou={() => router.reload({ only: ['recebimento', 'preLote', 'liberadas'] })}
+                podeAnexar={can.anexarNota}
                 p={p} />
 
             <ModalEditarLiberada nota={editarLiberadaNota} can={can}
