@@ -11,6 +11,37 @@ const quando = (iso: string) => {
 };
 
 /**
+ * Arquivos de um Ctrl+V.
+ *
+ * Print de tela chega sem nome útil — o navegador manda "image.png", igual
+ * para todos. Como o nome é o que aparece na lista depois, batizamos com a
+ * hora da colagem: com três prints na mesma nota, é o que permite distinguir.
+ */
+function arquivosDaAreaDeTransferencia(dados: DataTransfer | null): File[] {
+    if (!dados) return [];
+
+    const brutos = dados.files?.length
+        ? Array.from(dados.files)
+        : Array.from(dados.items ?? [])
+            .filter(item => item.kind === 'file')
+            .map(item => item.getAsFile())
+            .filter((f): f is File => f !== null);
+
+    return brutos.map(arquivo => {
+        const semNome = !arquivo.name || /^(image|imagem)\.\w+$/i.test(arquivo.name);
+        if (!semNome) return arquivo;
+
+        const extensao = (arquivo.type.split('/')[1] || 'png').replace('jpeg', 'jpg');
+
+        return new File(
+            [arquivo],
+            `captura-${format(new Date(), 'dd-MM-yyyy-HHmmss')}.${extensao}`,
+            { type: arquivo.type },
+        );
+    });
+}
+
+/**
  * Documentos e fotos da nota.
  *
  * A foto é reduzida e convertida para WebP AQUI, antes de sair do aparelho —
@@ -34,7 +65,15 @@ export default function ModalAnexos({ aberto, onFechar, baseUrl, titulo, onMudou
     const [enviando, setEnviando] = useState(false);
     const [progresso, setProgresso] = useState<string | null>(null);
     const [erro, setErro] = useState<string | null>(null);
+    const [arrastando, setArrastando] = useState(false);
     const inputRef = useRef<HTMLInputElement>(null);
+
+    // Espelho do `enviando` para os ouvintes de colar/soltar: eles são
+    // registrados uma vez e enxergariam sempre o valor da primeira renderização.
+    const enviandoRef = useRef(false);
+    // dragenter/dragleave disparam de novo a cada elemento filho por onde o
+    // ponteiro passa. Sem contar as entradas, a moldura pisca ao atravessar a lista.
+    const profundidadeArrasto = useRef(0);
 
     const buscar = useCallback(async () => {
         if (!baseUrl) return;
@@ -54,9 +93,17 @@ export default function ModalAnexos({ aberto, onFechar, baseUrl, titulo, onMudou
         if (aberto) { setErro(null); setProgresso(null); buscar(); }
     }, [aberto, buscar]);
 
-    const enviar = async (lista: FileList | null) => {
-        if (!baseUrl || !lista?.length) return;
+    const enviar = async (lista: File[]) => {
+        if (!baseUrl || !lista.length || !podeAnexar) return;
 
+        // Colar duas vezes seguidas enquanto o primeiro ainda sobe faria os dois
+        // laços disputarem o mesmo `progresso` e o mesmo input.
+        if (enviandoRef.current) {
+            setErro('Aguarde o envio anterior terminar.');
+            return;
+        }
+
+        enviandoRef.current = true;
         setEnviando(true);
         setErro(null);
 
@@ -93,9 +140,85 @@ export default function ModalAnexos({ aberto, onFechar, baseUrl, titulo, onMudou
             }
         }
 
+        enviandoRef.current = false;
         setEnviando(false);
         setProgresso(null);
         if (inputRef.current) inputRef.current.value = ''; // permite reenviar o mesmo arquivo
+    };
+
+    // ─── Colar (Ctrl+V) ───────────────────────────────────────────────────────
+    //
+    // O caminho mais curto de todos: tirou o print, colou. O ouvinte fica no
+    // documento (e não num campo) porque não há onde focar dentro do modal —
+    // exigir um clique antes do Ctrl+V devolveria o passo que queremos tirar.
+
+    useEffect(() => {
+        if (!aberto || !podeAnexar) return;
+
+        const aoColar = (e: ClipboardEvent) => {
+            // Colar dentro de um campo de texto é colar texto, não anexar.
+            // Sem nada focado o alvo é o próprio `document`, que não tem
+            // closest() — daí o teste de Element antes de perguntar.
+            const alvo = e.target;
+            if (alvo instanceof Element && alvo.closest('input, textarea, [contenteditable="true"]')) return;
+
+            const arquivos = arquivosDaAreaDeTransferencia(e.clipboardData);
+            if (!arquivos.length) return;
+
+            e.preventDefault();
+            enviar(arquivos);
+        };
+
+        document.addEventListener('paste', aoColar);
+
+        return () => document.removeEventListener('paste', aoColar);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [aberto, podeAnexar, baseUrl]);
+
+    // ─── Arrastar e soltar ────────────────────────────────────────────────────
+    //
+    // Soltar arquivo FORA da área de destino faz o navegador abrir o arquivo e
+    // sair da página — levando junto o que estivesse em andamento. Enquanto o
+    // modal está aberto, a janela inteira engole o evento.
+
+    useEffect(() => {
+        if (!aberto) return;
+
+        const engolir = (e: DragEvent) => e.preventDefault();
+
+        window.addEventListener('dragover', engolir);
+        window.addEventListener('drop', engolir);
+
+        return () => {
+            window.removeEventListener('dragover', engolir);
+            window.removeEventListener('drop', engolir);
+            profundidadeArrasto.current = 0;
+        };
+    }, [aberto]);
+
+    const arrastaArquivo = (e: React.DragEvent) =>
+        Array.from(e.dataTransfer?.types ?? []).includes('Files');
+
+    const aoEntrarArrasto = (e: React.DragEvent) => {
+        if (!podeAnexar || !arrastaArquivo(e)) return;
+        profundidadeArrasto.current++;
+        setArrastando(true);
+    };
+
+    const aoSairArrasto = () => {
+        profundidadeArrasto.current = Math.max(0, profundidadeArrasto.current - 1);
+        if (profundidadeArrasto.current === 0) setArrastando(false);
+    };
+
+    const aoSoltar = (e: React.DragEvent) => {
+        e.preventDefault();
+        profundidadeArrasto.current = 0;
+        setArrastando(false);
+
+        if (!podeAnexar) return;
+
+        const arquivos = Array.from(e.dataTransfer?.files ?? []);
+        if (arquivos.length) enviar(arquivos);
     };
 
     const remover = async (anexo: Anexo) => {
@@ -112,7 +235,33 @@ export default function ModalAnexos({ aberto, onFechar, baseUrl, titulo, onMudou
 
     return (
         <Modal aberto={aberto} onFechar={onFechar} titulo={`Anexos — ${titulo}`} p={p}>
-            <div className="space-y-4">
+            <div className="space-y-4 relative"
+                onDragEnter={aoEntrarArrasto}
+                onDragOver={e => { if (arrastaArquivo(e)) e.preventDefault(); }}
+                onDragLeave={aoSairArrasto}
+                onDrop={aoSoltar}>
+
+                {/* Alvo do arrasto é o modal inteiro, não uma faixa: mirar uma
+                    caixinha com o arquivo na mão é o que faz a pessoa errar e
+                    soltar fora. A moldura só aparece quando há arquivo vindo. */}
+                {arrastando && podeAnexar && (
+                    <div className="absolute inset-0 z-10 flex items-center justify-center rounded-xl pointer-events-none"
+                        style={{
+                            background: p.SURFACE + 'f2',
+                            border: `2px dashed ${p.ACCENT}`,
+                        }}>
+                        <div className="text-center">
+                            <div className="flex justify-center mb-2" style={{ color: p.ACCENT }}>
+                                <Icone path="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"
+                                    className="w-8 h-8" />
+                            </div>
+                            <p className="text-sm font-medium" style={{ color: p.ACCENT }}>
+                                Solte para anexar
+                            </p>
+                        </div>
+                    </div>
+                )}
+
                 {podeAnexar && (
                     <div>
                         <input
@@ -121,7 +270,7 @@ export default function ModalAnexos({ aberto, onFechar, baseUrl, titulo, onMudou
                             multiple
                             accept="image/jpeg,image/png,image/webp,image/heic,application/pdf"
                             className="hidden"
-                            onChange={e => enviar(e.target.files)}
+                            onChange={e => enviar(Array.from(e.target.files ?? []))}
                         />
                         <button
                             type="button"
@@ -137,7 +286,12 @@ export default function ModalAnexos({ aberto, onFechar, baseUrl, titulo, onMudou
                             <p className="mt-2 text-xs text-center" style={{ color: p.MUTED }}>{progresso}</p>
                         )}
 
-                        <p className="mt-2 text-xs text-center" style={{ color: p.MUTED }}>
+                        {/* Colar e arrastar não têm botão que os anuncie — sem
+                            dizer aqui, ninguém descobre que existem. */}
+                        <p className="mt-2 text-xs text-center leading-relaxed" style={{ color: p.MUTED }}>
+                            Ou <strong style={{ color: p.TEXT }}>cole com Ctrl+V</strong> (print de tela)
+                            {' '}ou <strong style={{ color: p.TEXT }}>arraste o arquivo</strong> para cá.
+                            <br />
                             JPG, PNG, WebP, HEIC ou PDF. As fotos são reduzidas no aparelho antes de subir.
                         </p>
                     </div>
