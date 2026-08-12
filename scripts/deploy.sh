@@ -26,6 +26,43 @@ cd "${APP_DIR}"
 # Esta variável evita repetir o backup e barra um laço infinito de re-execução.
 REENTRADA="${NFS_DEPLOY_REENTRADA:-0}"
 
+# ─── Manutenção: erro 500 vira página de aviso ────────────────────────────────
+#
+# O `git pull` põe o código novo no ar ANTES de a migration rodar. Nesse vão de
+# alguns segundos o sistema pede colunas que ainda não existem, e quem estiver
+# com a tela aberta toma erro 500 sem explicação — foi o que aconteceu em
+# 11/08, com dois usuários batendo no erro em 4 segundos.
+#
+# `artisan down` não evita a interrupção: troca o erro pela página de
+# manutenção, que se resolve sozinha quando o deploy acaba. Não encosta no
+# banco — só cria storage/framework/down.
+#
+# Vem DEPOIS do backup de propósito: backup que falha derruba o script, e não
+# se pode deixar o site parado por causa disso.
+
+restaurar_site() {
+    local saida=$?
+
+    # `artisan up` precisa que a aplicação suba. Se o pull trouxe código que nem
+    # inicializa, ele falha junto e o site ficaria preso na manutenção — daí o
+    # plano B de apagar o arquivo na unha, que é tudo que o `up` faz.
+    php artisan up > /dev/null 2>&1 || rm -f storage/framework/down
+
+    if [[ "${saida}" -ne 0 ]]; then
+        echo
+        echo "✗ O deploy falhou (código ${saida}) — mas o site foi religado." >&2
+        echo "  O backup desta rodada está de pé; confira o erro acima antes de repetir." >&2
+    fi
+}
+
+iniciar_manutencao() {
+    echo "→ Entrando em manutenção (o site volta sozinho ao fim do deploy)..."
+    php artisan down --retry=60 > /dev/null 2>&1 || true
+
+    # A partir daqui, qualquer saída — sucesso, erro ou Ctrl+C — religa o site.
+    trap restaurar_site EXIT
+}
+
 if [[ "${REENTRADA}" == "0" ]]; then
 
     # ─── 1. Backup (pré-condição, não etapa) ──────────────────────────────────
@@ -43,6 +80,10 @@ if [[ "${REENTRADA}" == "0" ]]; then
     # `head` fecha a entrada, e com pipefail isso derrubaria o deploy depois de o
     # backup ter dado certo.
     ARQUIVO="$(ls -1t /var/backups/nfs/nfs-*.sql.gz 2>/dev/null | head -1 || true)"
+
+    # Backup de pé: agora sim dá para fechar o site sem risco de deixá-lo
+    # parado por causa de uma pré-condição que falhou.
+    iniciar_manutencao
 
     # ─── 2. O que a migration vai fazer (à vista, antes de fazer) ─────────────
 
@@ -75,6 +116,11 @@ else
     ARQUIVO="${NFS_DEPLOY_BACKUP:-(feito na primeira passagem)}"
     echo "→ Seguindo na versão atualizada do deploy.sh."
     echo
+
+    # O `exec` da primeira passagem trocou o processo, e com ele foi embora o
+    # trap — o site continua em manutenção, mas sem ninguém encarregado de
+    # religá-lo. Reassumimos aqui. O `down` repetido não faz mal.
+    iniciar_manutencao
 fi
 
 echo "→ Dependências PHP..."
@@ -146,6 +192,17 @@ sudo chmod -R ug+rwX storage bootstrap/cache
 
 echo "→ Reiniciando Reverb e worker..."
 sudo systemctl restart nfs-reverb nfs-queue
+
+# ─── 6. Site de volta ─────────────────────────────────────────────────────────
+#
+# Só aqui: o banco já está migrado, os caches recriados e os serviços de pé.
+# Religar antes disso seria devolver ao usuário exatamente o estado que a
+# manutenção existe para esconder.
+#
+# O trap continua armado e chamaria isto de novo na saída — `artisan up` com o
+# site já no ar não faz nada, então repetir é inofensivo.
+echo "→ Saindo da manutenção..."
+php artisan up > /dev/null 2>&1 || rm -f storage/framework/down
 
 echo
 echo "✓ Deploy concluído."
