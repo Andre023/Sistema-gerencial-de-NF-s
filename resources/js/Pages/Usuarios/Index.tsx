@@ -12,6 +12,8 @@ interface Usuario {
     name: string;
     email: string;
     role: Papel;
+    /** Faz recebimento e pré-lote: o que lança avisa o pré-lote (loja 12) */
+    acumula_recebimento: boolean;
     created_at: string;
 }
 
@@ -40,6 +42,7 @@ function papelCor(papel: Papel, p: Palette): string {
 
 interface DadosForm {
     name: string; email: string; password: string; password_confirmation: string; role: Papel;
+    acumula_recebimento: boolean;
 }
 
 function FormUsuario({ papeis, inicial, onSubmit, onCancelar, carregando, erros, labelSubmit, edicao, p }: {
@@ -49,6 +52,7 @@ function FormUsuario({ papeis, inicial, onSubmit, onCancelar, carregando, erros,
     const [form, setForm] = useState<DadosForm>({
         name: inicial?.name ?? '', email: inicial?.email ?? '',
         password: '', password_confirmation: '', role: inicial?.role ?? 'recebimento',
+        acumula_recebimento: inicial?.acumula_recebimento ?? false,
     });
 
     const set = <K extends keyof DadosForm>(k: K, v: DadosForm[K]) => setForm(prev => ({ ...prev, [k]: v }));
@@ -101,6 +105,28 @@ function FormUsuario({ papeis, inicial, onSubmit, onCancelar, carregando, erros,
                     {papeis.map(r => <option key={r} value={r}>{PAPEL_LABEL[r]}</option>)}
                 </select>, erros.role
             )}
+
+            {/* Só aparece para o pré-lote: em qualquer outro papel a marca não
+                faz nada (o aviso já sai por padrão), e uma caixa que não muda
+                nada é convite para alguém marcar achando que mudou. */}
+            {form.role === 'pre_lote' && (
+                <label className="flex items-start gap-2.5 px-3 py-2.5 rounded-lg cursor-pointer"
+                    style={{ background: p.INPUT_BG, border: `1px solid ${p.INPUT_BORDER}` }}>
+                    <input type="checkbox" checked={form.acumula_recebimento}
+                        onChange={e => set('acumula_recebimento', e.target.checked)}
+                        className="mt-0.5 rounded"
+                        style={{ accentColor: p.ACCENT }} />
+                    <span className="text-sm" style={{ color: p.TEXT }}>
+                        Também faz recebimento
+                        <span className="block text-xs mt-0.5" style={{ color: p.MUTED }}>
+                            Para quem recebe o caminhão e confere a nota (ex.: loja 12). As notas
+                            que essa pessoa lançar passam a avisar o pré-lote. Sem isto, nota
+                            lançada por alguém do pré-lote não gera aviso — o normal é quem lança
+                            ser quem analisa.
+                        </span>
+                    </span>
+                </label>
+            )}
             <div className="flex flex-col-reverse sm:flex-row sm:justify-end gap-2 sm:gap-3 pt-3 mt-1" style={{ borderTop: `1px solid ${p.BORDER}` }}>
                 <button type="button" onClick={onCancelar} className="px-4 py-2.5 text-sm rounded-lg" style={{ color: p.MUTED }}>
                     Cancelar
@@ -129,7 +155,11 @@ export default function Index({ usuarios, papeis }: Props) {
 
     const criar = (dados: DadosForm) => {
         setSubmetendo(true);
-        router.post(route('usuarios.store'), dados as any, {
+        const payload = {
+            ...dados,
+            acumula_recebimento: dados.role === 'pre_lote' && dados.acumula_recebimento,
+        };
+        router.post(route('usuarios.store'), payload as any, {
             onSuccess: () => { setModalNovo(false); setErros({}); },
             onError: e => setErros(e),
             onFinish: () => setSubmetendo(false),
@@ -139,7 +169,12 @@ export default function Index({ usuarios, papeis }: Props) {
     const salvarEdicao = (dados: DadosForm) => {
         if (!modalEditar) return;
         setSubmetendo(true);
-        const payload: Record<string, unknown> = { name: dados.name, email: dados.email, role: dados.role };
+        const payload: Record<string, unknown> = {
+            name: dados.name, email: dados.email, role: dados.role,
+            // Só vale para o pré-lote; em outro papel a marca fica falsa, senão
+            // ela sobreviveria escondida a uma troca de papel e voltaria sozinha.
+            acumula_recebimento: dados.role === 'pre_lote' && dados.acumula_recebimento,
+        };
         if (dados.password) { payload.password = dados.password; payload.password_confirmation = dados.password_confirmation; }
         router.patch(route('usuarios.update', modalEditar.id), payload as any, {
             onSuccess: () => { setModalEditar(null); setErros({}); },

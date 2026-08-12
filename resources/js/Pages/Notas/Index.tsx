@@ -174,8 +174,12 @@ function FormNota({ fornecedores, opcoes, inicial, origemDefault, onSubmit, onCa
 
 // ─── Modal de cards (detalhe da nota) ───────────────────────────────────────────
 
-function ModalCards({ nota, onFechar, can, tiposCompras, isDark, p }: {
-    nota: Nota | null; onFechar: () => void; can: Permissoes; tiposCompras: TipoCard[]; isDark: boolean; p: Palette;
+function ModalCards({ nota, onFechar, can, tiposCompras, tiposQualquerPapel, isDark, p }: {
+    nota: Nota | null; onFechar: () => void; can: Permissoes;
+    tiposCompras: TipoCard[];
+    /** Card::abertosPorQualquerPapel() — quem não é pré-lote só enxerga estes */
+    tiposQualquerPapel: TipoCard[];
+    isDark: boolean; p: Palette;
 }) {
     // Compras só corrige os tipos dela (regra é do pré-lote); admin corrige tudo
     const meuPapel = usePage().props.auth.user.role;
@@ -208,11 +212,16 @@ function ModalCards({ nota, onFechar, can, tiposCompras, isDark, p }: {
 
     // Quais tipos este usuário pode ABRIR: pré-lote (e compras em CEASA) abrem
     // qualquer um; recebimento/compras (fora de CEASA) só o "Importar NF".
+    // A lista de "qualquer papel abre" vem do backend (Card::abertosPorQualquerPapel).
+    // Repetida aqui, ela já ficou para trás uma vez: Recusa e Devolução passaram
+    // a ser aceitas pelo controller e seguiram fora do formulário de recebimento
+    // e compras, que é o mesmo que não existirem para eles.
     const abreQualquer = can.gerirCards || (nota.ceasa > 0 && ehCompras);
+    const deQualquerPapel = tiposQualquerPapel.length ? tiposQualquerPapel : [...DE_TODOS, ...DE_DOCA];
     const tiposParaAbrir: TipoCard[] = abreQualquer
         ? opcoesTipos(nota)
         : ['recebimento', 'pre_lote', 'compras'].includes(meuPapel)
-            ? opcoesTipos(nota).filter(t => DE_TODOS.includes(t))
+            ? opcoesTipos(nota).filter(t => deQualquerPapel.includes(t))
             : [];
 
     const agir = (fn: () => void) => { setErro(null); setOcupado(true); fn(); };
@@ -1233,7 +1242,8 @@ export default function Index({ recebimento, preLote, liberadas, canceladas, for
             </Modal>
 
             <ModalCards nota={notaCards} onFechar={() => setCardsId(null)} can={can}
-                tiposCompras={opcoes.tiposCompras ?? ['cadastro', 'custo', 'quantidade', 'sem_pedido', 'item_n_pedido']} isDark={isDark} p={p} />
+                tiposCompras={opcoes.tiposCompras ?? ['cadastro', 'custo', 'quantidade', 'sem_pedido', 'item_n_pedido']}
+                tiposQualquerPapel={opcoes.tiposQualquerPapel ?? []} isDark={isDark} p={p} />
 
             <ModalComentarios
                 aberto={!!comentariosNota}

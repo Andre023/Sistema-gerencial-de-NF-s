@@ -37,13 +37,18 @@ class Notificador
      * O recebimento lançou uma nota (caminhão na porta): o pré-lote precisa
      * saber que há nota nova esperando análise.
      *
-     * Quando quem lança já é do pré-lote (nota antecipada), não avisamos: o
-     * setor que analisa é o mesmo que acabou de cadastrar, e o aviso seria só
-     * ruído para os colegas.
+     * Quando quem lança já é do pré-lote (nota antecipada), em geral não
+     * avisamos: o setor que analisa é o mesmo que acabou de cadastrar, e o
+     * aviso seria só ruído para os colegas na mesma sala.
+     *
+     * A exceção mora no usuário. Em loja onde a mesma pessoa recebe o caminhão
+     * E analisa a nota, a suposição acima é falsa — o pré-lote da central
+     * precisa ver a nota, e o silêncio a escondia. Quem acumula as duas funções
+     * é marcado em Usuários (ver User::lancamentoAvisaPreLote).
      */
     public static function notaLancada(Nota $nota, User $autor): void
     {
-        if ($autor->role === User::ROLE_PRE_LOTE) {
+        if (! $autor->lancamentoAvisaPreLote()) {
             return;
         }
 

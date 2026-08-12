@@ -41,6 +41,7 @@ class User extends Authenticatable
         'email',
         'password',
         'role',
+        'acumula_recebimento',
         'notificacoes_ativas',
         // Avatar: o tipo ('emoji'|'monograma') e o valor (emoji com tom, ou cor).
         'avatar_tipo',
@@ -65,6 +66,15 @@ class User extends Authenticatable
     protected $appends = ['avatar'];
 
     /**
+     * O default da coluna vive no banco, mas só chega ao objeto depois de um
+     * refresh — quem lesse a marca logo após o create() veria null. Repetir
+     * aqui faz o valor em memória bater com o gravado desde o primeiro instante.
+     */
+    protected $attributes = [
+        'acumula_recebimento' => false,
+    ];
+
+    /**
      * Get the attributes that should be cast.
      *
      * @return array<string, string>
@@ -75,6 +85,7 @@ class User extends Authenticatable
             'email_verified_at'   => 'datetime',
             'password'            => 'hashed',
             'notificacoes_ativas' => 'boolean',
+            'acumula_recebimento' => 'boolean',
         ];
     }
 
@@ -156,6 +167,24 @@ class User extends Authenticatable
     private function ehUmDe(string ...$roles): bool
     {
         return $this->isAdmin() || in_array($this->role, $roles, true);
+    }
+
+    /**
+     * A nota que esta pessoa lança precisa avisar o pré-lote?
+     *
+     * Por padrão, quem é do pré-lote lançando nota antecipada NÃO avisa o
+     * setor: quem lança é quem analisa, e o aviso seria ruído para os colegas.
+     * Isso vale para a operação central, onde as duas funções são das mesmas
+     * pessoas na mesma sala.
+     *
+     * Nas lojas em que uma pessoa só faz as duas coisas (loja 12), a suposição
+     * cai: a nota que ela lança precisa aparecer para o pré-lote da central,
+     * que é quem acompanha a fila de todas as lojas. O admin marca a conta em
+     * Usuários e o silêncio deixa de valer para ela.
+     */
+    public function lancamentoAvisaPreLote(): bool
+    {
+        return $this->role !== self::ROLE_PRE_LOTE || $this->acumula_recebimento;
     }
 
     /** Visitante: acesso só-leitura — vê as notas, mas não executa nenhuma ação. */

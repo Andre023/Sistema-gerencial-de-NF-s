@@ -157,6 +157,10 @@ class NotaController extends Controller
                 'origens'      => Nota::ORIGENS,
                 'tipos'        => Card::TIPOS,
                 'tiposCompras' => Card::TIPOS_COMPRAS,
+                // Quem pode ABRIR o quê sai daqui, não de uma lista repetida na
+                // tela: Recusa e Devolução chegaram a existir no controller e
+                // continuar invisíveis no formulário porque eram duas listas.
+                'tiposQualquerPapel' => Card::abertosPorQualquerPapel(),
                 'sla'     => [
                     'atencao' => Nota::SLA_ATENCAO,
                     'alerta'  => Nota::SLA_ALERTA,

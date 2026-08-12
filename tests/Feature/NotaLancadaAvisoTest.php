@@ -80,6 +80,57 @@ class NotaLancadaAvisoTest extends TestCase
         $this->assertCount(0, $this->avisosLancada($this->preLoteB));
     }
 
+    // ─── Quem acumula recebimento e pré-lote (loja 12) ────────────────────────
+    //
+    // O silêncio acima supõe que quem lança é quem analisa, na mesma sala. Numa
+    // loja onde a mesma pessoa recebe o caminhão E confere, isso é falso: a
+    // central precisa ver a nota, e o silêncio a escondia.
+
+    public function test_quem_acumula_recebimento_avisa_o_pre_lote_ao_lancar(): void
+    {
+        $this->preLoteA->update(['acumula_recebimento' => true]);
+
+        $this->lancar($this->preLoteA, ['numero_nota' => '5101', 'origem' => 'pre_lote']);
+
+        $this->assertCount(1, $this->avisosLancada($this->preLoteB));
+    }
+
+    /** Nem marcado alguém é avisado da própria ação. */
+    public function test_quem_acumula_nao_recebe_aviso_de_si_mesmo(): void
+    {
+        $this->preLoteA->update(['acumula_recebimento' => true]);
+
+        $this->lancar($this->preLoteA, ['numero_nota' => '5102', 'origem' => 'pre_lote']);
+
+        $this->assertCount(0, $this->avisosLancada($this->preLoteA));
+    }
+
+    /** A marca é por conta: colega de pré-lote sem ela continua em silêncio. */
+    public function test_a_marca_nao_vaza_para_os_outros_do_setor(): void
+    {
+        $this->preLoteA->update(['acumula_recebimento' => true]);
+
+        $this->lancar($this->preLoteB, ['numero_nota' => '5103', 'origem' => 'pre_lote']);
+
+        $this->assertCount(0, $this->avisosLancada($this->preLoteA));
+    }
+
+    /** Recebimento já avisava por padrão — a marca não muda nada para ele. */
+    public function test_recebimento_marcado_continua_avisando(): void
+    {
+        $this->recebimento->update(['acumula_recebimento' => true]);
+
+        $this->lancar($this->recebimento, ['numero_nota' => '5104']);
+
+        $this->assertCount(1, $this->avisosLancada($this->preLoteA));
+    }
+
+    /** Padrão de conta nova é desmarcado: ninguém passa a receber sem alguém pedir. */
+    public function test_padrao_e_desmarcado(): void
+    {
+        $this->assertFalse(User::factory()->create(['role' => User::ROLE_PRE_LOTE])->acumula_recebimento);
+    }
+
     public function test_aviso_some_quando_o_pre_lote_abre_card(): void
     {
         $this->lancar($this->recebimento, ['numero_nota' => '5005']);

@@ -151,6 +151,8 @@ export interface OpcoesSistema {
     tipos: TipoCard[];
     /** Tipos que o comprador pode marcar como corrigidos (regra fica de fora) */
     tiposCompras?: TipoCard[];
+    /** Tipos que qualquer papel operacional pode ABRIR (Card::abertosPorQualquerPapel) */
+    tiposQualquerPapel?: TipoCard[];
     /** Limiares em dias de cada nível (definidos no backend) */
     sla?: { atencao: number; alerta: number; critico: number };
 }

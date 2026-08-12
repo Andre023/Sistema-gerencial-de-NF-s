@@ -17,7 +17,7 @@ class UserController extends Controller
 
     public function index(): Response
     {
-        $usuarios = User::select('id', 'name', 'email', 'role', 'created_at')
+        $usuarios = User::select('id', 'name', 'email', 'role', 'acumula_recebimento', 'created_at')
             ->orderBy('name')
             ->get()
             ->map(fn($u) => [
@@ -25,6 +25,7 @@ class UserController extends Controller
                 'name'       => $u->name,
                 'email'      => $u->email,
                 'role'       => $u->role,
+                'acumula_recebimento' => (bool) $u->acumula_recebimento,
                 'created_at' => $u->created_at,
             ]);
 
@@ -43,6 +44,7 @@ class UserController extends Controller
             'email'    => 'required|string|lowercase|email|max:255|unique:users,email',
             'password' => ['required', 'confirmed', Password::defaults()],
             'role'     => ['required', Rule::in(User::ROLES)],
+            'acumula_recebimento' => ['sometimes', 'boolean'],
         ]);
 
         User::create([
@@ -50,6 +52,7 @@ class UserController extends Controller
             'email'             => $dados['email'],
             'password'          => Hash::make($dados['password']),
             'role'              => $dados['role'],
+            'acumula_recebimento' => (bool) ($dados['acumula_recebimento'] ?? false),
             'email_verified_at' => now(), // criado por um admin — já confiável
         ]);
 
@@ -65,6 +68,7 @@ class UserController extends Controller
             'email'    => ['sometimes', 'string', 'lowercase', 'email', 'max:255', Rule::unique('users', 'email')->ignore($user->id)],
             'password' => ['nullable', 'confirmed', Password::defaults()],
             'role'     => ['sometimes', Rule::in(User::ROLES)],
+            'acumula_recebimento' => ['sometimes', 'boolean'],
         ]);
 
         // Impede que o último admin perca o papel de admin (evita lockout)
@@ -81,6 +85,9 @@ class UserController extends Controller
             'name'  => $dados['name']  ?? $user->name,
             'email' => $dados['email'] ?? $user->email,
             'role'  => $dados['role']  ?? $user->role,
+            'acumula_recebimento' => array_key_exists('acumula_recebimento', $dados)
+                ? (bool) $dados['acumula_recebimento']
+                : $user->acumula_recebimento,
         ]);
 
         if (!empty($dados['password'])) {

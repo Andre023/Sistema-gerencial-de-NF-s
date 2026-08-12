@@ -75,6 +75,29 @@ class CardRecusaDevolucaoTest extends TestCase
         $this->assertNotContains('devolucao', Card::TIPOS_COMPRAS);
     }
 
+    /**
+     * O controller aceitar não basta: a tela monta o formulário a partir de
+     * `opcoes.tiposQualquerPapel`, e enquanto essa lista viveu duplicada no
+     * frontend, Recusa e Devolução eram aceitas pelo backend e **invisíveis**
+     * para recebimento e compras — que é o mesmo que não existirem para eles.
+     *
+     * Este teste amarra as duas pontas: se alguém acrescentar um tipo em
+     * TIPOS_DOCA/TIPOS_TODOS e a tela não receber, aqui quebra.
+     */
+    public function test_a_tela_recebe_a_lista_de_quem_pode_abrir(): void
+    {
+        $this->actingAs($this->recebimento)
+            ->get(route('notas.index'))
+            ->assertInertia(fn($page) => $page
+                ->where('opcoes.tiposQualquerPapel', Card::abertosPorQualquerPapel()));
+    }
+
+    #[DataProvider('tipos')]
+    public function test_os_dois_estao_na_lista_de_quem_abre(string $tipo): void
+    {
+        $this->assertContains($tipo, Card::abertosPorQualquerPapel());
+    }
+
     // ─── ABRIR: qualquer papel operacional ────────────────────────────────────
 
     #[DataProvider('tipos')]
