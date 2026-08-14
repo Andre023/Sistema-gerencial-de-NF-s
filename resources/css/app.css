@@ -2,7 +2,67 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Esconde a barra de rolagem mas mantém o scroll (roda do mouse / trackpad). */
+/* ── Barras de rolagem ──────────────────────────────────────────────────────
+   A barra padrão do Windows é uma faixa cinza-clara larga, com setinhas nas
+   pontas — desenhada para 2009 e gritante no tema escuro, onde vira um risco
+   branco no meio do preto.
+
+   Estas regras valem para a página e para TODA área que rola por dentro
+   (fila de notas, modais, a barra lateral do chat).
+
+   O truque da borda transparente com `background-clip: padding-box` é o que dá
+   o respiro em volta do polegar: sem ele a barra encosta na parede e volta a
+   parecer a do sistema.
+
+   Só o Firefox e os navegadores base Chromium/WebKit entendem — e é o que a
+   equipe usa. Onde não entender, cai na barra do sistema e nada quebra. */
+
+html {
+    scrollbar-width: thin;                       /* Firefox */
+    scrollbar-color: #c3cad3 transparent;        /* polegar / trilho */
+}
+
+::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+}
+
+::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+    background-color: #c3cad3;
+    border-radius: 999px;
+    border: 2px solid transparent;
+    background-clip: padding-box;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background-color: #9aa4b1;
+}
+
+/* O quadradinho onde as duas barras se encontram (tabela larga e alta) */
+::-webkit-scrollbar-corner {
+    background: transparent;
+}
+
+/* Tema escuro: o polegar tem de sair do branco, senão risca a tela */
+html.dark {
+    scrollbar-color: #30363d transparent;
+}
+
+html.dark ::-webkit-scrollbar-thumb {
+    background-color: #30363d;
+}
+
+html.dark ::-webkit-scrollbar-thumb:hover {
+    background-color: #4b535d;
+}
+
+/* Esconde a barra de rolagem mas mantém o scroll (roda do mouse / trackpad).
+   Vem DEPOIS das regras acima, e com classe (que pesa mais que o seletor de
+   elemento), para continuar ganhando delas. */
 .scrollbar-oculta {
     scrollbar-width: none;        /* Firefox */
     -ms-overflow-style: none;     /* Edge / IE antigo */

@@ -67,8 +67,24 @@ class ConversaController extends Controller
                 'mensagens'   => [],
                 'tem_antigas' => false,
                 'lida_pelo_outro_ate' => 0,
+                'minha_leitura_ate'   => 0,
             ]);
         }
+
+        /*
+         * Até onde EU tinha lido ANTES de esta abertura marcar tudo como lido.
+         *
+         * É o que a tela usa para abrir a conversa já na primeira mensagem não
+         * lida, em vez de no começo do histórico. Tem de ser lido AGORA, antes
+         * do marcarLida logo abaixo — depois dele a informação não existe mais
+         * em lugar nenhum.
+         *
+         * Vai pela relação como MÉTODO (consulta nova) e não como propriedade:
+         * a propriedade ficaria em cache com o valor velho, e o avisarLeitura,
+         * que lê dela mais adiante, mandaria o ✓✓ errado para o outro lado.
+         */
+        $minhaLeituraAntes = (int) ($conversa->participantes()
+            ->whereKey($user->id)->first()?->pivot?->lida_ate_id ?? 0);
 
         $mensagens = $this->pagina($conversa, $request->integer('antes') ?: null);
 
@@ -84,6 +100,8 @@ class ConversaController extends Controller
                 && $conversa->mensagens()->where('id', '<', $mensagens->first()->id)->exists(),
             // Até onde o OUTRO leu — é o que acende o ✓✓ nas minhas bolhas
             'lida_pelo_outro_ate' => $this->lidaPeloOutro($conversa, $user),
+            // Onde a tela deve parar a rolagem ao abrir
+            'minha_leitura_ate'   => $minhaLeituraAntes,
         ]);
     }
 

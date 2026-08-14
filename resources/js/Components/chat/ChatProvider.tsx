@@ -43,6 +43,13 @@ interface ContextoChat {
     temAntigas: boolean;
     /** até que id o outro leu — acende o ✓✓ nas minhas bolhas */
     lidaPeloOutroAte: number;
+    /**
+     * Até onde EU tinha lido quando abri esta conversa. Congelado na abertura:
+     * é o que marca onde parou a leitura, e não pode andar enquanto a conversa
+     * está na tela — senão a divisória "não lidas" fugiria para baixo a cada
+     * mensagem que chega.
+     */
+    leituraAoAbrir: number;
     enviando: boolean;
     erro: string | null;
 
@@ -75,6 +82,7 @@ export default function ChatProvider({ userId, children }: PropsWithChildren<{ u
     const [carregandoConversa, setCarregandoConversa] = useState(false);
     const [temAntigas, setTemAntigas] = useState(false);
     const [lidaPeloOutroAte, setLidaPeloOutroAte] = useState(0);
+    const [leituraAoAbrir, setLeituraAoAbrir] = useState(0);
     const [enviando, setEnviando] = useState(false);
     const [erro, setErro] = useState<string | null>(null);
 
@@ -124,6 +132,7 @@ export default function ChatProvider({ userId, children }: PropsWithChildren<{ u
             setMensagens(data.mensagens);
             setTemAntigas(data.tem_antigas);
             setLidaPeloOutroAte(data.lida_pelo_outro_ate);
+            setLeituraAoAbrir(data.minha_leitura_ate ?? 0);
 
             // O servidor marcou como lida ao entregar a conversa; a conta local
             // acompanha, senão o balãozinho ficaria aceso até a próxima
@@ -332,7 +341,7 @@ export default function ChatProvider({ userId, children }: PropsWithChildren<{ u
     return (
         <Contexto.Provider value={{
             pessoas, naoLidas, carregandoLista,
-            aberta, mensagens, carregandoConversa, temAntigas, lidaPeloOutroAte, enviando, erro,
+            aberta, mensagens, carregandoConversa, temAntigas, lidaPeloOutroAte, leituraAoAbrir, enviando, erro,
             carregarLista, abrirConversa, fecharConversa, enviar, carregarAntigas, limparErro,
         }}>
             {children}

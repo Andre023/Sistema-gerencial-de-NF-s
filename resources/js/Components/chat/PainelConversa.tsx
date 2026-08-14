@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect, useRef, useState } from 'react';
+import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react';
 import { PessoaChat } from '@/types';
 import { Palette } from '@/lib/tema';
 import Avatar from '@/Components/painel/Avatar';
@@ -67,7 +67,7 @@ export default function PainelConversa({ pessoa, online, meuId, p }: {
     p: Palette;
 }) {
     const {
-        mensagens, carregandoConversa, temAntigas, lidaPeloOutroAte, enviando, erro,
+        mensagens, carregandoConversa, temAntigas, lidaPeloOutroAte, leituraAoAbrir, enviando, erro,
         fecharConversa, enviar, carregarAntigas, limparErro,
     } = useChat();
 
@@ -151,21 +151,67 @@ export default function PainelConversa({ pessoa, online, meuId, p }: {
         return () => URL.revokeObjectURL(url);
     }, [arquivo]);
 
-    /*
-     * Rola para o fim quando chega mensagem — mas só se a pessoa já estava lá.
-     * Quem subiu para reler algo antigo não quer ser puxado de volta a cada
-     * mensagem que chega.
+    /**
+     * A primeira mensagem que eu ainda não tinha lido ao abrir — o ponto onde a
+     * conversa deve começar, e onde entra a divisória.
+     *
+     * Vem do id e não de uma contagem: contar "as N últimas" quebraria assim
+     * que a paginação entregasse menos mensagens do que o não lido.
+     *
+     * null quando estava tudo lido (aí a conversa abre no fim, como sempre).
      */
+    const primeiraNaoLida = useMemo(() => {
+        if (!mensagens.length) return null;
+
+        return mensagens.find(m => m.id > leituraAoAbrir && m.autor_id !== meuId)?.id ?? null;
+    }, [mensagens, leituraAoAbrir, meuId]);
+
+    const naoLidaRef = useRef<HTMLDivElement>(null);
+
+    /*
+     * Onde a conversa abre.
+     *
+     * Antes abria no COMEÇO do histórico: quem tinha cinco mensagens novas
+     * precisava rolar até o fim para achá-las — e o mais recente, que é o que
+     * importa, era o mais escondido.
+     *
+     * Agora para na primeira não lida. Sem nenhuma, vai para o fim.
+     *
+     * O `jaPosicionou` existe porque isto tem de acontecer UMA vez por
+     * conversa. Sem ele, cada mensagem nova puxaria a tela de volta para a
+     * divisória, no meio da leitura de quem estava rolando.
+     */
+    const jaPosicionou = useRef(false);
+
+    useEffect(() => { jaPosicionou.current = false; }, [pessoa.id]);
+
     useEffect(() => {
         const corpo = corpoRef.current;
-        if (!corpo) return;
+        if (!corpo || carregandoConversa || !mensagens.length) return;
 
+        if (!jaPosicionou.current) {
+            jaPosicionou.current = true;
+
+            if (naoLidaRef.current) {
+                // 'start' põe a divisória no alto: a primeira não lida fica na
+                // linha de cima e o resto se lê para baixo, na ordem natural.
+                naoLidaRef.current.scrollIntoView({ block: 'start' });
+            } else {
+                fimRef.current?.scrollIntoView({ block: 'end' });
+            }
+
+            return;
+        }
+
+        /*
+         * Daqui em diante, só acompanha o fim se a pessoa JÁ estava lá. Quem
+         * subiu para reler algo antigo não quer ser puxado de volta a cada
+         * mensagem que chega.
+         */
         const perto = corpo.scrollHeight - corpo.scrollTop - corpo.clientHeight < 120;
 
-        if (perto || mensagens.length <= 1) {
-            fimRef.current?.scrollIntoView({ block: 'end' });
-        }
-    }, [mensagens]);
+        if (perto) fimRef.current?.scrollIntoView({ block: 'end' });
+    }, [mensagens, carregandoConversa]);
 
     /**
      * Ctrl+V com um print na área de transferência.
@@ -315,13 +361,28 @@ export default function PainelConversa({ pessoa, online, meuId, p }: {
                 )}
 
                 {mensagens.map(m => (
-                    <Bolha
-                        key={m.id}
-                        mensagem={m}
-                        minha={m.autor_id === meuId}
-                        lido={m.id > 0 && m.id <= lidaPeloOutroAte}
-                        p={p}
-                    />
+                    <div key={m.id}>
+                        {m.id === primeiraNaoLida && (
+                            // A divisória explica por que a conversa não abriu
+                            // no fim. Sem ela, a rolagem parada no meio pareceria
+                            // defeito.
+                            <div ref={naoLidaRef} className="flex items-center gap-2 py-2">
+                                <span className="flex-1 h-px" style={{ background: p.GREEN, opacity: 0.4 }} />
+                                <span className="text-[10px] font-semibold uppercase tracking-wide"
+                                    style={{ color: p.GREEN }}>
+                                    não lidas
+                                </span>
+                                <span className="flex-1 h-px" style={{ background: p.GREEN, opacity: 0.4 }} />
+                            </div>
+                        )}
+
+                        <Bolha
+                            mensagem={m}
+                            minha={m.autor_id === meuId}
+                            lido={m.id > 0 && m.id <= lidaPeloOutroAte}
+                            p={p}
+                        />
+                    </div>
                 ))}
 
                 <div ref={fimRef} />

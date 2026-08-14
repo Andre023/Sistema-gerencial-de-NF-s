@@ -239,6 +239,70 @@ class ChatTest extends TestCase
         $this->assertSame(1, $linhaAna['nao_lidas']);
     }
 
+    public function test_abrir_diz_onde_a_leitura_tinha_parado(): void
+    {
+        // É o que faz a conversa abrir na primeira não lida, e não no começo do
+        // histórico. Tem de ser o valor de ANTES de esta abertura marcar tudo
+        // como lido — depois dela a informação deixa de existir.
+        $andre = $this->pessoa();
+        $maria = $this->pessoa();
+
+        $this->actingAs($maria)->post(route('conversas.enviar', $andre), ['texto' => 'uma']);
+        $primeira = Mensagem::max('id');
+
+        // André lê até aqui
+        $this->actingAs($andre)->get(route('conversas.mostrar', $maria))->assertOk();
+
+        // Chegam mais duas
+        $this->actingAs($maria)->post(route('conversas.enviar', $andre), ['texto' => 'duas']);
+        $this->actingAs($maria)->post(route('conversas.enviar', $andre), ['texto' => 'tres']);
+
+        $resposta = $this->actingAs($andre)->get(route('conversas.mostrar', $maria))->assertOk();
+
+        // A marca d'água é a primeira mensagem — as duas seguintes são as novas
+        $this->assertSame($primeira, $resposta->json('minha_leitura_ate'));
+
+        // E ao reabrir, já não há nada por ler
+        $this->actingAs($andre)->get(route('conversas.mostrar', $maria))
+            ->assertJson(['minha_leitura_ate' => Mensagem::max('id')]);
+    }
+
+    public function test_conversa_toda_lida_nao_aponta_para_lugar_nenhum(): void
+    {
+        $andre = $this->pessoa();
+        $maria = $this->pessoa();
+
+        $this->actingAs($andre)->post(route('conversas.enviar', $maria), ['texto' => 'so minha']);
+
+        $resposta = $this->actingAs($andre)->get(route('conversas.mostrar', $maria))->assertOk();
+
+        // Quem mandou já leu: a marca é a própria mensagem, e a tela abre no fim
+        $this->assertSame(Mensagem::max('id'), $resposta->json('minha_leitura_ate'));
+    }
+
+    public function test_abrir_ainda_avisa_o_outro_com_o_valor_novo(): void
+    {
+        /*
+         * Guarda contra uma armadilha real: para saber onde a leitura tinha
+         * parado, o controller lê o ponteiro ANTES de marcar como lido. Se essa
+         * leitura carregasse a relação como propriedade, o aviso de ✓✓ enviado
+         * logo depois sairia com o valor VELHO — e o outro lado nunca veria a
+         * mensagem como lida.
+         */
+        $andre = $this->pessoa();
+        $maria = $this->pessoa();
+
+        $this->actingAs($maria)->post(route('conversas.enviar', $andre), ['texto' => 'leia isso']);
+        $ultima = Mensagem::max('id');
+
+        $this->actingAs($andre)->get(route('conversas.mostrar', $maria))->assertOk();
+
+        // Do ponto de vista da Maria, o André já leu até a última
+        $resposta = $this->actingAs($maria)->get(route('conversas.mostrar', $andre))->assertOk();
+
+        $this->assertSame($ultima, $resposta->json('lida_pelo_outro_ate'));
+    }
+
     public function test_marcar_lida_nunca_anda_para_tras(): void
     {
         $andre = $this->pessoa();
