@@ -4,6 +4,7 @@ import { Palette } from '@/lib/tema';
 import { formatarTamanho } from '@/lib/imagem';
 import { baixarEGuardar, buscar } from '@/lib/arquivosLocais';
 import Icone from '@/Components/painel/Icone';
+import VisorImagem from './VisorImagem';
 
 /**
  * A foto ou o documento dentro da bolha.
@@ -25,6 +26,7 @@ export default function AnexoDaMensagem({ mensagemId, anexo, minha, p }: {
 }) {
     const [url, setUrl] = useState<string | null>(null);
     const [estado, setEstado] = useState<'carregando' | 'pronto' | 'sumiu'>('carregando');
+    const [visor, setVisor] = useState(false);
 
     const url_arquivo = mensagemId > 0 ? route('conversas.mensagens.arquivo', mensagemId) : null;
 
@@ -91,21 +93,37 @@ export default function AnexoDaMensagem({ mensagemId, anexo, minha, p }: {
     // ── Foto ──────────────────────────────────────────────────────────────────
     if (anexo.imagem) {
         return (
-            <div className="rounded-lg overflow-hidden" style={{ maxWidth: 220 }}>
-                {estado === 'carregando' || !url ? (
-                    <div className="flex items-center justify-center h-32 rounded-lg animate-pulse"
-                        style={{ background: p.HOVER_ROW, width: 220 }}>
-                        <Icone path="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"
-                            className="w-6 h-6" />
-                    </div>
-                ) : (
-                    <a href={url} target="_blank" rel="noreferrer" title={anexo.nome}>
-                        <img src={url} alt={anexo.nome}
-                            className="block w-full h-auto rounded-lg cursor-zoom-in"
-                            style={{ maxHeight: 260, objectFit: 'cover' }} />
-                    </a>
+            <>
+                <div className="rounded-lg overflow-hidden" style={{ maxWidth: 220 }}>
+                    {estado === 'carregando' || !url ? (
+                        <div className="flex items-center justify-center h-32 rounded-lg animate-pulse"
+                            style={{ background: p.HOVER_ROW, width: 220 }}>
+                            <Icone path="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"
+                                className="w-6 h-6" />
+                        </div>
+                    ) : (
+                        // Botão e não link: abre por cima do sistema, em vez de
+                        // levar a pessoa para uma aba nova e deixá-la achar o
+                        // caminho de volta.
+                        <button type="button" onClick={() => setVisor(true)} title={anexo.nome}
+                            className="block w-full">
+                            <img src={url} alt={anexo.nome}
+                                className="block w-full h-auto rounded-lg cursor-zoom-in"
+                                style={{ maxHeight: 260, objectFit: 'cover' }} />
+                        </button>
+                    )}
+                </div>
+
+                {visor && url && (
+                    <VisorImagem
+                        url={url}
+                        nome={anexo.nome}
+                        tamanho={anexo.tamanho}
+                        onFechar={() => setVisor(false)}
+                        p={p}
+                    />
                 )}
-            </div>
+            </>
         );
     }
 
