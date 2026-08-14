@@ -290,15 +290,25 @@ Uma única linha no cron liga o `schedule:run`, e a partir daí qualquer rotina
 futura (resumo diário, limpeza de notificação antiga) é só registrar em
 `routes/console.php` — sem mexer em servidor de novo.
 
-```bash
-sudo crontab -e
-```
+**Já instalado em 14/08/2026**, em `/etc/cron.d/nfs-schedule` (e não no crontab
+do usuário, para ficar junto do `nfs-backup` e sobreviver a troca de conta):
+
 ```cron
-* * * * * cd /var/www/nfs && php artisan schedule:run >> /dev/null 2>&1
+* * * * * ubuntu cd /var/www/nfs && php artisan schedule:run >> /dev/null 2>&1
 ```
 
 Roda a cada minuto de propósito: quem decide o que executa e quando é o Laravel,
-não o cron. Hoje não há nada agendado — a linha existe para o dia em que houver.
+não o cron. Hoje ele serve a faxina dos anexos do chat (`chat:limpar-anexos`,
+às 03:20).
+
+> **Atenção ao instalar de novo (VM nova, restauração).** Esta seção existia
+> desde o começo, mas a linha nunca tinha sido aplicada — e o `routes/console.php`
+> afirmava que sim. Rotina agendada que não roda falha em silêncio: não dá erro,
+> só não acontece. Depois de instalar, confirme que o cron disparou de verdade:
+>
+> ```bash
+> sudo journalctl -u cron --since '-10 min' | grep schedule:run
+> ```
 
 ## 12. Primeiro acesso (dados reais)
 
