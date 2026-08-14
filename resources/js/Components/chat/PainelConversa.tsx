@@ -16,6 +16,34 @@ const PAPEL: Record<string, string> = {
 };
 
 /**
+ * Os tipos de imagem que a área de transferência pode entregar E o servidor
+ * aceita (Mensagem::EXTENSOES). O valor é a extensão que vamos dar ao arquivo.
+ *
+ * Conferir aqui, e não deixar o servidor recusar depois, é o que transforma
+ * "Formato não aceito" num aviso que diz o que fazer.
+ */
+const COLAVEIS: Record<string, string> = {
+    'image/png':  'png',
+    'image/jpeg': 'jpg',
+    'image/webp': 'webp',
+};
+
+/**
+ * "print-14-08-2026-113542.png"
+ *
+ * A área de transferência entrega todo print como "image.png". Com três prints
+ * na mesma conversa, todos com o mesmo nome, não dá para saber qual é qual
+ * depois de baixados — o carimbo de hora resolve.
+ */
+function nomeDePrint(extensao: string): string {
+    const d = new Date();
+    const dd = (n: number) => String(n).padStart(2, '0');
+
+    return `print-${dd(d.getDate())}-${dd(d.getMonth() + 1)}-${d.getFullYear()}`
+         + `-${dd(d.getHours())}${dd(d.getMinutes())}${dd(d.getSeconds())}.${extensao}`;
+}
+
+/**
  * A conversa aberta dentro da barra lateral.
  *
  * Três faixas fixas, como no WhatsApp: cabeçalho com quem é (e a seta de
@@ -34,10 +62,35 @@ export default function PainelConversa({ pessoa, online, meuId, p }: {
 
     const [texto, setTexto]     = useState('');
     const [arquivo, setArquivo] = useState<File | null>(null);
+    /** Recusa do Ctrl+V (formato que não dá para mandar) — separada do erro de envio. */
+    const [aviso, setAviso]     = useState<string | null>(null);
+    /** Miniatura do que está prendido, para o print colado ter confirmação visual. */
+    const [previa, setPrevia]   = useState<string | null>(null);
 
     const fimRef     = useRef<HTMLDivElement>(null);
     const corpoRef   = useRef<HTMLDivElement>(null);
     const arquivoRef = useRef<HTMLInputElement>(null);
+
+    /*
+     * A miniatura do anexo pendente.
+     *
+     * O nome de um print é gerado por nós e não diz nada ("print-14-08-...").
+     * Sem a miniatura, a única confirmação de que o Ctrl+V pegou a imagem certa
+     * seria mandar e ver — que é tarde demais.
+     */
+    useEffect(() => {
+        if (!arquivo?.type.startsWith('image/')) {
+            setPrevia(null);
+            return;
+        }
+
+        const url = URL.createObjectURL(arquivo);
+        setPrevia(url);
+
+        // Sem o revoke, cada print colado (e trocado) deixa megabytes presos na
+        // memória da aba até ela ser fechada.
+        return () => URL.revokeObjectURL(url);
+    }, [arquivo]);
 
     /*
      * Rola para o fim quando chega mensagem — mas só se a pessoa já estava lá.
@@ -55,6 +108,49 @@ export default function PainelConversa({ pessoa, online, meuId, p }: {
         }
     }, [mensagens]);
 
+    /**
+     * Ctrl+V com um print na área de transferência.
+     *
+     * É o anexo mais comum num sistema assim: a pessoa recorta a tela do ERP e
+     * quer mandar. Sem isto, são quatro passos (salvar em arquivo, achar a
+     * pasta, abrir o seletor, escolher) para o que devia ser um.
+     *
+     * Só intercepta quando há IMAGEM na área de transferência — colar texto
+     * segue funcionando como sempre, inclusive número de nota copiado da fila.
+     *
+     * O ouvinte fica no painel, e NÃO no documento: no documento, colar dentro
+     * de um campo da tela de notas também grudaria a imagem aqui, numa conversa
+     * que a pessoa nem estava olhando.
+     */
+    const colar = (e: React.ClipboardEvent) => {
+        const itens = Array.from(e.clipboardData?.items ?? []);
+        const imagem = itens.find(i => i.kind === 'file' && i.type.startsWith('image/'));
+
+        if (!imagem) return; // texto: deixa o navegador fazer o de sempre
+
+        const extensao = COLAVEIS[imagem.type];
+
+        if (!extensao) {
+            e.preventDefault();
+            setAviso('Esse tipo de imagem não pode ser colado. Salve como PNG ou JPG e anexe pelo clipe.');
+            return;
+        }
+
+        const bruto = imagem.getAsFile();
+        if (!bruto) return;
+
+        e.preventDefault();
+        setAviso(null);
+
+        setArquivo(new File([bruto], nomeDePrint(extensao), { type: imagem.type }));
+    };
+
+    const tirarAnexo = () => {
+        setArquivo(null);
+        setAviso(null);
+        if (arquivoRef.current) arquivoRef.current.value = '';
+    };
+
     const submeter = async (e: React.FormEvent) => {
         e.preventDefault();
         if (enviando || (!texto.trim() && !arquivo)) return;
@@ -65,8 +161,7 @@ export default function PainelConversa({ pessoa, online, meuId, p }: {
         // Limpa antes de a resposta chegar: a bolha otimista já está na tela, e
         // segurar o campo faria a pessoa achar que não enviou.
         setTexto('');
-        setArquivo(null);
-        if (arquivoRef.current) arquivoRef.current.value = '';
+        tirarAnexo();
 
         await enviar(t, a);
     };
@@ -140,35 +235,49 @@ export default function PainelConversa({ pessoa, online, meuId, p }: {
                 <div ref={fimRef} />
             </div>
 
-            {/* ── Erro de envio ── */}
-            {erro && (
+            {/* ── Erro de envio, ou recusa do Ctrl+V ── */}
+            {(erro || aviso) && (
                 <div className="px-3 py-1.5 text-[11px] flex items-start gap-2"
                     style={{ background: 'rgba(248,81,73,0.12)', color: p.RED }}>
-                    <span className="flex-1">{erro}</span>
-                    <button onClick={limparErro} className="shrink-0 opacity-70 hover:opacity-100">✕</button>
+                    <span className="flex-1">{erro ?? aviso}</span>
+                    <button
+                        onClick={() => { limparErro(); setAviso(null); }}
+                        className="shrink-0 opacity-70 hover:opacity-100"
+                    >✕</button>
                 </div>
             )}
 
-            {/* ── Escrever ── */}
-            <form onSubmit={submeter} className="p-2 shrink-0" style={{ borderTop: `1px solid ${p.BORDER}` }}>
+            {/* ── Escrever ──
+                O onPaste vive no <form> e não no textarea: assim o Ctrl+V pega
+                com o foco em qualquer canto da área de escrever, e continua
+                sem alcançar o resto do sistema. */}
+            <form onSubmit={submeter} onPaste={colar} className="p-2 shrink-0"
+                style={{ borderTop: `1px solid ${p.BORDER}` }}>
 
                 {arquivo && (
-                    <div className="flex items-center gap-2 mb-2 px-2 py-1.5 rounded-lg text-[11px]"
+                    <div className="flex items-center gap-2 mb-2 p-1.5 rounded-lg text-[11px]"
                         style={{ background: p.HOVER_ROW, color: p.TEXT }}>
-                        <Icone path="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13"
-                            className="w-3.5 h-3.5 shrink-0" />
-                        <span className="flex-1 truncate">{arquivo.name}</span>
-                        <button type="button" title="Tirar o anexo"
-                            onClick={() => {
-                                setArquivo(null);
-                                if (arquivoRef.current) arquivoRef.current.value = '';
-                            }}
-                            style={{ color: p.RED }}>✕</button>
+
+                        {previa ? (
+                            <img src={previa} alt="" className="w-10 h-10 rounded object-cover shrink-0"
+                                style={{ border: `1px solid ${p.BORDER}` }} />
+                        ) : (
+                            <Icone path="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z"
+                                className="w-5 h-5 shrink-0 ml-1" />
+                        )}
+
+                        <span className="flex-1 min-w-0">
+                            <span className="block truncate">{arquivo.name}</span>
+                            <span className="block opacity-60">{Math.round(arquivo.size / 1024)} KB</span>
+                        </span>
+
+                        <button type="button" title="Tirar o anexo" onClick={tirarAnexo}
+                            className="shrink-0 px-1" style={{ color: p.RED }}>✕</button>
                     </div>
                 )}
 
                 <div className="flex items-end gap-1.5">
-                    <button type="button" title="Anexar foto ou documento"
+                    <button type="button" title="Anexar foto ou documento — ou cole um print com Ctrl+V"
                         onClick={() => arquivoRef.current?.click()}
                         className="p-2 rounded-lg transition hover:opacity-70 shrink-0"
                         style={{ color: p.MUTED }}>
@@ -189,7 +298,9 @@ export default function PainelConversa({ pessoa, online, meuId, p }: {
                         onChange={e => setTexto(e.target.value)}
                         rows={1}
                         maxLength={2000}
-                        placeholder="Mensagem"
+                        // O aviso do Ctrl+V mora no campo vazio: é onde a pessoa
+                        // olha antes de escrever, e some assim que ela digita.
+                        placeholder={arquivo ? 'Legenda (opcional)' : 'Mensagem — ou cole um print (Ctrl+V)'}
                         // Enter envia, Shift+Enter quebra linha — como no WhatsApp
                         onKeyDown={e => {
                             if (e.key === 'Enter' && !e.shiftKey) {
