@@ -3,6 +3,7 @@ import { Mensagem } from '@/types';
 import { Palette } from '@/lib/tema';
 import Icone from '@/Components/painel/Icone';
 import AnexoDaMensagem from './AnexoDaMensagem';
+import TextoComEmoji from './TextoComEmoji';
 
 const hora = (iso: string) => {
     try { return format(parseISO(iso), 'HH:mm'); } catch { return ''; }
@@ -48,7 +49,11 @@ export default function Bolha({ mensagem, minha, lido, p }: {
 
                 {temTexto && (
                     <p className="text-sm whitespace-pre-wrap break-words leading-snug">
-                        {mensagem.texto}
+                        {/* Emoji vai como imagem (Noto), não pela fonte do
+                            sistema: senão o mesmo símbolo muda de cara entre
+                            Windows 10 e 11 — e os mais novos viram quadradinho
+                            nas máquinas antigas. */}
+                        <TextoComEmoji texto={mensagem.texto!} />
                     </p>
                 )}
 

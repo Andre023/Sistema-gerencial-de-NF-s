@@ -1,10 +1,21 @@
-import { useEffect, useRef, useState } from 'react';
+import { lazy, Suspense, useEffect, useRef, useState } from 'react';
 import { PessoaChat } from '@/types';
 import { Palette } from '@/lib/tema';
 import Avatar from '@/Components/painel/Avatar';
 import Icone from '@/Components/painel/Icone';
 import Bolha from './Bolha';
 import { useChat } from './ChatProvider';
+
+/**
+ * O seletor entra num pedaço à parte, baixado só quando alguém clica no rosto.
+ *
+ * Ele carrega o catálogo inteiro (emojis-chat.json). Importado direto, esse
+ * catálogo ia junto do layout — que TODA página do sistema baixa, inclusive
+ * quem nunca abre o chat. Foi exatamente por isso que os avatares deixaram de
+ * usar um mapa de imagens no bundle (ver lib/emoji.ts): 82 KB em toda página
+ * para servir um punhado de desenhos.
+ */
+const SeletorEmoji = lazy(() => import('./SeletorEmoji'));
 
 /** Rótulo do papel embaixo do nome — ajuda a saber com quem se está falando. */
 const PAPEL: Record<string, string> = {
@@ -64,12 +75,14 @@ export default function PainelConversa({ pessoa, online, meuId, p }: {
     const [arquivo, setArquivo] = useState<File | null>(null);
     /** Recusa do Ctrl+V (formato que não dá para mandar) — separada do erro de envio. */
     const [aviso, setAviso]     = useState<string | null>(null);
+    const [emojiAberto, setEmojiAberto] = useState(false);
     /** Miniatura do que está prendido, para o print colado ter confirmação visual. */
     const [previa, setPrevia]   = useState<string | null>(null);
 
     const fimRef     = useRef<HTMLDivElement>(null);
     const corpoRef   = useRef<HTMLDivElement>(null);
     const arquivoRef = useRef<HTMLInputElement>(null);
+    const textoRef   = useRef<HTMLTextAreaElement>(null);
 
     /*
      * A miniatura do anexo pendente.
@@ -145,6 +158,38 @@ export default function PainelConversa({ pessoa, online, meuId, p }: {
         setArquivo(new File([bruto], nomeDePrint(extensao), { type: imagem.type }));
     };
 
+    /**
+     * Põe o emoji ONDE O CURSOR ESTÁ, e não no fim do texto.
+     *
+     * Quem escreveu "confirmado a nota chegou" e voltou o cursor para depois de
+     * "confirmado" quer o emoji ali. Emenda no fim é o tipo de detalhe que faz
+     * a pessoa desistir do seletor e voltar a digitar sem emoji.
+     *
+     * Devolve o foco ao campo com o cursor logo depois do que foi inserido —
+     * senão o próximo caractere digitado iria parar no começo do texto.
+     */
+    const inserirEmoji = (emoji: string) => {
+        const campo = textoRef.current;
+
+        if (!campo) {
+            setTexto(t => t + emoji);
+            return;
+        }
+
+        const inicio = campo.selectionStart ?? campo.value.length;
+        const fim    = campo.selectionEnd ?? inicio;
+
+        setTexto(t => t.slice(0, inicio) + emoji + t.slice(fim));
+
+        // O cursor só pode ser movido depois de o React redesenhar o valor —
+        // daí o requestAnimationFrame em vez de mexer na hora.
+        requestAnimationFrame(() => {
+            campo.focus();
+            const pos = inicio + emoji.length;
+            campo.setSelectionRange(pos, pos);
+        });
+    };
+
     const tirarAnexo = () => {
         setArquivo(null);
         setAviso(null);
@@ -162,6 +207,7 @@ export default function PainelConversa({ pessoa, online, meuId, p }: {
         // segurar o campo faria a pessoa achar que não enviou.
         setTexto('');
         tirarAnexo();
+        setEmojiAberto(false);
 
         await enviar(t, a);
     };
@@ -276,12 +322,37 @@ export default function PainelConversa({ pessoa, online, meuId, p }: {
                     </div>
                 )}
 
-                <div className="flex items-end gap-1.5">
+                {/* `relative` aqui: é o berço do seletor de emoji, que se
+                    posiciona por cima da conversa (bottom-full) sem esticar a
+                    barra nem empurrar as mensagens. */}
+                <div className="flex items-end gap-1.5 relative">
+
+                    {emojiAberto && (
+                        // Sem tela de carregando: o pedaço tem poucos KB e vem
+                        // do mesmo servidor: piscar um "carregando..." de 80ms
+                        // chamaria mais atenção do que a espera.
+                        <Suspense fallback={null}>
+                            <SeletorEmoji
+                                onEscolher={inserirEmoji}
+                                onFechar={() => setEmojiAberto(false)}
+                                p={p}
+                            />
+                        </Suspense>
+                    )}
+
                     <button type="button" title="Anexar foto ou documento — ou cole um print com Ctrl+V"
                         onClick={() => arquivoRef.current?.click()}
                         className="p-2 rounded-lg transition hover:opacity-70 shrink-0"
                         style={{ color: p.MUTED }}>
                         <Icone path="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13"
+                            className="w-5 h-5" />
+                    </button>
+
+                    <button type="button" title="Emoji"
+                        onClick={() => setEmojiAberto(a => !a)}
+                        className="p-2 rounded-lg transition hover:opacity-70 shrink-0"
+                        style={{ color: emojiAberto ? p.ACCENT : p.MUTED }}>
+                        <Icone path="M14.828 14.828a4 4 0 01-5.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
                             className="w-5 h-5" />
                     </button>
 
@@ -294,6 +365,7 @@ export default function PainelConversa({ pessoa, online, meuId, p }: {
                     />
 
                     <textarea
+                        ref={textoRef}
                         value={texto}
                         onChange={e => setTexto(e.target.value)}
                         rows={1}

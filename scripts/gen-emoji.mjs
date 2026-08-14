@@ -1,6 +1,14 @@
-// Gera os SVGs de public/emoji/ (conjunto Noto/Google) a partir do conjunto do
-// picker (EMOJIS_BASE x tons de pele). Rode de novo quando mexer na lista de
-// emojis em resources/js/lib/avatares.ts.
+// Gera os SVGs de public/emoji/ (conjunto Noto/Google) a partir de DUAS listas:
+//
+//   1. os avatares — EMOJIS_BASE x tons de pele (espelho de lib/avatares.ts)
+//   2. o seletor do chat — resources/js/lib/emojis-chat.json (fonte unica, lida
+//      daqui e pelo frontend; nao ha espelho para sair de sincronia)
+//
+// Rode de novo ao mexer em qualquer uma das duas.
+//
+// ATENCAO: o script LIMPA public/emoji/ antes de baixar. As duas listas tem de
+// entrar na mesma rodada — gerar so uma apagaria os SVGs da outra e deixaria
+// metade do sistema com emoji do sistema operacional.
 //
 // Eles ficam em public/ (e nao em resources/) de proposito: sao servidos como
 // arquivo estatico, sem passar pelo bundle. Ver o comentario em lib/emoji.ts.
@@ -11,7 +19,7 @@
 // Como rodar (a partir da raiz do projeto):
 //   node scripts/gen-emoji.mjs
 
-import { mkdirSync, writeFileSync, rmSync, readdirSync } from 'node:fs';
+import { mkdirSync, writeFileSync, rmSync, readdirSync, readFileSync } from 'node:fs';
 
 // ── ESPELHO de resources/js/lib/avatares.ts (mantenha em sincronia) ──
 const EMOJIS_BASE = [
@@ -84,10 +92,21 @@ function notoName(emoji) {
 }
 
 const emojis = new Set();
+
+// 1. Avatares: cada base rende 6 variacoes (padrao + 5 tons de pele)
 for (const base of EMOJIS_BASE) {
     const tons = SEM_TOM.has(base) ? [0] : [0, 1, 2, 3, 4, 5];
     for (const t of tons) emojis.add(aplicarTom(base, t));
 }
+const doAvatar = emojis.size;
+
+// 2. Seletor do chat: sem tons de pele — o campo de mensagem nao tem seletor de
+//    tom, e multiplicar por 6 baixaria centenas de SVGs que ninguem usaria.
+const catalogo = JSON.parse(readFileSync('resources/js/lib/emojis-chat.json', 'utf8'));
+for (const cat of catalogo.categorias) {
+    for (const [emoji] of cat.emojis) emojis.add(emoji);
+}
+const doChat = emojis.size - doAvatar;
 
 const outDir = 'public/emoji';
 const cdn = 'https://cdn.jsdelivr.net/gh/googlefonts/noto-emoji/svg';
@@ -113,5 +132,13 @@ for (let i = 0; i < lista.length; i += 20) {
     const r = await Promise.all(lista.slice(i, i + 20).map(baixar));
     r.forEach(x => { if (!x.ok) faltando.push(`${x.emoji} -> ${x.status}`); });
 }
-console.log(`picker: ${emojis.size} | baixados: ${readdirSync(outDir).length} | faltando: ${faltando.length}`);
+console.log(
+    `avatares: ${doAvatar} | chat: ${doChat} | total: ${emojis.size}`
+    + ` | baixados: ${readdirSync(outDir).length} | faltando: ${faltando.length}`,
+);
 faltando.forEach(f => console.log('  ' + f));
+
+// Emoji que nao baixou nao quebra a tela (o <Emoji> cai no desenho do sistema
+// operacional), mas quebra a promessa de "igual em toda maquina" — entao sai
+// com erro, para quem rodou o script perceber em vez de descobrir na tela.
+if (faltando.length) process.exitCode = 1;
