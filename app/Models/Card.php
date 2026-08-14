@@ -124,6 +124,22 @@ class Card extends Model
      */
     public const SUBSTITUTOS_DE_CADASTRO = ['item_n_pedido', 'sem_pedido'];
 
+    /**
+     * A terceira saída: cadastrou e não sobrou pendência — é só reconferir.
+     *
+     * Existe porque nem todo cadastro deixa rastro: às vezes o item já estava
+     * no pedido, e forçar um card criaria uma divergência falsa que alguém teria
+     * de resolver depois. O que continua obrigatório é DIZER qual dos três casos
+     * é — o que não pode é corrigir no automático, sem olhar.
+     */
+    public const SEM_TROCA = 'nenhum';
+
+    /** As três respostas aceitas ao corrigir um cadastro. */
+    public static function escolhasDeCadastro(): array
+    {
+        return [...self::SUBSTITUTOS_DE_CADASTRO, self::SEM_TROCA];
+    }
+
     // Corrigir (compras) já resolve o card — não há estado intermediário.
     public const STATUS_ABERTO    = 'aberto';
     public const STATUS_RESOLVIDO = 'resolvido';

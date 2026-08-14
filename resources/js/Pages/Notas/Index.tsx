@@ -174,6 +174,12 @@ function FormNota({ fornecedores, opcoes, inicial, origemDefault, onSubmit, onCa
 
 // ─── Modal de cards (detalhe da nota) ───────────────────────────────────────────
 
+/**
+ * A resposta "não sobrou pendência" ao corrigir um cadastro (Card::SEM_TROCA).
+ * Não é um tipo de card — é a ausência de um.
+ */
+const SEM_TROCA = 'nenhum' as const;
+
 function ModalCards({ nota, onFechar, can, tiposCompras, tiposQualquerPapel, substitutosCadastro, isDark, p }: {
     nota: Nota | null; onFechar: () => void; can: Permissoes;
     tiposCompras: TipoCard[];
@@ -244,11 +250,13 @@ function ModalCards({ nota, onFechar, can, tiposCompras, tiposQualquerPapel, sub
     };
 
     /**
-     * Corrigir. Cadastro leva junto o card que vai substituí-lo — corrigir o
-     * cadastro não fecha o assunto, só muda de assunto: o item passou a existir,
-     * mas existir não é estar no pedido.
+     * Corrigir. Cadastro leva junto a resposta de "o que ficou pendente":
+     * o card que o substitui, ou SEM_TROCA quando não sobrou nada.
+     *
+     * Corrigir cadastro raramente fecha o assunto — em geral só muda de
+     * assunto: o item passou a existir, mas existir não é estar no pedido.
      */
-    const corrigir = (c: Card, substituto?: TipoCard) => agir(() => router.patch(
+    const corrigir = (c: Card, substituto?: TipoCard | typeof SEM_TROCA) => agir(() => router.patch(
         route('notas.cards.corrigir', [nota.id, c.id]),
         (substituto ? { substituto } : {}) as any,
         { ...opts, onSuccess: () => setTrocando(null) },
@@ -295,49 +303,64 @@ function ModalCards({ nota, onFechar, can, tiposCompras, tiposQualquerPapel, sub
                         </p>
                     )}
                     {nota.cards.map(c => (
-                        /* No celular vira duas linhas: badge+detalhe em cima, os
-                           botões embaixo — lado a lado eles espremiam o texto. */
-                        <div key={c.id} className="flex flex-col sm:flex-row sm:items-center gap-2 rounded-lg px-3 py-2"
+                        /* A caixa do card empilha: a linha do card em cima e, quando
+                           for o caso, o painel da troca embaixo.
+
+                           O painel PRECISA ficar fora da linha. Enquanto ele era um
+                           terceiro item dela, no desktop (sm:flex-row) entrava como
+                           mais uma COLUNA — ao lado dos botões, com largura 100% —
+                           e espremia o badge e o detalhe contra a borda. */
+                        <div key={c.id} className="rounded-lg px-3 py-2"
                             style={{ border: `1px solid ${p.BORDER}`, background: p.SURFACE }}>
-                            <div className="flex items-center gap-2 min-w-0 flex-1">
-                                <CardBadge card={c} isDark={isDark} />
-                                <span className="text-xs truncate" style={{ color: p.MUTED }} title={c.detalhe ?? ''}>
-                                    {c.detalhe || ''}
-                                    {c.reaberturas > 0 && <em> · reaberto {c.reaberturas}x</em>}
-                                </span>
-                            </div>
-                            <div className="flex flex-wrap items-center gap-1.5 shrink-0">
-                                {c.status === 'aberto' && podeCorrigirEste(c) && (
-                                    c.tipo === 'cadastro'
-                                        // Cadastro não fecha sozinho: pergunta por
-                                        // qual card ele vira antes de corrigir.
-                                        ? btn('Corrigido ✓', p.GREEN, () => setTrocando(c.id))
-                                        : btn('Corrigido ✓', p.GREEN, () => corrigir(c))
-                                )}
-                                {c.status === 'aberto' && can.gerirCards && btn('Resolver', p.GREEN, () => resolver(c))}
-                                {c.status === 'aberto' && can.gerirCards && btn('Excluir', p.RED, () => excluirCard(c))}
-                                {c.status === 'resolvido' && can.gerirCards && btn('Reabrir', p.RED, () => reabrir(c))}
+
+                            {/* No celular vira duas linhas: badge+detalhe em cima, os
+                                botões embaixo — lado a lado eles espremiam o texto. */}
+                            <div className="flex flex-col sm:flex-row sm:items-center gap-2">
+                                <div className="flex items-center gap-2 min-w-0 flex-1">
+                                    <CardBadge card={c} isDark={isDark} />
+                                    <span className="text-xs truncate" style={{ color: p.MUTED }} title={c.detalhe ?? ''}>
+                                        {c.detalhe || ''}
+                                        {c.reaberturas > 0 && <em> · reaberto {c.reaberturas}x</em>}
+                                    </span>
+                                </div>
+                                <div className="flex flex-wrap items-center gap-1.5 shrink-0">
+                                    {c.status === 'aberto' && podeCorrigirEste(c) && (
+                                        c.tipo === 'cadastro'
+                                            // Cadastro não fecha sozinho: pergunta o
+                                            // que ficou pendente antes de corrigir.
+                                            ? btn('Corrigido ✓', p.GREEN, () => setTrocando(c.id))
+                                            : btn('Corrigido ✓', p.GREEN, () => corrigir(c))
+                                    )}
+                                    {c.status === 'aberto' && can.gerirCards && btn('Resolver', p.GREEN, () => resolver(c))}
+                                    {c.status === 'aberto' && can.gerirCards && btn('Excluir', p.RED, () => excluirCard(c))}
+                                    {c.status === 'resolvido' && can.gerirCards && btn('Reabrir', p.RED, () => reabrir(c))}
+                                </div>
                             </div>
 
-                            {/* ── A troca do cadastro ──
-                                Aparece na própria linha do card, e não num modal
-                                por cima deste: já estamos dentro de um. */}
+                            {/* ── O que ficou pendente depois do cadastro ──
+                                Aparece na própria caixa do card, e não num modal por
+                                cima deste: já estamos dentro de um. */}
                             {trocando === c.id && (
-                                <div className="w-full flex flex-wrap items-center gap-1.5 pt-2 mt-1"
-                                    style={{ borderTop: `1px dashed ${p.BORDER}` }}>
-                                    <span className="text-xs mr-1" style={{ color: p.TEXT }}>
-                                        Cadastrado. O que ficou pendente?
-                                    </span>
-                                    {substitutosCadastro.map(t => btn(
-                                        TIPO_CARD_LABEL[t] ?? t,
-                                        p.ACCENT,
-                                        () => corrigir(c, t),
-                                    ))}
-                                    <button onClick={() => setTrocando(null)} disabled={ocupado}
-                                        className="px-2 py-1.5 text-xs rounded-md transition disabled:opacity-40"
-                                        style={{ color: p.MUTED }}>
-                                        cancelar
-                                    </button>
+                                <div className="mt-2 pt-2" style={{ borderTop: `1px dashed ${p.BORDER}` }}>
+                                    <p className="text-xs mb-2" style={{ color: p.TEXT }}>
+                                        Item cadastrado. O que ficou pendente?
+                                    </p>
+                                    <div className="flex flex-wrap items-center gap-1.5">
+                                        {substitutosCadastro.map(t => btn(
+                                            TIPO_CARD_LABEL[t] ?? t,
+                                            p.ACCENT,
+                                            () => corrigir(c, t),
+                                        ))}
+                                        {/* Nem todo cadastro deixa rastro: se o item já
+                                            estava no pedido, forçar um card criaria uma
+                                            divergência falsa. */}
+                                        {btn('Nada — só conferir', p.GREEN, () => corrigir(c, SEM_TROCA))}
+                                        <button onClick={() => setTrocando(null)} disabled={ocupado}
+                                            className="px-2 py-1.5 text-xs rounded-md transition disabled:opacity-40"
+                                            style={{ color: p.MUTED }}>
+                                            cancelar
+                                        </button>
+                                    </div>
                                 </div>
                             )}
                         </div>

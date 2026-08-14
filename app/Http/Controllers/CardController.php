@@ -91,25 +91,33 @@ class CardController extends Controller
         }
 
         /*
-         * Cadastro não se resolve sozinho: ele TROCA por outro card.
+         * Corrigir cadastro exige DIZER o que ficou pendente.
          *
          * O item que não existia passa a existir — mas existir não é estar no
-         * pedido. Ou não há pedido nenhum (sem_pedido), ou há e o item não está
-         * nele (item_n_pedido). Antes, corrigir o cadastro fechava a nota como
-         * se estivesse tudo certo, e a pendência real só aparecia quando alguém
-         * tropeçava nela na conferência.
+         * pedido. Em geral sobra uma destas duas: ou não há pedido nenhum
+         * (sem_pedido), ou há e o item não está nele (item_n_pedido). Às vezes
+         * não sobra nada, e aí é só reconferir ('nenhum').
+         *
+         * O campo é obrigatório mesmo tendo a saída do 'nenhum': o que se quer
+         * evitar não é a ausência de troca, é corrigir no automático sem olhar.
+         * Antes, o cadastro era corrigido e a pendência real só aparecia quando
+         * alguém tropeçava nela na conferência.
          */
         $substituto = null;
 
         if ($card->tipo === 'cadastro') {
             $request->validate([
-                'substituto' => ['required', Rule::in(Card::SUBSTITUTOS_DE_CADASTRO)],
+                'substituto' => ['required', Rule::in(Card::escolhasDeCadastro())],
             ], [
-                'substituto.required' => 'Escolha para qual card o cadastro vai ser trocado.',
-                'substituto.in'       => 'O cadastro só pode ser trocado por "Item n pedido" ou "Sem pedido".',
+                'substituto.required' => 'Diga o que ficou pendente depois do cadastro.',
+                'substituto.in'       => 'Escolha "Item n pedido", "Sem pedido" ou "Só conferir".',
             ]);
 
-            $substituto = $request->input('substituto');
+            $escolha = $request->input('substituto');
+
+            // 'nenhum' é resposta válida, e não um substituto: o card se resolve
+            // e nada novo nasce.
+            $substituto = $escolha === Card::SEM_TROCA ? null : $escolha;
         }
 
         // Corrigir já resolve: sem passo de confirmação por card. corrigido_por

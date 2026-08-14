@@ -123,6 +123,49 @@ class CardCadastroTrocaTest extends TestCase
         );
     }
 
+    // ─── A saída: cadastrou e não sobrou nada ─────────────────────────────────
+
+    public function test_pode_corrigir_sem_trocar_quando_nada_ficou_pendente(): void
+    {
+        /*
+         * Nem todo cadastro deixa rastro: se o item já estava no pedido, forçar
+         * um card criaria uma divergência falsa que alguém teria de resolver.
+         */
+        $nota = $this->nota();
+        $card = $this->cardCadastro($nota);
+
+        $this->actingAs($this->compras)
+            ->patch(route('notas.cards.corrigir', [$nota, $card]), ['substituto' => Card::SEM_TROCA])
+            ->assertSessionHasNoErrors();
+
+        $this->assertSame(Card::STATUS_RESOLVIDO, $card->fresh()->status);
+        $this->assertSame(1, $nota->cards()->count(), 'Nenhum card novo devia ter nascido.');
+    }
+
+    public function test_sem_trocar_a_nota_fica_pronta_para_reconferir(): void
+    {
+        // A diferença entre "mudou de assunto" e "acabou": sem pendência nova,
+        // a nota segue o caminho normal de quem teve o único card corrigido.
+        $nota = $this->nota();
+        $card = $this->cardCadastro($nota);
+
+        $this->actingAs($this->compras)
+            ->patch(route('notas.cards.corrigir', [$nota, $card]), ['substituto' => Card::SEM_TROCA]);
+
+        $this->assertSame(
+            Nota::STATUS_RECONFERIR,
+            $nota->fresh()->load('cards')->statusCalculado(),
+        );
+    }
+
+    public function test_a_tela_recebe_a_marca_de_sem_troca(): void
+    {
+        // O botão "Nada — só conferir" manda este valor; se o nome mudasse só
+        // no servidor, o botão passaria a mandar algo que ele não aceita mais.
+        $this->assertSame('nenhum', Card::SEM_TROCA);
+        $this->assertContains(Card::SEM_TROCA, Card::escolhasDeCadastro());
+    }
+
     // ─── Sem escolha não passa ────────────────────────────────────────────────
 
     public function test_corrigir_cadastro_sem_escolher_e_recusado(): void
