@@ -85,6 +85,52 @@ export default function PainelConversa({ pessoa, online, meuId, p }: {
     const textoRef   = useRef<HTMLTextAreaElement>(null);
 
     /*
+     * O campo cresce com o que está escrito, em vez de rolar por dentro.
+     *
+     * Antes ele parava de crescer na 4ª linha e virava uma caixinha com barra de
+     * rolagem: quem escreve um recado de seis linhas não conseguia reler o que
+     * tinha escrito sem rolar dentro de um campo de 3 cm.
+     *
+     * O 'auto' antes de medir não é enfeite. `scrollHeight` nunca é menor que a
+     * altura atual do elemento — sem zerar primeiro, o campo cresceria ao
+     * digitar e nunca mais encolheria ao apagar.
+     *
+     * O teto é o tamanho da tela, não um número de linhas: acima disso o campo
+     * comeria a conversa inteira, e aí sim volta a rolagem. Na prática são mais
+     * de vinte linhas — nenhum recado daqui chega perto.
+     */
+    useEffect(() => {
+        const campo = textoRef.current;
+        if (!campo) return;
+
+        const teto = Math.round(window.innerHeight * 0.4);
+
+        campo.style.height = 'auto';
+
+        /*
+         * A borda precisa entrar na conta.
+         *
+         * `scrollHeight` mede conteúdo + padding, SEM a borda. Mas o Tailwind põe
+         * `box-sizing: border-box` em tudo, então o `height` que atribuímos tem
+         * de incluir a borda. Sem somá-la, o campo fica 2px curto e a última
+         * linha aparece cortada pela metade — com barra de rolagem escondida
+         * para um vão de dois pixels.
+         *
+         * offsetHeight − clientHeight é exatamente a borda (os dois já contam o
+         * padding), então não precisamos ler CSS nem chutar o valor.
+         */
+        const borda = campo.offsetHeight - campo.clientHeight;
+
+        // Guardado ANTES de mexer na altura: depois de atribuir, o scrollHeight
+        // passa a descrever a caixa nova, e a comparação com o teto viraria uma
+        // pergunta sobre o que acabamos de escrever nela.
+        const precisa = campo.scrollHeight + borda;
+
+        campo.style.height = `${Math.min(precisa, teto)}px`;
+        campo.style.overflowY = precisa > teto ? 'auto' : 'hidden';
+    }, [texto]);
+
+    /*
      * A miniatura do anexo pendente.
      *
      * O nome de um print é gerado por nós e não diz nada ("print-14-08-...").
@@ -370,9 +416,9 @@ export default function PainelConversa({ pessoa, online, meuId, p }: {
                         onChange={e => setTexto(e.target.value)}
                         rows={1}
                         maxLength={2000}
-                        // O aviso do Ctrl+V mora no campo vazio: é onde a pessoa
-                        // olha antes de escrever, e some assim que ela digita.
-                        placeholder={arquivo ? 'Legenda (opcional)' : 'Mensagem — ou cole um print (Ctrl+V)'}
+                        // Sem texto de fundo com a conversa vazia — o campo fica
+                        // limpo. A dica do Ctrl+V continua no tooltip do clipe.
+                        placeholder={arquivo ? 'Legenda (opcional)' : ''}
                         // Enter envia, Shift+Enter quebra linha — como no WhatsApp
                         onKeyDown={e => {
                             if (e.key === 'Enter' && !e.shiftKey) {
@@ -385,7 +431,10 @@ export default function PainelConversa({ pessoa, online, meuId, p }: {
                             background: p.INPUT_BG,
                             color: p.TEXT,
                             border: `1px solid ${p.INPUT_BORDER}`,
-                            maxHeight: 96,
+                            // A altura é calculada pelo conteúdo (ver o efeito
+                            // acima). Nada de maxHeight fixo aqui: era ele que
+                            // fazia a barrinha de rolagem aparecer na 4ª linha.
+                            overflowY: 'hidden',
                         }}
                     />
 
