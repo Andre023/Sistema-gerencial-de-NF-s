@@ -174,11 +174,13 @@ function FormNota({ fornecedores, opcoes, inicial, origemDefault, onSubmit, onCa
 
 // ─── Modal de cards (detalhe da nota) ───────────────────────────────────────────
 
-function ModalCards({ nota, onFechar, can, tiposCompras, tiposQualquerPapel, isDark, p }: {
+function ModalCards({ nota, onFechar, can, tiposCompras, tiposQualquerPapel, substitutosCadastro, isDark, p }: {
     nota: Nota | null; onFechar: () => void; can: Permissoes;
     tiposCompras: TipoCard[];
     /** Card::abertosPorQualquerPapel() — quem não é pré-lote só enxerga estes */
     tiposQualquerPapel: TipoCard[];
+    /** Card::SUBSTITUTOS_DE_CADASTRO — por quais cards o cadastro pode ser trocado */
+    substitutosCadastro: TipoCard[];
     isDark: boolean; p: Palette;
 }) {
     // Compras só corrige os tipos dela (regra é do pré-lote); admin corrige tudo
@@ -201,8 +203,10 @@ function ModalCards({ nota, onFechar, can, tiposCompras, tiposQualquerPapel, isD
     const [detalheNovo, setDetalheNovo] = useState('');
     const [erro, setErro] = useState<string | null>(null);
     const [ocupado, setOcupado] = useState(false);
+    /** id do card de cadastro esperando a escolha da troca (null = ninguém) */
+    const [trocando, setTrocando] = useState<number | null>(null);
 
-    useEffect(() => { setTipoNovo(''); setDetalheNovo(''); setErro(null); }, [nota?.id]);
+    useEffect(() => { setTipoNovo(''); setDetalheNovo(''); setErro(null); setTrocando(null); }, [nota?.id]);
 
     if (!nota) return null;
 
@@ -239,7 +243,16 @@ function ModalCards({ nota, onFechar, can, tiposCompras, tiposQualquerPapel, isD
         }));
     };
 
-    const corrigir = (c: Card) => agir(() => router.patch(route('notas.cards.corrigir', [nota.id, c.id]), {}, opts));
+    /**
+     * Corrigir. Cadastro leva junto o card que vai substituí-lo — corrigir o
+     * cadastro não fecha o assunto, só muda de assunto: o item passou a existir,
+     * mas existir não é estar no pedido.
+     */
+    const corrigir = (c: Card, substituto?: TipoCard) => agir(() => router.patch(
+        route('notas.cards.corrigir', [nota.id, c.id]),
+        (substituto ? { substituto } : {}) as any,
+        { ...opts, onSuccess: () => setTrocando(null) },
+    ));
     const resolver = (c: Card) => agir(() => router.patch(route('notas.cards.resolver', [nota.id, c.id]), {}, opts));
     const reabrir  = (c: Card) => agir(() => router.patch(route('notas.cards.reabrir', [nota.id, c.id]), {}, opts));
     const excluirCard = (c: Card) => {
@@ -294,11 +307,39 @@ function ModalCards({ nota, onFechar, can, tiposCompras, tiposQualquerPapel, isD
                                 </span>
                             </div>
                             <div className="flex flex-wrap items-center gap-1.5 shrink-0">
-                                {c.status === 'aberto' && podeCorrigirEste(c) && btn('Corrigido ✓', p.GREEN, () => corrigir(c))}
+                                {c.status === 'aberto' && podeCorrigirEste(c) && (
+                                    c.tipo === 'cadastro'
+                                        // Cadastro não fecha sozinho: pergunta por
+                                        // qual card ele vira antes de corrigir.
+                                        ? btn('Corrigido ✓', p.GREEN, () => setTrocando(c.id))
+                                        : btn('Corrigido ✓', p.GREEN, () => corrigir(c))
+                                )}
                                 {c.status === 'aberto' && can.gerirCards && btn('Resolver', p.GREEN, () => resolver(c))}
                                 {c.status === 'aberto' && can.gerirCards && btn('Excluir', p.RED, () => excluirCard(c))}
                                 {c.status === 'resolvido' && can.gerirCards && btn('Reabrir', p.RED, () => reabrir(c))}
                             </div>
+
+                            {/* ── A troca do cadastro ──
+                                Aparece na própria linha do card, e não num modal
+                                por cima deste: já estamos dentro de um. */}
+                            {trocando === c.id && (
+                                <div className="w-full flex flex-wrap items-center gap-1.5 pt-2 mt-1"
+                                    style={{ borderTop: `1px dashed ${p.BORDER}` }}>
+                                    <span className="text-xs mr-1" style={{ color: p.TEXT }}>
+                                        Cadastrado. O que ficou pendente?
+                                    </span>
+                                    {substitutosCadastro.map(t => btn(
+                                        TIPO_CARD_LABEL[t] ?? t,
+                                        p.ACCENT,
+                                        () => corrigir(c, t),
+                                    ))}
+                                    <button onClick={() => setTrocando(null)} disabled={ocupado}
+                                        className="px-2 py-1.5 text-xs rounded-md transition disabled:opacity-40"
+                                        style={{ color: p.MUTED }}>
+                                        cancelar
+                                    </button>
+                                </div>
+                            )}
                         </div>
                     ))}
                 </div>
@@ -1243,7 +1284,8 @@ export default function Index({ recebimento, preLote, liberadas, canceladas, for
 
             <ModalCards nota={notaCards} onFechar={() => setCardsId(null)} can={can}
                 tiposCompras={opcoes.tiposCompras ?? ['cadastro', 'custo', 'quantidade', 'sem_pedido', 'item_n_pedido']}
-                tiposQualquerPapel={opcoes.tiposQualquerPapel ?? []} isDark={isDark} p={p} />
+                tiposQualquerPapel={opcoes.tiposQualquerPapel ?? []}
+                substitutosCadastro={opcoes.substitutosCadastro ?? []} isDark={isDark} p={p} />
 
             <ModalComentarios
                 aberto={!!comentariosNota}

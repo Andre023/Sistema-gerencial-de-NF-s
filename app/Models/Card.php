@@ -99,6 +99,31 @@ class Card extends Model
         return [...self::TIPOS_TODOS, ...self::TIPOS_DOCA];
     }
 
+    /**
+     * Cards que avisam o pré-lote e o recebimento.
+     *
+     * São os que compras costuma ABRIR (o fornecedor liga avisando) mas não
+     * pode FECHAR: quem resolve é quem está com a mercadoria e o papel na mão.
+     * Sem aviso, o card ficava aberto esperando alguém passar os olhos por
+     * acaso — e o motor de notificação passava direto por eles, porque só
+     * olhava para TIPOS_COMPRAS.
+     *
+     * "Importar NF" fica de fora de propósito: é tarefa de ERP, que a própria
+     * compras costuma fazer, e não algo que dependa de olhar a doca.
+     */
+    public const TIPOS_AVISAM_DOCA = [...self::TIPOS_DOCA, 'trocar_nota'];
+
+    /**
+     * Ao corrigir CADASTRO, o card é obrigatoriamente trocado por um destes.
+     *
+     * O item que não existia passa a existir — mas existir não é estar no
+     * pedido. Cadastrar resolve metade do problema, e a outra metade é sempre
+     * uma destas duas: ou não há pedido nenhum, ou há pedido e o item não está
+     * nele. Sem a troca, o cadastro era corrigido e a pendência real seguia
+     * invisível até alguém tropeçar nela na conferência.
+     */
+    public const SUBSTITUTOS_DE_CADASTRO = ['item_n_pedido', 'sem_pedido'];
+
     // Corrigir (compras) já resolve o card — não há estado intermediário.
     public const STATUS_ABERTO    = 'aberto';
     public const STATUS_RESOLVIDO = 'resolvido';

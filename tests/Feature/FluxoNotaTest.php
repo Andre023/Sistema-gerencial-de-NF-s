@@ -173,10 +173,18 @@ class FluxoNotaTest extends TestCase
 
     // ── Cards: corrigir (compras) — corrigir já resolve, sem confirmação ──────
 
+    /*
+     * Os testes daqui usam CUSTO como card de compras, e não cadastro.
+     *
+     * Cadastro deixou de servir de exemplo genérico: corrigir um cadastro troca
+     * ele por outro card (ver CardCadastroTrocaTest), então a nota não fica sem
+     * card aberto ao fim — que é justamente o que estes testes medem.
+     */
+
     public function test_compras_corrige_e_card_ja_fica_resolvido(): void
     {
         $nota = $this->nota();
-        $card = $this->cardAberto($nota);
+        $card = $this->cardAberto($nota, 'custo');
 
         $this->actingAs($this->compras)
             ->patch(route('notas.cards.corrigir', [$nota, $card]))
@@ -191,7 +199,7 @@ class FluxoNotaTest extends TestCase
     public function test_corrigir_o_unico_card_deixa_a_nota_reconferir(): void
     {
         $nota = $this->nota();
-        $card = $this->cardAberto($nota, 'cadastro');
+        $card = $this->cardAberto($nota, 'custo');
 
         $this->actingAs($this->compras)->patch(route('notas.cards.corrigir', [$nota, $card]));
 
@@ -201,15 +209,15 @@ class FluxoNotaTest extends TestCase
     public function test_corrigir_um_de_dois_cards_mantem_divergencia_e_o_corrigido_some(): void
     {
         $nota = $this->nota();
-        $cadastro = $this->cardAberto($nota, 'cadastro');
+        $quantidade = $this->cardAberto($nota, 'quantidade');
         $this->cardAberto($nota, 'custo');
 
-        $this->actingAs($this->compras)->patch(route('notas.cards.corrigir', [$nota, $cadastro]));
+        $this->actingAs($this->compras)->patch(route('notas.cards.corrigir', [$nota, $quantidade]));
 
         $nota->refresh()->load('cards');
         // Ainda há o card de custo aberto → nota segue com divergência
         $this->assertSame(Nota::STATUS_DIVERGENCIA, $nota->statusCalculado());
-        // O cadastro corrigido saiu da fila (só cards abertos aparecem)
+        // O corrigido saiu da fila (só cards abertos aparecem)
         $abertos = $nota->cards->where('status', Card::STATUS_ABERTO);
         $this->assertCount(1, $abertos);
         $this->assertSame('custo', $abertos->first()->tipo);
@@ -232,9 +240,14 @@ class FluxoNotaTest extends TestCase
             $nota = $this->nota();
             $card = $this->cardAberto($nota, $tipo);
 
+            // Cadastro exige dizer por qual card ele será trocado — a permissão
+            // é a mesma, o que muda é o que a correção significa.
+            $corpo = $tipo === 'cadastro' ? ['substituto' => 'sem_pedido'] : [];
+
             $this->actingAs($this->compras)
-                ->patch(route('notas.cards.corrigir', [$nota, $card]))
-                ->assertRedirect();
+                ->patch(route('notas.cards.corrigir', [$nota, $card]), $corpo)
+                ->assertRedirect()
+                ->assertSessionHasNoErrors();
 
             $this->assertSame(Card::STATUS_RESOLVIDO, $card->fresh()->status, "compras deveria corrigir {$tipo}");
         }

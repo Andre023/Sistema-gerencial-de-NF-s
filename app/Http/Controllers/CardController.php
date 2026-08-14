@@ -90,6 +90,28 @@ class CardController extends Controller
             return back()->withErrors(['card' => 'Este card não está aberto.']);
         }
 
+        /*
+         * Cadastro não se resolve sozinho: ele TROCA por outro card.
+         *
+         * O item que não existia passa a existir — mas existir não é estar no
+         * pedido. Ou não há pedido nenhum (sem_pedido), ou há e o item não está
+         * nele (item_n_pedido). Antes, corrigir o cadastro fechava a nota como
+         * se estivesse tudo certo, e a pendência real só aparecia quando alguém
+         * tropeçava nela na conferência.
+         */
+        $substituto = null;
+
+        if ($card->tipo === 'cadastro') {
+            $request->validate([
+                'substituto' => ['required', Rule::in(Card::SUBSTITUTOS_DE_CADASTRO)],
+            ], [
+                'substituto.required' => 'Escolha para qual card o cadastro vai ser trocado.',
+                'substituto.in'       => 'O cadastro só pode ser trocado por "Item n pedido" ou "Sem pedido".',
+            ]);
+
+            $substituto = $request->input('substituto');
+        }
+
         // Corrigir já resolve: sem passo de confirmação por card. corrigido_por
         // registra que a resolução veio de compras (a conferência final é a liberação).
         $card->update([
@@ -98,13 +120,44 @@ class CardController extends Controller
             'corrigido_em'  => now(),
         ]);
 
+        // Um card ativo por tipo (mesma regra do store): se o substituto já
+        // estiver aberto nesta nota, a troca não duplica — o cadastro se resolve
+        // e a pendência que já existia continua valendo por si.
+        $trocou = false;
+
+        if ($substituto) {
+            $jaAberto = $nota->cards()
+                ->where('tipo', $substituto)
+                ->where('status', '!=', Card::STATUS_RESOLVIDO)
+                ->exists();
+
+            if (! $jaAberto) {
+                $nota->cards()->create([
+                    'tipo'       => $substituto,
+                    'status'     => Card::STATUS_ABERTO,
+                    'aberto_por' => $request->user()->id,
+                ]);
+
+                $trocou = true;
+            }
+        }
+
         $nota->limparVisualizacao(); // agiu na nota → solta o 🙋‍♂️
         // O broadcast atualiza a fila de quem está com a tela aberta; a
         // notificação é o que alcança quem não está olhando agora.
         event(new NotaAtualizada($nota));
         Notificador::cardCorrigido($nota, $card, $request->user());
 
-        return back()->with('sucesso', 'Card corrigido.');
+        // O card novo é pendência nova: quem cuida dele precisa ser avisado.
+        // Vai depois do cardCorrigido de propósito — aquele reduz o aviso ao
+        // que sobrou, e este volta a acender com o que acabou de entrar.
+        if ($trocou) {
+            Notificador::cardAberto($nota->fresh('cards'), $request->user());
+        }
+
+        return back()->with('sucesso', $trocou
+            ? 'Cadastro corrigido e trocado por ' . Card::rotulo($substituto) . '.'
+            : 'Card corrigido.');
     }
 
     // ─── RESOLVER (pré-lote fecha direto — principalmente cards de regra) ──────

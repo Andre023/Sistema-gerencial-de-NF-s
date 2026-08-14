@@ -161,6 +161,11 @@ class NotaController extends Controller
                 // tela: Recusa e Devolução chegaram a existir no controller e
                 // continuar invisíveis no formulário porque eram duas listas.
                 'tiposQualquerPapel' => Card::abertosPorQualquerPapel(),
+                // Por quais cards o cadastro pode ser trocado ao ser corrigido.
+                // Vem daqui pelo mesmo motivo da linha acima: se a tela tivesse
+                // a própria cópia, mudar a regra no servidor deixaria os botões
+                // oferecendo o que o controller já não aceita.
+                'substitutosCadastro' => Card::SUBSTITUTOS_DE_CADASTRO,
                 'sla'     => [
                     'atencao' => Nota::SLA_ATENCAO,
                     'alerta'  => Nota::SLA_ALERTA,

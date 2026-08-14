@@ -153,13 +153,15 @@ export interface OpcoesSistema {
     tiposCompras?: TipoCard[];
     /** Tipos que qualquer papel operacional pode ABRIR (Card::abertosPorQualquerPapel) */
     tiposQualquerPapel?: TipoCard[];
+    /** Por quais cards o Cadastro é trocado ao ser corrigido (Card::SUBSTITUTOS_DE_CADASTRO) */
+    substitutosCadastro?: TipoCard[];
     /** Limiares em dias de cada nível (definidos no backend) */
     sla?: { atencao: number; alerta: number; critico: number };
 }
 
 // ─── Sino ────────────────────────────────────────────────────────────────────
 
-export type TipoNotificacao = 'divergencia' | 'corrigido' | 'reaberto' | 'liberada' | 'lancada';
+export type TipoNotificacao = 'divergencia' | 'corrigido' | 'reaberto' | 'liberada' | 'lancada' | 'doca';
 
 export interface Notificacao {
     id: number;

@@ -65,6 +65,7 @@ class Notificador
         self::encerrar($nota, [Notificacao::TIPO_LANCADA]);
 
         self::sincronizarCompras($nota, $autor, Notificacao::TIPO_DIVERGENCIA);
+        self::sincronizarDoca($nota, $autor);
     }
 
     // ─── SALTO 1b: pré-lote reconferiu e continua errado → compras de novo ─────
@@ -75,6 +76,8 @@ class Notificador
         self::encerrar($nota, [Notificacao::TIPO_CORRIGIDO]);
 
         self::sincronizarCompras($nota, $autor, Notificacao::TIPO_REABERTO);
+        // Reabrir um card de doca é pendência nova para quem fecha esses cards
+        self::sincronizarDoca($nota, $autor);
     }
 
     // ─── SALTO 2: compras corrigiu → quem abriu o card ─────────────────────────
@@ -85,6 +88,8 @@ class Notificador
 
         // Some da fila de compras assim que não sobra nada para eles arrumarem
         self::sincronizarCompras($nota, $autor, Notificacao::TIPO_DIVERGENCIA, semNovoAviso: true);
+        // Idem para a doca: recusa/devolução fechadas somem do sino dos dois setores
+        self::sincronizarDoca($nota, $autor, semNovoAviso: true);
 
         $destinatarios = self::quemAbriu($card);
 
@@ -100,6 +105,7 @@ class Notificador
     public static function cardResolvido(Nota $nota, User $autor): void
     {
         self::sincronizarCompras($nota, $autor, Notificacao::TIPO_DIVERGENCIA, semNovoAviso: true);
+        self::sincronizarDoca($nota, $autor, semNovoAviso: true);
     }
 
     // ─── SALTO 3: nota liberada → quem lançou ──────────────────────────────────
@@ -112,6 +118,7 @@ class Notificador
             Notificacao::TIPO_REABERTO,
             Notificacao::TIPO_CORRIGIDO,
             Notificacao::TIPO_LANCADA,
+            Notificacao::TIPO_DOCA,
         ]);
 
         $quemLancou = $nota->user_id ? User::find($nota->user_id) : null;
@@ -192,7 +199,7 @@ class Notificador
         // Sobrou divergência, mas uma foi embora: o aviso de quem ainda não leu
         // precisa parar de citar o que já foi corrigido.
         if ($semNovoAviso) {
-            self::reduzirTipos($nota, $tipos);
+            self::reduzirTipos($nota, $tipos, [Notificacao::TIPO_DIVERGENCIA, Notificacao::TIPO_REABERTO]);
             return;
         }
 
@@ -202,15 +209,57 @@ class Notificador
     }
 
     /**
-     * Reescreve a lista de tipos dos avisos vivos de compras sem mexer no
-     * lida_em — perder um item da lista não é notícia nova, não deve piscar.
+     * Recalcula o aviso da DOCA a partir do estado atual da nota.
+     *
+     * Espelha o sincronizarCompras, para os cards que compras abre mas não
+     * fecha: recusa, devolução e trocar nota. Quem resolve é quem está com a
+     * mercadoria e o papel na mão — pré-lote e recebimento —, e são eles que
+     * precisam saber.
+     *
+     * Antes desta função ninguém era avisado desses cards: o motor só olhava
+     * para TIPOS_COMPRAS, e um card de recusa ficava aberto na tela esperando
+     * alguém passar os olhos por acaso.
+     *
+     * @param bool $semNovoAviso a ação foi de resolução — atualiza ou encerra o
+     *                           que existe, mas não cria aviso nem pisca de novo
+     */
+    private static function sincronizarDoca(Nota $nota, User $autor, bool $semNovoAviso = false): void
+    {
+        $nota->load('cards');
+
+        $tipos = $nota->cards
+            ->filter(fn($c) => $c->status === Card::STATUS_ABERTO)
+            ->filter(fn($c) => in_array($c->tipo, Card::TIPOS_AVISAM_DOCA, true))
+            ->pluck('tipo');
+
+        if ($tipos->isEmpty()) {
+            self::encerrar($nota, [Notificacao::TIPO_DOCA]);
+            return;
+        }
+
+        // Sobrou card, mas um foi embora: o aviso de quem ainda não leu precisa
+        // parar de citar o que já foi resolvido.
+        if ($semNovoAviso) {
+            self::reduzirTipos($nota, $tipos, [Notificacao::TIPO_DOCA]);
+            return;
+        }
+
+        $daDoca = User::whereIn('role', [User::ROLE_PRE_LOTE, User::ROLE_RECEBIMENTO])->get();
+
+        self::entregar($daDoca, $nota, Notificacao::TIPO_DOCA, $tipos, $autor);
+    }
+
+    /**
+     * Reescreve a lista de tipos dos avisos vivos sem mexer no lida_em — perder
+     * um item da lista não é notícia nova, não deve piscar.
      *
      * @param Collection<int,string> $tipos
+     * @param array<int,string> $familia quais tipos de aviso reescrever
      */
-    private static function reduzirTipos(Nota $nota, Collection $tipos): void
+    private static function reduzirTipos(Nota $nota, Collection $tipos, array $familia): void
     {
         $vivas = Notificacao::where('nota_id', $nota->id)
-            ->whereIn('tipo', [Notificacao::TIPO_DIVERGENCIA, Notificacao::TIPO_REABERTO])
+            ->whereIn('tipo', $familia)
             ->viva()
             ->get();
 

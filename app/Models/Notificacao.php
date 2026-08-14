@@ -39,6 +39,15 @@ class Notificacao extends Model
     public const TIPO_LIBERADA = 'liberada';
     /** Nota recém lançada (caminhão na porta) — o pré-lote precisa analisar */
     public const TIPO_LANCADA = 'lancada';
+    /**
+     * Card que só quem tem a mercadoria e o papel na mão resolve (recusa,
+     * devolução, trocar nota) — pré-lote e recebimento precisam agir.
+     *
+     * Tipo PRÓPRIO, e não uma reutilização de TIPO_DIVERGENCIA, porque os dois
+     * avisos convivem na mesma nota: encerrar o de compras encerraria este
+     * junto, e o pré-lote perderia a cobrança de um card que continua aberto.
+     */
+    public const TIPO_DOCA = 'doca';
 
     public const TIPOS = [
         self::TIPO_DIVERGENCIA,
@@ -46,6 +55,7 @@ class Notificacao extends Model
         self::TIPO_REABERTO,
         self::TIPO_LIBERADA,
         self::TIPO_LANCADA,
+        self::TIPO_DOCA,
     ];
 
     /** Quantas o sino mostra na lista (o contador conta todas as pendentes) */
