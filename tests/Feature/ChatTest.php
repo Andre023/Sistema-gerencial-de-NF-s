@@ -5,6 +5,7 @@ namespace Tests\Feature;
 use App\Models\Conversa;
 use App\Models\Mensagem;
 use App\Models\User;
+use App\Services\Conversas;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Storage;
@@ -319,6 +320,86 @@ class ChatTest extends TestCase
         $this->actingAs($maria)->post(route('conversas.lida', $conversa), ['ate' => 1]);
 
         $this->assertSame(0, $conversa->fresh()->naoLidasPara($maria->fresh()));
+    }
+
+    // ─── Quem está devendo resposta (o rosto no topo da barra) ─────────────────
+
+    public function test_pendentes_vem_do_mais_recente_para_o_mais_antigo(): void
+    {
+        // É a ordem que faz o rosto de quem acabou de falar ficar em primeiro.
+        $andre = $this->pessoa();
+        $maria = $this->pessoa();
+        $ana   = $this->pessoa();
+
+        $this->travel(-10)->minutes();
+        $this->actingAs($maria)->post(route('conversas.enviar', $andre), ['texto' => 'antiga']);
+
+        $this->travelBack();
+        $this->actingAs($ana)->post(route('conversas.enviar', $andre), ['texto' => 'recente']);
+
+        $pendentes = Conversas::pendentesDe($andre->fresh());
+
+        $this->assertCount(2, $pendentes);
+        $this->assertSame($ana->id, $pendentes[0]['id'], 'Quem falou por último vem primeiro.');
+        $this->assertSame($maria->id, $pendentes[1]['id']);
+    }
+
+    public function test_pendentes_somam_as_mensagens_da_mesma_pessoa(): void
+    {
+        $andre = $this->pessoa();
+        $maria = $this->pessoa();
+
+        foreach (['uma', 'duas', 'tres'] as $texto) {
+            $this->actingAs($maria)->post(route('conversas.enviar', $andre), ['texto' => $texto]);
+        }
+
+        $pendentes = Conversas::pendentesDe($andre->fresh());
+
+        // Uma linha por pessoa, não uma por mensagem: são três avisos da MESMA
+        // conversa, e três rostos iguais na barra seriam ruído.
+        $this->assertCount(1, $pendentes);
+        $this->assertSame(3, $pendentes[0]['nao_lidas']);
+        $this->assertSame($maria->name, $pendentes[0]['nome']);
+    }
+
+    public function test_pendentes_ficam_vazios_depois_de_ler(): void
+    {
+        $andre = $this->pessoa();
+        $maria = $this->pessoa();
+
+        $this->actingAs($maria)->post(route('conversas.enviar', $andre), ['texto' => 'oi']);
+        $this->assertCount(1, Conversas::pendentesDe($andre->fresh()));
+
+        $this->actingAs($andre)->get(route('conversas.mostrar', $maria))->assertOk();
+
+        $this->assertSame([], Conversas::pendentesDe($andre->fresh()));
+    }
+
+    public function test_pendentes_nao_trazem_o_que_eu_mesmo_mandei(): void
+    {
+        $andre = $this->pessoa();
+        $maria = $this->pessoa();
+
+        $this->actingAs($andre)->post(route('conversas.enviar', $maria), ['texto' => 'minha']);
+
+        $this->assertSame([], Conversas::pendentesDe($andre->fresh()));
+        $this->assertCount(1, Conversas::pendentesDe($maria->fresh()));
+    }
+
+    public function test_pendentes_chegam_junto_com_a_pagina(): void
+    {
+        // Sem isso o rosto só apareceria depois de alguém expandir a barra.
+        $andre = $this->pessoa(User::ROLE_PRE_LOTE);
+        $maria = $this->pessoa();
+
+        $this->actingAs($maria)->post(route('conversas.enviar', $andre), ['texto' => 'olha isso']);
+
+        $this->actingAs($andre)->get(route('notas.index'))
+            ->assertOk()
+            ->assertInertia(fn($pagina) => $pagina
+                ->has('conversasPendentes', 1)
+                ->where('conversasPendentes.0.id', $maria->id)
+                ->where('conversasPendentes.0.nao_lidas', 1));
     }
 
     // ─── A vida do arquivo ─────────────────────────────────────────────────────

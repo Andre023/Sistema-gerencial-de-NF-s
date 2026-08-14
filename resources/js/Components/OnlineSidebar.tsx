@@ -33,7 +33,7 @@ export default function OnlineSidebar({ currentUserId }: Props) {
     const { isDark } = useTheme();
     const p: Palette = isDark ? DARK : LIGHT;
 
-    const { pessoas, naoLidas, aberta, carregarLista, abrirConversa, fecharConversa } = useChat();
+    const { pessoas, pendentes, naoLidas, aberta, carregarLista, abrirConversa, fecharConversa } = useChat();
 
     useEffect(() => {
         window.Echo.join('presenca.sistema')
@@ -65,24 +65,48 @@ export default function OnlineSidebar({ currentUserId }: Props) {
         }
     };
 
-    /** Quantas mensagens por ler tem esta pessoa (para o balãozinho no avatar). */
-    const naoLidasDe = (id: number) => pessoas?.find(x => x.id === id)?.nao_lidas ?? 0;
+    /**
+     * Quantas mensagens por ler tem esta pessoa (o balãozinho no avatar).
+     *
+     * Sai dos pendentes e não da lista completa: os pendentes existem desde o
+     * carregamento da página, a lista só depois de a barra ser aberta.
+     */
+    const naoLidasDe = (id: number) => pendentes.find(x => x.id === id)?.nao_lidas ?? 0;
 
     const emConversa = expandida && aberta !== null;
     const pessoaAberta = pessoas?.find(x => x.id === aberta) ?? null;
 
-    // Quem tem mensagem por ler aparece na barra RECOLHIDA mesmo estando
-    // offline — senão a pessoa veria um contador aceso sem saber de quem é.
+    /*
+     * A ordem dos ícones na barra recolhida — a regra do WhatsApp:
+     *
+     *   1. quem tem mensagem por ler, do mais recente para o mais antigo
+     *   2. depois o resto de quem está online
+     *
+     * Quem acabou de falar sobe para o primeiro lugar. Antes ele ficava onde
+     * estivesse na lista de presença, ou ia para o FIM se estivesse offline —
+     * ou seja, a pessoa mais importante era a mais escondida.
+     *
+     * Os pendentes vêm junto com a página (props compartilhadas), então o rosto
+     * já aparece no lugar certo sem ninguém abrir a barra. Antes dependiam da
+     * lista completa, que só era buscada ao expandir — e até lá havia um número
+     * aceso sem dizer de quem era.
+     */
     const naBarraRecolhida = useMemo(() => {
-        const comPendencia = (pessoas ?? [])
-            .filter(x => x.nao_lidas > 0 && !online.has(x.id))
-            .map(x => ({ id: x.id, name: x.nome, avatar: x.avatar, offline: true }));
+        const comPendencia = pendentes.map(x => ({
+            id: x.id,
+            name: x.nome,
+            avatar: x.avatar,
+            offline: !online.has(x.id),
+        }));
 
-        return [
-            ...usuariosOnline.map(u => ({ id: u.id, name: u.name, avatar: u.avatar ?? null, offline: false })),
-            ...comPendencia,
-        ];
-    }, [usuariosOnline, pessoas, online]);
+        const jaListado = new Set(comPendencia.map(x => x.id));
+
+        const demaisOnline = usuariosOnline
+            .filter(u => !jaListado.has(u.id))
+            .map(u => ({ id: u.id, name: u.name, avatar: u.avatar ?? null, offline: false }));
+
+        return [...comPendencia, ...demaisOnline];
+    }, [usuariosOnline, pendentes, online]);
 
     const largura = emConversa ? 'w-80' : (expandida ? 'w-64' : 'w-14');
 

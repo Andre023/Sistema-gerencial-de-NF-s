@@ -62,10 +62,15 @@ class HandleInertiaRequests extends Middleware
             // é o evento NotificacoesAtualizadas no canal privado do usuário.
             'notificacoes' => $user ? Notificador::paraUsuario($user) : null,
 
-            // Chat: só o TOTAL de mensagens por ler, para o balãozinho aparecer
-            // na barra recolhida sem ninguém abrir nada. É uma consulta agregada
-            // só — a lista de pessoas é buscada sob demanda, quando a barra abre.
-            'conversasNaoLidas' => $user ? Conversas::naoLidasDe($user) : 0,
+            // Chat: quem está com mensagem por ler, da mais recente para a mais
+            // antiga. É o que põe o rosto de quem falou no topo da barra
+            // recolhida assim que a página abre — antes disso só havia um número
+            // aceso, sem dizer de quem era.
+            //
+            // Traz SÓ quem tem pendência (quase sempre ninguém), e não as 26
+            // contas: a lista inteira continua sendo buscada sob demanda, quando
+            // alguém expande a barra.
+            'conversasPendentes' => $user ? Conversas::pendentesDe($user) : [],
 
             // Mensagens de uma ação (ex.: "Nota movida.") — o layout mostra como
             // toast. Sem isto, o ->with('sucesso', ...) dos controllers se perde.

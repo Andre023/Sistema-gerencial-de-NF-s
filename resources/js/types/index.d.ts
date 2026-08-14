@@ -239,10 +239,23 @@ export interface PessoaChat {
     } | null;
 }
 
+/**
+ * Alguém com mensagem por ler. Chega junto com a página (props compartilhadas),
+ * para o rosto aparecer no topo da barra recolhida sem precisar abrir nada.
+ */
+export interface PendenteChat {
+    id: number;
+    nome: string;
+    avatar: Avatar | null;
+    nao_lidas: number;
+    /** Data da última mensagem — é por ela que a ordem é decidida */
+    em: string;
+}
+
 export type PageProps<T extends Record<string, unknown> = Record<string, unknown>> = T & {
     auth: { user: User; can: Permissoes };
     flash?: { sucesso?: string; erro?: string };
     notificacoes?: EstadoSino | null;
-    /** Total de mensagens de chat por ler — o balãozinho da barra recolhida */
-    conversasNaoLidas?: number;
+    /** Quem está com mensagem por ler, do mais recente para o mais antigo */
+    conversasPendentes?: PendenteChat[];
 };

@@ -83,6 +83,67 @@ class Conversas
         return self::baseNaoLidas($user)->count();
     }
 
+    /**
+     * Quem está devendo resposta — só as pessoas com mensagem por ler, da mais
+     * recente para a mais antiga.
+     *
+     * É o que faz o rosto de quem mandou mensagem subir ao topo da barra
+     * recolhida ASSIM QUE A PÁGINA ABRE. A lista completa (paraUsuario) só é
+     * buscada quando alguém expande a barra, e até lá não havia como saber de
+     * quem era o número aceso no balãozinho.
+     *
+     * Vai nas props compartilhadas, ou seja: roda em toda navegação. Por isso
+     * traz só quem tem pendência — quase sempre ninguém, e aí a segunda
+     * consulta nem acontece.
+     */
+    public static function pendentesDe(User $user): array
+    {
+        $porConversa = self::baseNaoLidas($user)
+            ->groupBy('m.conversa_id')
+            ->selectRaw('m.conversa_id, COUNT(*) as total, MAX(m.created_at) as em')
+            ->get();
+
+        if ($porConversa->isEmpty()) {
+            return [];
+        }
+
+        // O outro lado de cada conversa, numa consulta só
+        $outros = DB::table('conversa_participantes as p')
+            ->join('users as u', 'u.id', '=', 'p.user_id')
+            ->whereIn('p.conversa_id', $porConversa->pluck('conversa_id'))
+            ->where('p.user_id', '!=', $user->id)
+            ->select('p.conversa_id', 'u.id', 'u.name', 'u.avatar_tipo', 'u.avatar_valor')
+            ->get()
+            ->keyBy('conversa_id');
+
+        return $porConversa
+            ->map(function ($linha) use ($outros) {
+                $outro = $outros->get($linha->conversa_id);
+
+                // Conta removida no meio do caminho: sem rosto para mostrar
+                if (! $outro) {
+                    return null;
+                }
+
+                return [
+                    'id'        => (int) $outro->id,
+                    'nome'      => $outro->name,
+                    // Mesmo formato do getAvatarAttribute do User, para o
+                    // componente <Avatar> não precisar saber de onde veio.
+                    'avatar'    => [
+                        'tipo'  => $outro->avatar_tipo ?? 'monograma',
+                        'valor' => $outro->avatar_valor,
+                    ],
+                    'nao_lidas' => (int) $linha->total,
+                    'em'        => $linha->em,
+                ];
+            })
+            ->filter()
+            ->sortByDesc('em')
+            ->values()
+            ->all();
+    }
+
     // ─── Consultas ──────────────────────────────────────────────────────────────
 
     /**

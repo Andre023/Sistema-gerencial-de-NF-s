@@ -2,7 +2,7 @@ import {
     createContext, PropsWithChildren, useCallback, useContext, useEffect, useRef, useState,
 } from 'react';
 import { usePage } from '@inertiajs/react';
-import { Avatar, Mensagem, PageProps, PessoaChat } from '@/types';
+import { Avatar, Mensagem, PageProps, PendenteChat, PessoaChat } from '@/types';
 import { biparMensagem } from '@/lib/som';
 import { otimizarParaEnvio } from '@/lib/imagem';
 
@@ -33,6 +33,12 @@ interface EventoMensagem {
 interface ContextoChat {
     /** null = a lista ainda não foi buscada (a barra nunca foi aberta) */
     pessoas: PessoaChat[] | null;
+    /**
+     * Quem está devendo resposta, do mais recente para o mais antigo. Chega
+     * junto com a página, então existe mesmo antes de alguém abrir a barra —
+     * é o que põe o rosto de quem falou no topo dos ícones.
+     */
+    pendentes: PendenteChat[];
     naoLidas: number;
     carregandoLista: boolean;
 
@@ -70,11 +76,20 @@ export function useChat(): ContextoChat {
 }
 
 export default function ChatProvider({ userId, children }: PropsWithChildren<{ userId: number }>) {
-    const { conversasNaoLidas } = usePage<PageProps>().props;
+    const { conversasPendentes } = usePage<PageProps>().props;
 
-    const [pessoas, setPessoas]   = useState<PessoaChat[] | null>(null);
-    const [naoLidas, setNaoLidas] = useState<number>(conversasNaoLidas ?? 0);
+    const [pessoas, setPessoas]     = useState<PessoaChat[] | null>(null);
+    const [pendentes, setPendentes] = useState<PendenteChat[]>(conversasPendentes ?? []);
     const [carregandoLista, setCarregandoLista] = useState(false);
+
+    /*
+     * O total é DERIVADO dos pendentes, não guardado à parte.
+     *
+     * Antes eram dois estados (um número e uma lista) que precisavam concordar,
+     * e toda ação tinha de lembrar de mexer nos dois. Um contador que discorda
+     * dos rostos ao lado é pior que não ter contador.
+     */
+    const naoLidas = pendentes.reduce((soma, x) => soma + x.nao_lidas, 0);
 
     const [aberta, setAberta]         = useState<number | null>(null);
     const [conversaId, setConversaId] = useState<number | null>(null);
@@ -94,11 +109,11 @@ export default function ChatProvider({ userId, children }: PropsWithChildren<{ u
     const conversaIdRef = useRef<number | null>(null);
     conversaIdRef.current = conversaId;
 
-    // Navegação normal do Inertia traz o total recalculado pelo servidor — é o
-    // que reconcilia a conta se algum evento se perdeu no caminho.
+    // Navegação normal do Inertia traz os pendentes recalculados pelo servidor —
+    // é o que reconcilia a conta se algum evento se perdeu no caminho.
     useEffect(() => {
-        if (typeof conversasNaoLidas === 'number') setNaoLidas(conversasNaoLidas);
-    }, [conversasNaoLidas]);
+        if (conversasPendentes) setPendentes(conversasPendentes);
+    }, [conversasPendentes]);
 
     const limparErro = useCallback(() => setErro(null), []);
 
@@ -109,7 +124,18 @@ export default function ChatProvider({ userId, children }: PropsWithChildren<{ u
         try {
             const { data } = await window.axios.get(route('conversas.index'));
             setPessoas(data.pessoas);
-            setNaoLidas(data.nao_lidas);
+
+            // A lista completa é a verdade mais nova: os pendentes se refazem a
+            // partir dela, em vez de ficarem contando por conta própria.
+            setPendentes(
+                (data.pessoas as PessoaChat[])
+                    .filter(x => x.nao_lidas > 0)
+                    .map(x => ({
+                        id: x.id, nome: x.nome, avatar: x.avatar,
+                        nao_lidas: x.nao_lidas, em: x.ultima?.em ?? '',
+                    }))
+                    .sort((a, b) => b.em.localeCompare(a.em)),
+            );
         } catch {
             setErro('Não foi possível carregar a lista.');
         } finally {
@@ -134,19 +160,14 @@ export default function ChatProvider({ userId, children }: PropsWithChildren<{ u
             setLidaPeloOutroAte(data.lida_pelo_outro_ate);
             setLeituraAoAbrir(data.minha_leitura_ate ?? 0);
 
-            // O servidor marcou como lida ao entregar a conversa; a conta local
-            // acompanha, senão o balãozinho ficaria aceso até a próxima
-            // navegação de página.
-            setPessoas(atual => {
-                if (!atual) return atual;
+            // O servidor marcou como lida ao entregar a conversa; a tela
+            // acompanha, senão o rosto e o balãozinho ficariam acesos até a
+            // próxima navegação de página.
+            setPendentes(atual => atual.filter(x => x.id !== pessoaId));
 
-                const lidas = atual.find(p => p.id === pessoaId)?.nao_lidas ?? 0;
-                if (lidas > 0) setNaoLidas(n => Math.max(0, n - lidas));
-
-                return atual.map(p => p.id === pessoaId
-                    ? { ...p, nao_lidas: 0, conversa_id: data.conversa_id }
-                    : p);
-            });
+            setPessoas(atual => atual?.map(p => p.id === pessoaId
+                ? { ...p, nao_lidas: 0, conversa_id: data.conversa_id }
+                : p) ?? atual);
         } catch {
             setErro('Não foi possível abrir a conversa.');
         } finally {
@@ -318,7 +339,27 @@ export default function ChatProvider({ userId, children }: PropsWithChildren<{ u
 
             if (minha || naAberta) return;
 
-            setNaoLidas(n => n + 1);
+            /*
+             * O rosto de quem falou vai para o TOPO — é o pedido do WhatsApp:
+             * a conversa mais recente é a primeira, sempre.
+             *
+             * Quem já estava na fila sai da posição antiga e volta na frente com
+             * o contador somado; quem não estava, entra na frente.
+             */
+            setPendentes(atual => {
+                const antes = atual.find(x => x.id === e.autor.id);
+
+                const novo: PendenteChat = {
+                    id: e.autor.id!,
+                    nome: e.autor.name ?? '',
+                    avatar: e.autor.avatar,
+                    nao_lidas: (antes?.nao_lidas ?? 0) + 1,
+                    em: e.mensagem.created_at,
+                };
+
+                return [novo, ...atual.filter(x => x.id !== e.autor.id)];
+            });
+
             avisar(e.autor.name ?? 'Mensagem nova', e.mensagem);
         };
 
@@ -340,7 +381,7 @@ export default function ChatProvider({ userId, children }: PropsWithChildren<{ u
 
     return (
         <Contexto.Provider value={{
-            pessoas, naoLidas, carregandoLista,
+            pessoas, pendentes, naoLidas, carregandoLista,
             aberta, mensagens, carregandoConversa, temAntigas, lidaPeloOutroAte, leituraAoAbrir, enviando, erro,
             carregarLista, abrirConversa, fecharConversa, enviar, carregarAntigas, limparErro,
         }}>
