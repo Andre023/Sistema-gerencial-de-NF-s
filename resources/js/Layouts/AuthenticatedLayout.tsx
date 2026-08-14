@@ -5,6 +5,7 @@ import ResponsiveNavLink from '@/Components/ResponsiveNavLink';
 import OnlineSidebar from '@/Components/OnlineSidebar';
 import SinoNotificacoes from '@/Components/painel/SinoNotificacoes';
 import NotificacoesProvider from '@/Components/painel/NotificacoesProvider';
+import ChatProvider from '@/Components/chat/ChatProvider';
 import Avatar from '@/Components/painel/Avatar';
 import { Link, usePage, router } from '@inertiajs/react';
 import { PropsWithChildren, ReactNode, useState, useEffect } from 'react';
@@ -67,6 +68,9 @@ export default function AuthenticatedLayout({
 
     return (
         <NotificacoesProvider userId={user.id}>
+        {/* O chat mora dentro do provedor do sino porque divide o mesmo canal
+            privado (`usuario.{id}`) — ver ChatProvider. */}
+        <ChatProvider userId={user.id}>
         <div className={`min-h-screen flex flex-col transition-colors duration-200 ${pageBg}`}>
 
             {/* ── NAVBAR ── */}
@@ -261,6 +265,7 @@ export default function AuthenticatedLayout({
                 <OnlineSidebar currentUserId={user.id} />
             </div>
         </div>
+        </ChatProvider>
         </NotificacoesProvider>
     );
 }

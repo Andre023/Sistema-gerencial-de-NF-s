@@ -185,8 +185,64 @@ export interface EstadoSino {
     ativas: boolean;
 }
 
+// ─── Chat ────────────────────────────────────────────────────────────────────
+
+/**
+ * O anexo de uma mensagem. O arquivo não vem aqui — só o suficiente para a
+ * bolha se desenhar antes de qualquer download.
+ */
+export interface AnexoMensagem {
+    nome: string;
+    mime: string;
+    /** bytes */
+    tamanho: number;
+    imagem: boolean;
+    /**
+     * false = o prazo venceu e o arquivo saiu do servidor. A bolha ainda pode
+     * mostrá-lo se ESTE navegador guardou a cópia quando o exibiu (IndexedDB,
+     * ver lib/arquivosLocais). Se não guardou, mostra o aviso de expirado.
+     */
+    no_servidor: boolean;
+    removido_em: string | null;
+}
+
+export interface Mensagem {
+    id: number;
+    texto: string | null;
+    autor_id: number | null;
+    autor: string | null;
+    created_at: string;
+    anexo: AnexoMensagem | null;
+    /**
+     * Só no cliente: mensagem que ainda não voltou do servidor. A bolha aparece
+     * na hora (com id negativo) e é substituída pela real quando a resposta
+     * chega — é o que faz o envio parecer instantâneo.
+     */
+    pendente?: boolean;
+    /** Só no cliente: o envio falhou e há o que tentar de novo. */
+    falhou?: boolean;
+}
+
+/** Uma linha da lista de pessoas da barra lateral. */
+export interface PessoaChat {
+    id: number;
+    nome: string;
+    papel: Papel;
+    avatar: Avatar | null;
+    conversa_id: number | null;
+    nao_lidas: number;
+    ultima: {
+        previa: string;
+        em: string;
+        /** true = a última mensagem foi minha (mostra o ✓ na lista) */
+        minha: boolean;
+    } | null;
+}
+
 export type PageProps<T extends Record<string, unknown> = Record<string, unknown>> = T & {
     auth: { user: User; can: Permissoes };
     flash?: { sucesso?: string; erro?: string };
     notificacoes?: EstadoSino | null;
+    /** Total de mensagens de chat por ler — o balãozinho da barra recolhida */
+    conversasNaoLidas?: number;
 };

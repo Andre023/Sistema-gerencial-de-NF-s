@@ -2,6 +2,7 @@
 
 namespace App\Http\Middleware;
 
+use App\Services\Conversas;
 use App\Services\Notificador;
 use Illuminate\Http\Request;
 use Inertia\Middleware;
@@ -60,6 +61,11 @@ class HandleInertiaRequests extends Middleware
             // O sino: estado inicial da lista. Depois disso quem mantém ao vivo
             // é o evento NotificacoesAtualizadas no canal privado do usuário.
             'notificacoes' => $user ? Notificador::paraUsuario($user) : null,
+
+            // Chat: só o TOTAL de mensagens por ler, para o balãozinho aparecer
+            // na barra recolhida sem ninguém abrir nada. É uma consulta agregada
+            // só — a lista de pessoas é buscada sob demanda, quando a barra abre.
+            'conversasNaoLidas' => $user ? Conversas::naoLidasDe($user) : 0,
 
             // Mensagens de uma ação (ex.: "Nota movida.") — o layout mostra como
             // toast. Sem isto, o ->with('sucesso', ...) dos controllers se perde.

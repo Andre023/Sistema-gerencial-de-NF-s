@@ -2,6 +2,7 @@ import { createContext, PropsWithChildren, useCallback, useContext, useEffect, u
 import { router, usePage } from '@inertiajs/react';
 import { EstadoSino, Notificacao, PageProps } from '@/types';
 import { NOTIFICACAO_LABEL, TIPO_CARD_LABEL, lojaNome } from '@/lib/tema';
+import { biparAviso } from '@/lib/som';
 import AvisosNaTela, { AvisoNaTela } from './AvisosNaTela';
 
 const VAZIO: EstadoSino = { pendentes: 0, itens: [], ativas: true };
@@ -85,38 +86,10 @@ export default function NotificacoesProvider({ userId, children }: PropsWithChil
     }, []);
 
     // ── Bipe curto, no espírito do toque do WhatsApp ──────────────────────────
-    // Gerado na hora (sem arquivo de áudio). O navegador só libera som depois de
-    // algum clique na página; antes disso a chamada falha calada, de propósito.
-    const audioRef = useRef<AudioContext | null>(null);
-
-    const bipar = useCallback(() => {
-        try {
-            const Ctor = window.AudioContext ?? (window as any).webkitAudioContext;
-            if (!Ctor) return;
-
-            const ctx = audioRef.current ?? (audioRef.current = new Ctor());
-            if (ctx.state === 'suspended') ctx.resume().catch(() => {});
-
-            // Duas notas subindo, bem curtas
-            [880, 1175].forEach((hz, i) => {
-                const osc = ctx.createOscillator();
-                const vol = ctx.createGain();
-                const t0 = ctx.currentTime + i * 0.12;
-
-                osc.type = 'sine';
-                osc.frequency.value = hz;
-                vol.gain.setValueAtTime(0.0001, t0);
-                vol.gain.exponentialRampToValueAtTime(0.12, t0 + 0.02);
-                vol.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.16);
-
-                osc.connect(vol).connect(ctx.destination);
-                osc.start(t0);
-                osc.stop(t0 + 0.18);
-            });
-        } catch {
-            // som é enfeite; nunca deve atrapalhar o aviso
-        }
-    }, []);
+    // Mora em lib/som desde que o chat também passou a bipar: um AudioContext
+    // só para o sistema, e os dois toques definidos lado a lado — é assim que
+    // dá para escolher timbres que não se confundem.
+    const bipar = biparAviso;
 
     // ── Ações ─────────────────────────────────────────────────────────────────
     const fecharAviso = useCallback((chave: string) => {

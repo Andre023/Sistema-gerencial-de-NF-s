@@ -3,6 +3,7 @@
 use App\Http\Controllers\AnexoController;
 use App\Http\Controllers\CardController;
 use App\Http\Controllers\ComentarioController;
+use App\Http\Controllers\ConversaController;
 use App\Http\Controllers\DossieController;
 use App\Http\Controllers\EstatisticaController;
 use App\Http\Controllers\FornecedorController;
@@ -41,6 +42,28 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::prefix('notificacoes')->name('notificacoes.')->group(function () {
         Route::post('/{notificacao}/abrir', [NotificacaoController::class, 'abrir'])->name('abrir');
         Route::post('/ler-todas',           [NotificacaoController::class, 'lerTodas'])->name('lerTodas');
+    });
+
+    // ── Chat interno (a barra lateral) ─────────────────────────────────────────
+    //
+    // Todo mundo conversa com todo mundo, inclusive o visitante: aqui não se
+    // executa ação sobre nota nenhuma, é recado entre colegas. A autorização é
+    // participar da conversa, e mora no controller.
+    //
+    // A ORDEM IMPORTA: as rotas fixas ('mensagens/…') vêm antes de '/{pessoa}',
+    // senão a palavra "mensagens" seria lida como o nome de um usuário.
+    Route::prefix('conversas')->name('conversas.')->group(function () {
+        Route::get('/', [ConversaController::class, 'index'])->name('index');
+
+        // O anexo. Sai só por aqui, com 'auth' na frente e conferência de
+        // participação — o arquivo mora fora de public/, como o da nota.
+        Route::get('/mensagens/{mensagem}/arquivo', [ConversaController::class, 'arquivo'])
+            ->name('mensagens.arquivo');
+
+        Route::post('/{conversa}/lida', [ConversaController::class, 'lida'])->name('lida');
+
+        Route::get('/{pessoa}',  [ConversaController::class, 'mostrar'])->name('mostrar');
+        Route::post('/{pessoa}', [ConversaController::class, 'enviar'])->name('enviar');
     });
 
     // ── Notas (a fila do dia) ──────────────────────────────────────────────────

@@ -1,15 +1,39 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useTheme } from '@/Contexts/ThemeContext';
 import { Avatar as AvatarTipo } from '@/types';
+import { DARK, LIGHT, Palette } from '@/lib/tema';
 import Avatar from '@/Components/painel/Avatar';
+import Icone from '@/Components/painel/Icone';
+import ListaPessoas from '@/Components/chat/ListaPessoas';
+import PainelConversa from '@/Components/chat/PainelConversa';
+import { useChat } from '@/Components/chat/ChatProvider';
 
 interface UsuarioOnline { id: number; name: string; avatar?: AvatarTipo | null }
 interface Props { currentUserId: number }
 
+/**
+ * A barra da direita. Três larguras, três funções:
+ *
+ *   recolhida (w-14)  só os avatares de quem está online, com o balãozinho de
+ *                     mensagem por ler. É o estado padrão — ocupa quase nada.
+ *   lista     (w-64)  os nomes, a prévia da última mensagem e o não lido.
+ *   conversa  (w-80)  a conversa aberta, com foto e nome no topo.
+ *
+ * Como se anda entre elas:
+ *   « »          recolhida ⇄ lista   (e, de dentro da conversa, volta a recolher)
+ *   clicar num nome        → conversa
+ *   seta de voltar         → lista
+ *
+ * Só aparece a partir de 1024px (`hidden lg:flex`): abaixo disso a barra
+ * comeria a tela da fila de notas, que é o trabalho de verdade.
+ */
 export default function OnlineSidebar({ currentUserId }: Props) {
     const [expandida, setExpandida] = useState(false);
     const [usuariosOnline, setUsuariosOnline] = useState<UsuarioOnline[]>([]);
     const { isDark } = useTheme();
+    const p: Palette = isDark ? DARK : LIGHT;
+
+    const { pessoas, naoLidas, aberta, carregarLista, abrirConversa, fecharConversa } = useChat();
 
     useEffect(() => {
         window.Echo.join('presenca.sistema')
@@ -21,51 +45,136 @@ export default function OnlineSidebar({ currentUserId }: Props) {
         return () => { window.Echo.leave('presenca.sistema'); };
     }, []);
 
-    const bg     = isDark ? 'bg-[#161b22]' : 'bg-white';
-    const border = isDark ? 'border-[#21262d]' : 'border-gray-200';
-    const textMuted  = isDark ? 'text-[#7d8590]' : 'text-gray-400';
-    const textNormal = isDark ? 'text-[#e6edf3]'  : 'text-gray-700';
-    const btnHover   = isDark ? 'hover:bg-[#21262d] hover:text-[#e6edf3]' : 'hover:text-gray-600 hover:bg-gray-50';
+    const online = useMemo(() => new Set(usuariosOnline.map(u => u.id)), [usuariosOnline]);
+
+    // A lista é buscada só quando a barra abre pela primeira vez — não vale
+    // pesar toda navegação com ela.
+    useEffect(() => {
+        if (expandida && !pessoas) carregarLista();
+    }, [expandida, pessoas, carregarLista]);
+
+    const abrir = () => setExpandida(true);
+
+    /** O « » : fecha tudo, inclusive uma conversa aberta. */
+    const alternar = () => {
+        if (expandida) {
+            fecharConversa();
+            setExpandida(false);
+        } else {
+            setExpandida(true);
+        }
+    };
+
+    /** Quantas mensagens por ler tem esta pessoa (para o balãozinho no avatar). */
+    const naoLidasDe = (id: number) => pessoas?.find(x => x.id === id)?.nao_lidas ?? 0;
+
+    const emConversa = expandida && aberta !== null;
+    const pessoaAberta = pessoas?.find(x => x.id === aberta) ?? null;
+
+    // Quem tem mensagem por ler aparece na barra RECOLHIDA mesmo estando
+    // offline — senão a pessoa veria um contador aceso sem saber de quem é.
+    const naBarraRecolhida = useMemo(() => {
+        const comPendencia = (pessoas ?? [])
+            .filter(x => x.nao_lidas > 0 && !online.has(x.id))
+            .map(x => ({ id: x.id, name: x.nome, avatar: x.avatar, offline: true }));
+
+        return [
+            ...usuariosOnline.map(u => ({ id: u.id, name: u.name, avatar: u.avatar ?? null, offline: false })),
+            ...comPendencia,
+        ];
+    }, [usuariosOnline, pessoas, online]);
+
+    const largura = emConversa ? 'w-80' : (expandida ? 'w-64' : 'w-14');
 
     return (
-        <aside className={`hidden lg:flex flex-col sticky top-16 h-[calc(100vh-4rem)] ${bg} border-l ${border} shadow-sm transition-all duration-200 shrink-0 ${expandida ? 'w-44' : 'w-14'}`}>
+        <aside
+            className={`hidden lg:flex flex-col sticky top-16 h-[calc(100vh-4rem)] border-l shadow-sm
+                        transition-all duration-200 shrink-0 ${largura}`}
+            style={{ background: p.SURFACE, borderColor: p.BORDER }}
+        >
+            {/* ── Barra de controle ── */}
             <button
-                onClick={() => setExpandida(e => !e)}
-                className={`flex items-center justify-center h-10 w-full border-b ${border} ${textMuted} ${btnHover} transition`}
+                onClick={alternar}
+                title={expandida ? 'Fechar a barra' : 'Abrir conversas'}
+                className="relative flex items-center justify-center h-10 w-full shrink-0 transition"
+                style={{ borderBottom: `1px solid ${p.BORDER}`, color: p.MUTED }}
+                onMouseEnter={e => (e.currentTarget.style.background = p.HOVER_ROW)}
+                onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
             >
-                <svg className={`w-4 h-4 transition-transform duration-200 ${expandida ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 5l7 7-7 7M5 5l7 7-7 7" />
-                </svg>
+                <Icone
+                    path="M13 5l7 7-7 7M5 5l7 7-7 7"
+                    className={`w-4 h-4 transition-transform duration-200 ${expandida ? 'rotate-180' : ''}`}
+                />
+
+                {/* Com a barra recolhida, este é o único sinal de mensagem nova */}
+                {!expandida && naoLidas > 0 && (
+                    <span className="absolute top-1 right-1.5 min-w-[16px] h-4 px-1 rounded-full text-[9px] font-bold
+                                     flex items-center justify-center text-white"
+                        style={{ background: p.GREEN }}>
+                        {naoLidas > 99 ? '99+' : naoLidas}
+                    </span>
+                )}
             </button>
 
-            <div className="flex-1 overflow-y-auto overflow-x-hidden scrollbar-oculta py-3 px-2 space-y-2">
-                {expandida && (
-                    <p className={`text-xs font-semibold uppercase tracking-wider px-1 mb-2 ${textMuted}`}>
-                        Online ({usuariosOnline.length})
+            {/* ── Conteúdo ── */}
+            {emConversa && pessoaAberta ? (
+                <PainelConversa
+                    pessoa={pessoaAberta}
+                    online={online.has(pessoaAberta.id)}
+                    meuId={currentUserId}
+                    p={p}
+                />
+            ) : expandida ? (
+                <div className="flex-1 min-h-0 overflow-y-auto scrollbar-oculta">
+                    <p className="text-[10px] font-semibold uppercase tracking-wider px-3 pt-3 pb-1"
+                        style={{ color: p.MUTED }}>
+                        Conversas · {online.size} online
                     </p>
-                )}
-                {usuariosOnline.map((u) => {
-                    const isMe = u.id === currentUserId;
-                    return (
-                        <div key={u.id} className="flex items-center gap-2.5 relative">
-                            <div className="relative shrink-0">
+                    <ListaPessoas online={online} p={p} />
+                </div>
+            ) : (
+                // ── Recolhida: só os avatares ──
+                <div className="flex-1 overflow-y-auto overflow-x-hidden scrollbar-oculta py-3 px-2 space-y-2">
+                    {naBarraRecolhida.map(u => {
+                        const isMe = u.id === currentUserId;
+                        const pendentes = naoLidasDe(u.id);
+
+                        return (
+                            <button
+                                key={u.id}
+                                onClick={() => {
+                                    if (isMe) return;
+                                    setExpandida(true);
+                                    abrirConversa(u.id);
+                                }}
+                                title={isMe ? 'Você' : `Conversar com ${u.name}`}
+                                className="relative block"
+                                style={{ cursor: isMe ? 'default' : 'pointer' }}
+                            >
                                 <Avatar
                                     user={{ name: u.name, avatar: u.avatar }}
                                     size={32}
-                                    ring={isDark ? '#161b22' : '#ffffff'}
+                                    ring={p.SURFACE}
                                     title={isMe ? 'Você' : u.name}
                                 />
-                                <span className={`absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 bg-green-400 border-2 ${isDark ? 'border-[#161b22]' : 'border-white'} rounded-full`} />
-                            </div>
-                            {expandida && (
-                                <span className={`text-xs font-medium truncate ${textNormal}`}>
-                                    {isMe ? 'Você' : u.name}
-                                </span>
-                            )}
-                        </div>
-                    );
-                })}
-            </div>
+
+                                {!u.offline && (
+                                    <span className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full"
+                                        style={{ background: p.GREEN, border: `2px solid ${p.SURFACE}` }} />
+                                )}
+
+                                {pendentes > 0 && (
+                                    <span className="absolute -top-1 -right-1 min-w-[15px] h-[15px] px-1 rounded-full
+                                                     text-[9px] font-bold flex items-center justify-center text-white"
+                                        style={{ background: p.GREEN, border: `1.5px solid ${p.SURFACE}` }}>
+                                        {pendentes > 9 ? '9+' : pendentes}
+                                    </span>
+                                )}
+                            </button>
+                        );
+                    })}
+                </div>
+            )}
         </aside>
     );
 }
