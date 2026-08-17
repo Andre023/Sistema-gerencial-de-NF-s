@@ -329,15 +329,18 @@ class User extends Authenticatable
     }
 
     /**
-     * Anexar documento/foto à nota (e remover) — recebimento e pré-lote.
+     * Anexar documento/foto à nota (e remover) — todo papel operacional.
      *
-     * São os dois que têm a mercadoria e o papel na mão: o recebimento na
-     * chegada do caminhão, o pré-lote na conferência. Compras não anexa, mas
-     * VÊ — a foto da avaria é justamente o que ela precisa para resolver o
-     * card, e sem isso o anexo não serviria para nada.
+     * Era só de recebimento e pré-lote, por serem quem tem a mercadoria na mão.
+     * Na prática travava compras justamente quando ela tinha o que mostrar: o
+     * print do pedido no ERP, o e-mail do fornecedor, a foto que o representante
+     * mandou. Ela via os anexos dos outros e não podia responder com um.
+     *
+     * Anexar é ação leve, da mesma família de comentar — por isso segue a mesma
+     * régua: todos, menos o visitante, que é só leitura.
      */
     public function podeAnexarNota(): bool
     {
-        return $this->ehUmDe(self::ROLE_RECEBIMENTO, self::ROLE_PRE_LOTE);
+        return $this->podeInteragir();
     }
 }

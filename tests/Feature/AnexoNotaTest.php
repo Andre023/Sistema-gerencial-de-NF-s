@@ -103,17 +103,47 @@ class AnexoNotaTest extends TestCase
         }
     }
 
-    /** Compras e visitante não anexam — mas compras precisa VER (foto da avaria). */
-    public function test_compras_e_visitante_nao_anexam(): void
+    /**
+     * Compras TAMBÉM anexa.
+     *
+     * Era travada por não ter a mercadoria na mão. Na prática o bloqueio pegava
+     * justamente quando ela tinha o que mostrar: o print do pedido no ERP, o
+     * e-mail do fornecedor, a foto que o representante mandou. Via o anexo dos
+     * outros e não podia responder com um.
+     */
+    public function test_compras_anexa(): void
     {
-        foreach ([User::ROLE_COMPRAS, User::ROLE_VISITANTE] as $papel) {
-            $nota = $this->nota(['numero_nota' => "bloq-{$papel}"]);
+        $nota = $this->nota();
 
-            $this->envia(User::factory()->create(['role' => $papel]), $nota)
-                ->assertForbidden();
+        $this->envia(User::factory()->create(['role' => User::ROLE_COMPRAS]), $nota)
+            ->assertCreated();
 
-            $this->assertCount(0, $nota->anexos()->get());
-        }
+        $this->assertCount(1, $nota->anexos()->get());
+    }
+
+    /** O visitante continua de fora: a conta existe para olhar, não para agir. */
+    public function test_visitante_nao_anexa(): void
+    {
+        $nota = $this->nota();
+
+        $this->envia(User::factory()->create(['role' => User::ROLE_VISITANTE]), $nota)
+            ->assertForbidden();
+
+        $this->assertCount(0, $nota->anexos()->get());
+    }
+
+    /** E o visitante também não REMOVE o que os outros anexaram. */
+    public function test_visitante_nao_remove(): void
+    {
+        $nota = $this->nota();
+        $this->envia(User::factory()->create(['role' => User::ROLE_RECEBIMENTO]), $nota);
+        $anexo = $nota->anexos()->firstOrFail();
+
+        $this->actingAs(User::factory()->create(['role' => User::ROLE_VISITANTE]))
+            ->delete(route('notas.anexos.destroy', [$nota, $anexo]))
+            ->assertForbidden();
+
+        $this->assertCount(1, $nota->anexos()->get());
     }
 
     public function test_compras_consegue_ver_e_baixar(): void

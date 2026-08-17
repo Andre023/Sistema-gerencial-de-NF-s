@@ -5,6 +5,7 @@ import { Anexo } from '@/types';
 import { otimizarParaEnvio, formatarTamanho } from '@/lib/imagem';
 import Modal from './Modal';
 import Icone from './Icone';
+import VisorImagem from './VisorImagem';
 
 const quando = (iso: string) => {
     try { return format(parseISO(iso), "dd/MM 'às' HH:mm"); } catch { return iso; }
@@ -66,6 +67,8 @@ export default function ModalAnexos({ aberto, onFechar, baseUrl, titulo, onMudou
     const [progresso, setProgresso] = useState<string | null>(null);
     const [erro, setErro] = useState<string | null>(null);
     const [arrastando, setArrastando] = useState(false);
+    /** Foto aberta em tela cheia (null = nenhuma). */
+    const [vendo, setVendo] = useState<Anexo | null>(null);
     const inputRef = useRef<HTMLInputElement>(null);
 
     // Espelho do `enviando` para os ouvintes de colar/soltar: eles são
@@ -333,17 +336,24 @@ export default function ModalAnexos({ aberto, onFechar, baseUrl, titulo, onMudou
                                 </p>
                             </div>
 
-                            {/* Link normal: o navegador cuida de abrir ou baixar.
-                                A rota exige sessão, então isso não vaza nada. */}
-                            <a href={`${baseUrl}/${anexo.id}`}
-                                target="_blank" rel="noopener noreferrer"
-                                title={anexo.imagem ? 'Abrir' : 'Baixar'}
-                                className="p-2 rounded-lg transition"
-                                style={{ color: p.ACCENT }}>
-                                <Icone path={anexo.imagem
-                                    ? 'M2.036 12.322a1.012 1.012 0 010-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178z M15 12a3 3 0 11-6 0 3 3 0 016 0z'
-                                    : 'M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4'} />
-                            </a>
+                            {/* Foto abre AQUI, em tela cheia. Documento continua
+                                sendo um link normal: o navegador entrega ao
+                                leitor do sistema, fora do contexto da sessão. */}
+                            {anexo.imagem ? (
+                                <button type="button" onClick={() => setVendo(anexo)} title="Ver"
+                                    className="p-2 rounded-lg transition"
+                                    style={{ color: p.ACCENT }}>
+                                    <Icone path="M2.036 12.322a1.012 1.012 0 010-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178z M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                                </button>
+                            ) : (
+                                <a href={`${baseUrl}/${anexo.id}`}
+                                    target="_blank" rel="noopener noreferrer"
+                                    title="Baixar"
+                                    className="p-2 rounded-lg transition"
+                                    style={{ color: p.ACCENT }}>
+                                    <Icone path="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                                </a>
+                            )}
 
                             {podeAnexar && (
                                 <button type="button" onClick={() => remover(anexo)} title="Remover"
@@ -361,6 +371,21 @@ export default function ModalAnexos({ aberto, onFechar, baseUrl, titulo, onMudou
                     Os arquivos são apagados 2 dias depois de a nota ser liberada — e na hora,
                     se ela for cancelada ou excluída.
                 </p>
+
+                {/* O visor sai por portal (ver VisorImagem), então fica por cima
+                    deste modal em vez de preso dentro do cartão dele. */}
+                {vendo && (
+                    <VisorImagem
+                        url={`${baseUrl}/${vendo.id}`}
+                        // Sem o `?baixar=1` o servidor manda `inline` e o
+                        // navegador abre a foto em vez de salvá-la.
+                        urlDownload={`${baseUrl}/${vendo.id}?baixar=1`}
+                        nome={vendo.nome}
+                        tamanho={vendo.tamanho}
+                        onFechar={() => setVendo(null)}
+                        p={p}
+                    />
+                )}
             </div>
         </Modal>
     );

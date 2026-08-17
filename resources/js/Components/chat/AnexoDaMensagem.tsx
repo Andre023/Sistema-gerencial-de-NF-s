@@ -4,7 +4,7 @@ import { Palette } from '@/lib/tema';
 import { formatarTamanho } from '@/lib/imagem';
 import { baixarEGuardar, buscar } from '@/lib/arquivosLocais';
 import Icone from '@/Components/painel/Icone';
-import VisorImagem from './VisorImagem';
+import VisorImagem from '@/Components/painel/VisorImagem';
 
 /**
  * A foto ou o documento dentro da bolha.

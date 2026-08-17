@@ -7,22 +7,29 @@ import Icone from '@/Components/painel/Icone';
 /**
  * A foto em tela cheia, por cima do sistema.
  *
- * Antes o clique abria uma aba nova: a pessoa saía da fila de notas, olhava a
- * foto, e tinha de achar o caminho de volta. Para uma foto de avaria que se vê
- * em dois segundos, era mais trabalho do que a própria tarefa.
+ * Serve as duas telas que mostram foto: os anexos da nota e o chat. Antes o
+ * clique abria uma aba nova — a pessoa saía da fila, olhava, e tinha de achar o
+ * caminho de volta. Para uma foto de avaria que se vê em dois segundos, era
+ * mais trabalho do que a própria tarefa.
  *
- * Vai por PORTAL, direto no <body>. O visor nasce dentro da barra lateral, que
- * é `sticky` e tem transição de largura — se um dia ganhar um `transform`, ela
- * viraria o berço do `position: fixed` e a foto ficaria presa numa faixa de
- * 320px. Pelo portal isso não pode acontecer, aconteça o que acontecer com a
- * barra.
+ * Vai por PORTAL, direto no <body>, por dois motivos: no chat ele nasce dentro
+ * da barra lateral (que é `sticky` e teria como virar berço do `position:
+ * fixed`), e nos anexos ele nasce DENTRO DE OUTRO MODAL — sem o portal ficaria
+ * preso no cartão dele, atrás do próprio fundo escurecido.
  *
  * PDF não passa por aqui, e é de propósito: continua baixando para o leitor do
- * sistema. PDF exibido na mesma origem pode rodar JavaScript embutido — a mesma
- * razão que já vale para os anexos de nota.
+ * sistema. PDF exibido na mesma origem pode rodar JavaScript embutido.
  */
-export default function VisorImagem({ url, nome, tamanho, onFechar, p }: {
+export default function VisorImagem({ url, urlDownload, nome, tamanho, onFechar, p }: {
     url: string;
+    /**
+     * Endereço para o botão de baixar, quando for diferente do de exibir.
+     *
+     * Nos anexos da nota a mesma rota serve os dois, mudando só o `?baixar=1`:
+     * sem ele o servidor manda `inline` e o navegador abre em vez de salvar.
+     * No chat a URL já é um blob local, e aí um endereço só resolve.
+     */
+    urlDownload?: string;
     nome: string;
     /** bytes — mostrado ao lado do nome */
     tamanho: number;
@@ -93,7 +100,7 @@ export default function VisorImagem({ url, nome, tamanho, onFechar, p }: {
                     poucos dias o servidor apaga o arquivo, e a cópia da máquina
                     passa a ser a única que existe. */}
                 <a
-                    href={url}
+                    href={urlDownload ?? url}
                     download={nome}
                     title="Baixar"
                     className="p-2 rounded-lg text-white/80 hover:text-white hover:bg-white/10 transition shrink-0"
