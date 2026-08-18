@@ -343,4 +343,21 @@ class User extends Authenticatable
     {
         return $this->podeInteragir();
     }
+
+    /**
+     * Usar o quadro de devoluções (abrir cards e conferir) — recebimento e
+     * pré-lote.
+     *
+     * São os dois lados do recado que o quadro substitui: o recebimento
+     * descobre na doca, o pré-lote na conferência, e o aviso vai numa direção
+     * ou na outra conforme quem viu primeiro. Por isso os DOIS abrem e os DOIS
+     * conferem — não há um dono fixo do card.
+     *
+     * Compras fica de fora: a devolução com boleto se resolve entre quem está
+     * com a mercadoria e a nota na mão.
+     */
+    public function podeUsarDevolucoes(): bool
+    {
+        return $this->podeLancarNota();
+    }
 }

@@ -17,6 +17,11 @@ Broadcast::channel('notas', function ($user) {
     return true;
 });
 
+// Quadro de devoluções: quem enxerga o quadro acompanha o que muda nele.
+Broadcast::channel('devolucoes', function (User $user) {
+    return $user->podeUsarDevolucoes();
+});
+
 // Sino: cada um só escuta o próprio canal
 Broadcast::channel('usuario.{id}', function (User $user, int $id) {
     return $user->id === $id;

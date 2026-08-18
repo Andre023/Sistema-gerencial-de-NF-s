@@ -36,3 +36,8 @@ Artisan::command('inspire', function () {
 // De madrugada de propósito: apagar arquivo mexe em disco, e às 3h a VM está
 // parada — nenhum recebimento esperando a tela responder.
 Schedule::command('chat:limpar-anexos')->dailyAt('03:20');
+
+// Os prints dos cards de devolução, uma semana depois de o card ser conferido.
+// O prazo conta da CONFERÊNCIA: enquanto ninguém conferiu, o print é a única
+// coisa que permite conferir.
+Schedule::command('devolucoes:limpar-anexos')->dailyAt('03:30');

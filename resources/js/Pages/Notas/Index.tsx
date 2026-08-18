@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 import { Head, router, usePage } from '@inertiajs/react';
 import { format, parseISO, addDays, subDays } from 'date-fns';
-import { Nota, Card, Fornecedor, FiltrosAtivos, OpcoesSistema, Nivel, ResumoAlertas, ResumoTipos, Permissoes, TipoCard, OrigemNota } from '@/types';
+import { Devolucao, Nota, Card, Fornecedor, FiltrosAtivos, OpcoesSistema, Nivel, ResumoAlertas, ResumoTipos, Permissoes, TipoCard, OrigemNota } from '@/types';
 import { useTheme } from '@/Contexts/ThemeContext';
 import { DARK, LIGHT, Palette, lojaNome, hoje, nivelCor, NIVEL_LABEL, idadeTexto, TIPO_CARD_LABEL, STATUS_NOTA_LABEL, CARD_COR_DARK, CARD_COR_LIGHT, ORIGEM_LABEL } from '@/lib/tema';
 import Icone from '@/Components/painel/Icone';
@@ -12,6 +12,7 @@ import CampoFornecedor from '@/Components/painel/CampoFornecedor';
 import CardBadge from '@/Components/painel/CardBadge';
 import ModalComentarios from '@/Components/painel/ModalComentarios';
 import ModalAnexos from '@/Components/painel/ModalAnexos';
+import QuadroDevolucoes from '@/Components/painel/QuadroDevolucoes';
 import Avatar from '@/Components/painel/Avatar';
 
 interface Props {
@@ -19,6 +20,7 @@ interface Props {
     preLote: Nota[];
     liberadas: Nota[];
     canceladas: Nota[];
+    devolucoes: Devolucao[];
     fornecedores: Fornecedor[];
     dataFiltro: string;
     resumoAlertas: ResumoAlertas;
@@ -955,7 +957,7 @@ function LinhaFila({ nota, onCards, onComentar, onAnexos, onEditar, onExcluir, o
 
 // ─── Página ─────────────────────────────────────────────────────────────────────
 
-export default function Index({ recebimento, preLote, liberadas, canceladas, fornecedores, dataFiltro, resumoAlertas, resumoTipos, totalReconferir, filtros, opcoes }: Props) {
+export default function Index({ recebimento, preLote, liberadas, canceladas, devolucoes, fornecedores, dataFiltro, resumoAlertas, resumoTipos, totalReconferir, filtros, opcoes }: Props) {
     const { isDark } = useTheme();
     const p = isDark ? DARK : LIGHT;
     const { can, user } = usePage().props.auth;
@@ -966,6 +968,9 @@ export default function Index({ recebimento, preLote, liberadas, canceladas, for
     const [comentariosNota, setComentariosNota] = useState<Nota | null>(null);
     const [anexosNota, setAnexosNota] = useState<Nota | null>(null);
     const [editarLiberadaNota, setEditarLiberadaNota] = useState<Nota | null>(null);
+    /* O quadro de devoluções tem estado próprio: ele muda por conta (conferir,
+       lançar, excluir) sem passar pelo reload da fila de notas. */
+    const [devolucoesL, setDevolucoesL] = useState(devolucoes);
     const [echoTick, setEchoTick] = useState(0);
     const [erros, setErros] = useState<Record<string, string>>({});
     const [submetendo, setSubmetendo] = useState(false);
@@ -982,6 +987,35 @@ export default function Index({ recebimento, preLote, liberadas, canceladas, for
     useEffect(() => setPreLoteL(preLote), [preLote]);
     useEffect(() => setLiberadasL(liberadas), [liberadas]);
     useEffect(() => setCanceladasL(canceladas), [canceladas]);
+    useEffect(() => setDevolucoesL(devolucoes), [devolucoes]);
+
+    /*
+     * O quadro ao vivo, no canal próprio.
+     *
+     * Canal separado do 'notas' de propósito: o quadro não segue o filtro de
+     * data nem os filtros da fila, então o reload da fila (que respeita tudo
+     * isso) não serviria — e mandar o card por aqui evita recarregar a página
+     * inteira quando alguém do outro setor confere algo.
+     */
+    useEffect(() => {
+        if (!can.usarDevolucoes) return;
+
+        window.Echo.private('devolucoes').listen('.DevolucaoAtualizada',
+            (e: { devolucao?: Devolucao; removida?: number }) => {
+                if (e.removida) {
+                    setDevolucoesL(l => l.filter(d => d.id !== e.removida));
+                    return;
+                }
+                if (!e.devolucao) return;
+
+                setDevolucoesL(l => l.some(d => d.id === e.devolucao!.id)
+                    ? l.map(d => d.id === e.devolucao!.id ? e.devolucao! : d)
+                    : [e.devolucao!, ...l]);
+            });
+
+        return () => { window.Echo.leave('devolucoes'); };
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [can.usarDevolucoes]);
 
     // Filtro local da tabela de liberadas: caminhão na porta × pré-lote × ambos
     const [origemLiberadas, setOrigemLiberadas] = useState<OrigemNota | null>(null);
@@ -1234,8 +1268,10 @@ export default function Index({ recebimento, preLote, liberadas, canceladas, for
 
     const inputCtrl = { background: p.INPUT_BG, color: p.TEXT, border: `1px solid ${p.INPUT_BORDER}` };
 
-    const secaoFila = (titulo: string, subtitulo: string, notas: Nota[], corBadge: string) => (
-        <div className="rounded-xl overflow-hidden" style={{ background: p.SURFACE, border: `1px solid ${p.BORDER}` }}>
+    const secaoFila = (id: string, titulo: string, subtitulo: string, notas: Nota[], corBadge: string) => (
+        /* `scroll-mt-20`: a navbar é fixa, e sem a margem o atalho deixaria o
+           título da seção escondido atrás dela. */
+        <div id={id} className="rounded-xl overflow-hidden scroll-mt-20" style={{ background: p.SURFACE, border: `1px solid ${p.BORDER}` }}>
             <div className="flex items-center justify-between px-5 py-3.5" style={{ borderBottom: `1px solid ${p.BORDER}` }}>
                 <h2 className="text-sm font-semibold flex items-center gap-2" style={{ color: p.TEXT }}>
                     {titulo}
@@ -1503,11 +1539,26 @@ export default function Index({ recebimento, preLote, liberadas, canceladas, for
                 )}
 
                 {/* ── Filas ───────────────────────────────────────────────────── */}
-                {secaoFila('Recebimento', 'caminhão na porta — prioridade', recebimentoL, p.RED)}
-                {secaoFila('Pré-lote', 'notas antecipadas', preLoteL, p.ACCENT)}
+                {secaoFila('secao-recebimento', 'Recebimento', 'caminhão na porta — prioridade', recebimentoL, p.RED)}
+                {secaoFila('secao-pre-lote', 'Pré-lote', 'notas antecipadas', preLoteL, p.ACCENT)}
+
+                {/* ── Devoluções ──────────────────────────────────────────────────
+                    Fica entre as filas e as liberadas: é assunto de nota que
+                    ainda está em jogo, não de histórico do dia. */}
+                {can.usarDevolucoes && (
+                    <div id="secao-devolucoes" className="scroll-mt-20">
+                        <QuadroDevolucoes
+                            devolucoes={devolucoesL}
+                            podeUsar={can.usarDevolucoes}
+                            meuNome={user.name}
+                            onMudou={setDevolucoesL}
+                            p={p}
+                        />
+                    </div>
+                )}
 
                 {/* ── Liberadas ───────────────────────────────────────────────── */}
-                <div className="rounded-xl overflow-hidden" style={{ background: p.SURFACE, border: `1px solid ${p.BORDER}` }}>
+                <div id="secao-liberadas" className="rounded-xl overflow-hidden scroll-mt-20" style={{ background: p.SURFACE, border: `1px solid ${p.BORDER}` }}>
                     <div className="flex items-center justify-between px-5 py-3.5 gap-3 flex-wrap" style={{ borderBottom: `1px solid ${p.BORDER}` }}>
                         <h2 className="text-sm font-semibold flex items-center gap-2" style={{ color: p.MUTED }}>
                             Liberadas neste dia
@@ -1643,7 +1694,7 @@ export default function Index({ recebimento, preLote, liberadas, canceladas, for
                 </div>
 
                 {/* ── Canceladas ──────────────────────────────────────────────── */}
-                <div className="rounded-xl overflow-hidden" style={{ background: p.SURFACE, border: `1px solid ${p.BORDER}` }}>
+                <div id="secao-canceladas" className="rounded-xl overflow-hidden scroll-mt-20" style={{ background: p.SURFACE, border: `1px solid ${p.BORDER}` }}>
                     <div className="flex items-center justify-between px-5 py-3.5" style={{ borderBottom: `1px solid ${p.BORDER}` }}>
                         <h2 className="text-sm font-semibold flex items-center gap-2" style={{ color: p.MUTED }}>
                             Canceladas neste dia

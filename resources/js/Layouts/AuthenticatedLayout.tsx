@@ -6,6 +6,7 @@ import OnlineSidebar from '@/Components/OnlineSidebar';
 import SinoNotificacoes from '@/Components/painel/SinoNotificacoes';
 import NotificacoesProvider from '@/Components/painel/NotificacoesProvider';
 import ChatProvider from '@/Components/chat/ChatProvider';
+import AtalhosDaFila from '@/Components/painel/AtalhosDaFila';
 import Avatar from '@/Components/painel/Avatar';
 import { Link, usePage, router } from '@inertiajs/react';
 import { PropsWithChildren, ReactNode, useState, useEffect } from 'react';
@@ -226,6 +227,12 @@ export default function AuthenticatedLayout({
                     </div>
                 </div>
             </nav>
+
+            {/* ── ATALHOS DAS PLANILHAS ──
+                Só na fila: são âncoras desta página, não links para outras. */}
+            {route().current('notas.*') && (
+                <AtalhosDaFila podeVerDevolucoes={!!can.usarDevolucoes} />
+            )}
 
             {/* ── FLASH ── */}
             {flashMsg && (

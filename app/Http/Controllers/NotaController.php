@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Events\NotaAtualizada;
 use App\Jobs\LimparAnexosDaNota;
 use App\Models\Card;
+use App\Models\Devolucao;
 use App\Models\Fornecedor;
 use App\Models\Nota;
 use App\Services\Notificador;
@@ -133,6 +134,24 @@ class NotaController extends Controller
             ->get()
             ->map(fn($n) => $n->paraTabela($dataFiltro));
 
+        /*
+         * O quadro de devoluções.
+         *
+         * Não segue o filtro de data das notas de propósito: um card fica no
+         * quadro até alguém conferir, e sumir por virar o dia é justamente o
+         * que fazia o recado se perder no WhatsApp. Os conferidos ficam à
+         * mostra por uma semana — o mesmo prazo em que os arquivos vivem.
+         */
+        $devolucoes = Devolucao::with(['anexos', 'criadaPor:id,name', 'conferidaPor:id,name'])
+            ->where(fn($q) => $q
+                ->whereNull('conferida_em')
+                ->orWhere('conferida_em', '>=', now()->subDays(Devolucao::DIAS_APOS_CONFERIR)))
+            // Não conferidas primeiro; dentro de cada grupo, a mais nova antes
+            ->orderByRaw('conferida_em is null desc')
+            ->orderByDesc('id')
+            ->get()
+            ->map(fn(Devolucao $d) => $d->paraQuadro());
+
         $fornecedores = Fornecedor::select('id', 'nome')->orderBy('nome')->get();
 
         return Inertia::render('Notas/Index', [
@@ -140,6 +159,7 @@ class NotaController extends Controller
             'preLote'       => $preLote,
             'liberadas'     => $liberadas,
             'canceladas'    => $canceladas,
+            'devolucoes'    => $devolucoes,
             'fornecedores'  => $fornecedores,
             'dataFiltro'      => $dataFiltro,
             'resumoAlertas'   => $resumoAlertas,

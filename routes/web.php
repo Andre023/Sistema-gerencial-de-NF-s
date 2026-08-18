@@ -4,6 +4,7 @@ use App\Http\Controllers\AnexoController;
 use App\Http\Controllers\CardController;
 use App\Http\Controllers\ComentarioController;
 use App\Http\Controllers\ConversaController;
+use App\Http\Controllers\DevolucaoController;
 use App\Http\Controllers\DossieController;
 use App\Http\Controllers\EstatisticaController;
 use App\Http\Controllers\FornecedorController;
@@ -64,6 +65,23 @@ Route::middleware(['auth', 'verified'])->group(function () {
 
         Route::get('/{pessoa}',  [ConversaController::class, 'mostrar'])->name('mostrar');
         Route::post('/{pessoa}', [ConversaController::class, 'enviar'])->name('enviar');
+    });
+
+    // ── Devoluções (o quadro entre pré-lote e recebimento) ─────────────────────
+    //
+    // Os dois setores abrem e os dois conferem: o aviso vai numa direção ou na
+    // outra conforme quem descobriu o problema. Compras fica de fora — isso se
+    // resolve entre quem está com a mercadoria e a nota na mão.
+    Route::middleware('can:usar-devolucoes')->prefix('devolucoes')->name('devolucoes.')->group(function () {
+        Route::post('/',                     [DevolucaoController::class, 'store'])->name('store');
+        Route::post('/{devolucao}/anexos',   [DevolucaoController::class, 'anexar'])->name('anexar');
+        Route::post('/{devolucao}/conferir', [DevolucaoController::class, 'conferir'])->name('conferir');
+        Route::post('/{devolucao}/reabrir',  [DevolucaoController::class, 'reabrir'])->name('reabrir');
+        Route::delete('/{devolucao}',        [DevolucaoController::class, 'destroy'])->name('destroy');
+
+        // O arquivo mora fora de public/ e só sai por aqui, com sessão na frente
+        Route::get('/{devolucao}/anexos/{anexo}',    [DevolucaoController::class, 'arquivo'])->name('arquivo');
+        Route::delete('/{devolucao}/anexos/{anexo}', [DevolucaoController::class, 'removerAnexo'])->name('anexos.destroy');
     });
 
     // ── Notas (a fila do dia) ──────────────────────────────────────────────────

@@ -47,6 +47,8 @@ export interface Permissoes {
     editarCeasaLiberada: boolean;
     /** Anexar e remover documento/foto da nota — recebimento e pré-lote */
     anexarNota: boolean;
+    /** Abrir e conferir cards no quadro de devoluções — recebimento e pré-lote */
+    usarDevolucoes: boolean;
 }
 
 /**
@@ -144,6 +146,34 @@ export interface FiltrosAtivos {
 
 /** Quantas notas da fila têm cada tipo de divergência em aberto */
 export type ResumoTipos = Record<TipoCard, number>;
+
+/** Print ou PDF preso a um card de devolução. */
+export interface DevolucaoAnexo {
+    id: number;
+    nome: string;
+    /** bytes */
+    tamanho: number;
+    imagem: boolean;
+}
+
+/**
+ * Um card do quadro de devoluções — o recado que antes ia pelo WhatsApp.
+ * Não confundir com o card 'devolucao' da nota, que trava a liberação dela.
+ */
+export interface Devolucao {
+    id: number;
+    fornecedor: string;
+    numero_nota: string;
+    motivo: string;
+    autorizado_por: string;
+    /** YYYY-MM-DD, ou null quando não há boleto com data */
+    boleto_vence: string | null;
+    criada_por: string | null;
+    conferida_em: string | null;
+    conferida_por: string | null;
+    created_at: string;
+    anexos: DevolucaoAnexo[];
+}
 
 export interface OpcoesSistema {
     lojas: number[];

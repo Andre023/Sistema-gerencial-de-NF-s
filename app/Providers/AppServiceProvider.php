@@ -60,5 +60,11 @@ class AppServiceProvider extends ServiceProvider
         Gate::define('editar-observacao',  fn(User $u) => $u->podeEditarObservacao());
         Gate::define('editar-ceasa-liberada',      fn(User $u) => $u->podeEditarCeasaLiberada());
         Gate::define('anexar-nota',        fn(User $u) => $u->podeAnexarNota());
+
+        // Quadro de devoluções: quem lança nota é quem vive esse recado — o
+        // recebimento na doca e o pré-lote na conferência. Os dois abrem e os
+        // dois conferem, de propósito: o aviso vai numa direção ou na outra
+        // conforme quem descobriu o problema.
+        Gate::define('usar-devolucoes',    fn(User $u) => $u->podeUsarDevolucoes());
     }
 }
