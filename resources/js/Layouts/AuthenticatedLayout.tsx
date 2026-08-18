@@ -82,15 +82,32 @@ export default function AuthenticatedLayout({
                         {/* Logo + Links — os links completos só cabem a partir de
                             1024px (5 abas + e-mail + usuário); abaixo disso o menu
                             vira a sanfona do celular. */}
-                        <div className="flex items-center gap-6 xl:gap-10 min-w-0">
+                        <div className="flex items-center gap-4 xl:gap-6 min-w-0">
                             <Link href="/" className="flex shrink-0 items-center">
                                 <ApplicationLogo className={`block h-8 w-auto fill-current ${isDark ? 'text-blue-400' : 'text-blue-700'}`} />
                             </Link>
 
-                            <div className="hidden lg:flex gap-2">
+                            {/* `min-w-0` + rolagem: com conta de admin em 1024px são 5 abas
+                                MAIS 5 atalhos, e sem isto o último link passava por
+                                cima do sino. Rolar é melhor que esconder — quem tem
+                                tudo isso continua alcançando tudo.
+
+                                A barra de rolagem fica oculta (scrollbar-oculta): ela
+                                dentro da navbar seria um risco no meio dos links. */}
+                            <div className="hidden lg:flex items-center gap-1 xl:gap-1.5 min-w-0 overflow-x-auto scrollbar-oculta">
                                 <NavLink href={route('notas.index')} active={route().current('notas.*')}>
                                     Notas
                                 </NavLink>
+
+                                {/* Atalhos para as planilhas da fila. Separados por
+                                    barrinhas dos dois lados: são âncoras dentro de
+                                    uma página, e não telas como os vizinhos. */}
+                                <span className={`self-center w-px h-4 ${isDark ? 'bg-[#30363d]' : 'bg-gray-300'}`} />
+                                <div className="flex items-center gap-0.5">
+                                    <AtalhosDaFila podeVerDevolucoes={!!can.usarDevolucoes} />
+                                </div>
+                                <span className={`self-center w-px h-4 ${isDark ? 'bg-[#30363d]' : 'bg-gray-300'}`} />
+
                                 {can.verEstatisticas && (
                                     <NavLink href={route('estatisticas.index')} active={route().current('estatisticas.*')}>
                                         Estatísticas
@@ -135,8 +152,13 @@ export default function AuthenticatedLayout({
                             </button>
 
                             {/* O e-mail é o primeiro a sair quando o espaço aperta:
-                                o nome já aparece no botão ao lado. */}
-                            <span className={`hidden xl:block text-sm truncate max-w-[220px] ${isDark ? 'text-[#7d8590]' : 'text-gray-500'}`}>
+                                o nome já aparece no botão ao lado.
+
+                                Só a partir de 1536px (2xl) desde que os atalhos das
+                                planilhas entraram na navbar. Em 1280 com conta de
+                                admin — 5 abas mais 5 atalhos — ele era o empurrão
+                                que fazia "Usuários" passar por cima do sino. */}
+                            <span className={`hidden 2xl:block text-sm truncate max-w-[220px] ${isDark ? 'text-[#7d8590]' : 'text-gray-500'}`}>
                                 {user.email}
                             </span>
 
@@ -227,12 +249,6 @@ export default function AuthenticatedLayout({
                     </div>
                 </div>
             </nav>
-
-            {/* ── ATALHOS DAS PLANILHAS ──
-                Só na fila: são âncoras desta página, não links para outras. */}
-            {route().current('notas.*') && (
-                <AtalhosDaFila podeVerDevolucoes={!!can.usarDevolucoes} />
-            )}
 
             {/* ── FLASH ── */}
             {flashMsg && (
