@@ -553,6 +553,8 @@ function opcoesTipos(nota: Nota): TipoCard[] {
 interface AcoesProps {
     nota: Nota; onCards: (n: Nota) => void; onComentar: (n: Nota) => void;
     onAnexos: (n: Nota) => void;
+    /** Encaminha a nota para o quadro de devoluções, já preenchida */
+    onDevolucao: (n: Nota) => void;
     onEditar: (n: Nota) => void; onExcluir: (n: Nota) => void; onLiberar: (n: Nota) => void;
     onVisualizar: (n: Nota) => void; onCancelar: (n: Nota) => void;
     onObservacao: (n: Nota) => void; usuarioId: number;
@@ -567,7 +569,7 @@ interface AcoesProps {
  * nascem visíveis. Antes, com `opacity-0 group-hover:opacity-100`, no celular
  * eles ficavam invisíveis e a nota virava só leitura.
  */
-function AcoesNota({ nota, onCards, onComentar, onAnexos, onEditar, onExcluir, onLiberar, onVisualizar, onCancelar, onObservacao, usuarioId, can, p, alinhar }:
+function AcoesNota({ nota, onCards, onComentar, onAnexos, onDevolucao, onEditar, onExcluir, onLiberar, onVisualizar, onCancelar, onObservacao, usuarioId, can, p, alinhar }:
     AcoesProps & { alinhar: 'start' | 'end' }) {
 
     // Reserva (🙋‍♂️): se ninguém pegou, só aparece no hover; reservada, fica fixa.
@@ -632,6 +634,16 @@ function AcoesNota({ nota, onCards, onComentar, onAnexos, onEditar, onExcluir, o
                     onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}>
                     <Icone path="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
                 </button>
+                {/* Encaminhar para o quadro de devoluções: leva nota e
+                    fornecedor prontos, e a pessoa completa o resto. */}
+                {can.usarDevolucoes && (
+                    <button onClick={() => onDevolucao(nota)} title="Encaminhar para devolução"
+                        className={btn} style={{ color: p.ORANGE }}
+                        onMouseEnter={e => (e.currentTarget.style.background = p.ORANGE + '1a')}
+                        onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}>
+                        <Icone path={ICONE_PARA_DEVOLUCAO} />
+                    </button>
+                )}
                 {can.liberarNota && nota.status === 'pendente' && (
                     <button onClick={() => onLiberar(nota)} title="Liberar nota"
                         className={btn} style={{ color: p.GREEN }}
@@ -791,12 +803,22 @@ const ICONE_COMENTARIO = 'M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8
 const ICONE_ANEXO = 'M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13';
 const ICONE_EDITAR = 'M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z';
 const ICONE_VOLTAR = 'M9 15L3 9m0 0l6-6M3 9h12a6 6 0 010 12h-3';
+/**
+ * Encaminhar a nota para o quadro de devoluções.
+ *
+ * Nota fiscal com seta de retorno — e NÃO o ICONE_VOLTAR acima, que na mesma
+ * linha já quer dizer "devolver ao recebimento". Dois atos diferentes com o
+ * mesmo desenho seriam duas chances de clicar no errado.
+ */
+const ICONE_PARA_DEVOLUCAO = 'M16 15v-1a4 4 0 00-4-4H8m0 0l3 3m-3-3l3-3m9 14V5a2 2 0 00-2-2H6a2 2 0 00-2 2v16l4-2 4 2 4-2 4 2z';
 const ICONE_LIXEIRA = 'M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16';
 
 /** Nota liberada, no formato de cartão (celular). */
-function CartaoLiberada({ nota, can, isDark, p, onCards, onComentar, onEditarObs, onDevolver, onExcluir }: {
+function CartaoLiberada({ nota, can, isDark, p, onCards, onComentar, onEditarObs, onDevolucao, onDevolver, onExcluir }: {
     nota: Nota; can: Permissoes; isDark: boolean; p: Palette;
     onCards: (n: Nota) => void; onComentar: (n: Nota) => void; onEditarObs: (n: Nota) => void;
+    /** Encaminha para o quadro de devoluções, já preenchida */
+    onDevolucao: (n: Nota) => void;
     onDevolver: (n: Nota) => void; onExcluir: (n: Nota) => void;
 }) {
     return (
@@ -843,6 +865,10 @@ function CartaoLiberada({ nota, can, isDark, p, onCards, onComentar, onEditarObs
                     {(can.editarObservacao || can.editarCeasaLiberada) && (
                         <BotaoIcone titulo="Editar observação / CEASA" cor={p.ACCENT}
                             path={ICONE_EDITAR} onClick={() => onEditarObs(nota)} />
+                    )}
+                    {can.usarDevolucoes && (
+                        <BotaoIcone titulo="Encaminhar para devolução" cor={p.ORANGE}
+                            path={ICONE_PARA_DEVOLUCAO} onClick={() => onDevolucao(nota)} />
                     )}
                     {can.devolverNota && (
                         <BotaoIcone titulo="Devolver ao recebimento (conferido errado)" cor={p.AMBER}
@@ -905,7 +931,7 @@ function CartaoCancelada({ nota, can, p, onComentar, onDescancelar }: {
 
 // ─── Linha da fila (tabela, a partir de 1024px) ──────────────────────────────────
 
-function LinhaFila({ nota, onCards, onComentar, onAnexos, onEditar, onExcluir, onLiberar, onVisualizar, onCancelar, onObservacao, usuarioId, can, isDark, p }:
+function LinhaFila({ nota, onCards, onComentar, onAnexos, onDevolucao, onEditar, onExcluir, onLiberar, onVisualizar, onCancelar, onObservacao, usuarioId, can, isDark, p }:
     AcoesProps & { isDark: boolean }) {
     const cor = nivelCor(nota.nivel, p);
     const rowBg = nota.nivel === 'normal' ? 'transparent' : cor + (nota.nivel === 'critico' ? '1f' : '12');
@@ -947,7 +973,7 @@ function LinhaFila({ nota, onCards, onComentar, onAnexos, onEditar, onExcluir, o
             <td className="px-4 py-3 text-sm whitespace-nowrap" style={{ color: p.TEXT }}>{nota.user.name.split(' ')[0]}</td>
             <td className="px-4 py-3 text-right">
                 <AcoesNota nota={nota} can={can} p={p} usuarioId={usuarioId} alinhar="end"
-                    onCards={onCards} onComentar={onComentar} onAnexos={onAnexos} onEditar={onEditar}
+                    onCards={onCards} onComentar={onComentar} onAnexos={onAnexos} onDevolucao={onDevolucao} onEditar={onEditar}
                     onExcluir={onExcluir} onLiberar={onLiberar} onVisualizar={onVisualizar}
                     onCancelar={onCancelar} onObservacao={onObservacao} />
             </td>
@@ -971,6 +997,23 @@ export default function Index({ recebimento, preLote, liberadas, canceladas, dev
     /* O quadro de devoluções tem estado próprio: ele muda por conta (conferir,
        lançar, excluir) sem passar pelo reload da fila de notas. */
     const [devolucoesL, setDevolucoesL] = useState(devolucoes);
+
+    /**
+     * Nota escolhida para virar devolução.
+     *
+     * A tela já sabe o número e o fornecedor — pedir que a pessoa redigite
+     * abriria a porta para o erro que mais dói aqui: um card de devolução
+     * apontando para a nota errada.
+     */
+    const [notaParaDevolucao, setNotaParaDevolucao] = useState<Nota | null>(null);
+
+    const encaminharParaDevolucao = (n: Nota) => {
+        setNotaParaDevolucao(n);
+        // Leva a pessoa até o quadro: o formulário abre lá embaixo, e sem isso
+        // ela clicaria no ícone e não veria nada acontecer.
+        requestAnimationFrame(() =>
+            document.getElementById('secao-devolucoes')?.scrollIntoView({ block: 'start' }));
+    };
     const [echoTick, setEchoTick] = useState(0);
     const [erros, setErros] = useState<Record<string, string>>({});
     const [submetendo, setSubmetendo] = useState(false);
@@ -1295,7 +1338,7 @@ export default function Index({ recebimento, preLote, liberadas, canceladas, dev
                         ) : notas.map(n => (
                             <LinhaFila key={n.id} nota={n} can={can} isDark={isDark} p={p}
                                 onCards={x => setCardsId(x.id)} onComentar={setComentariosNota}
-                                onAnexos={setAnexosNota}
+                                onAnexos={setAnexosNota} onDevolucao={encaminharParaDevolucao}
                                 onEditar={setModalEditar} onExcluir={excluir} onLiberar={liberarRapido}
                                 onVisualizar={visualizar} onCancelar={cancelar}
                                 onObservacao={setEditarLiberadaNota} usuarioId={user.id} />
@@ -1312,7 +1355,7 @@ export default function Index({ recebimento, preLote, liberadas, canceladas, dev
                 ) : notas.map(n => (
                     <CartaoFila key={n.id} nota={n} can={can} isDark={isDark} p={p}
                         onCards={x => setCardsId(x.id)} onComentar={setComentariosNota}
-                        onAnexos={setAnexosNota}
+                        onAnexos={setAnexosNota} onDevolucao={encaminharParaDevolucao}
                         onEditar={setModalEditar} onExcluir={excluir} onLiberar={liberarRapido}
                         onVisualizar={visualizar} onCancelar={cancelar}
                         onObservacao={setEditarLiberadaNota} usuarioId={user.id} />
@@ -1552,6 +1595,10 @@ export default function Index({ recebimento, preLote, liberadas, canceladas, dev
                             podeUsar={can.usarDevolucoes}
                             meuNome={user.name}
                             onMudou={setDevolucoesL}
+                            daNota={notaParaDevolucao
+                                ? { numero_nota: notaParaDevolucao.numero_nota, fornecedor: notaParaDevolucao.fornecedor.nome }
+                                : null}
+                            onFecharDaNota={() => setNotaParaDevolucao(null)}
                             p={p}
                         />
                     </div>
@@ -1650,6 +1697,18 @@ export default function Index({ recebimento, preLote, liberadas, canceladas, dev
                                                 </button>
                                             )}
 
+                                            {/* Encaminha para o quadro de devoluções com nota e
+                                                fornecedor prontos — a pessoa completa o resto. */}
+                                            {can.usarDevolucoes && (
+                                                <button onClick={() => encaminharParaDevolucao(n)} title="Encaminhar para devolução"
+                                                    className="inline-flex items-center p-1.5 rounded-lg transition acoes-hover"
+                                                    style={{ color: p.ORANGE }}
+                                                    onMouseEnter={e => (e.currentTarget.style.background = p.ORANGE + '1a')}
+                                                    onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}>
+                                                    <Icone path={ICONE_PARA_DEVOLUCAO} />
+                                                </button>
+                                            )}
+
                                             {/* Conferiu errado: devolve ao recebimento para reajuste (pré-lote/recebimento) */}
                                             {can.devolverNota && (
                                                 <button onClick={() => devolver(n)} title="Devolver ao recebimento (conferido errado)"
@@ -1688,7 +1747,8 @@ export default function Index({ recebimento, preLote, liberadas, canceladas, dev
                         ) : liberadasFiltradas.map(n => (
                             <CartaoLiberada key={n.id} nota={n} can={can} isDark={isDark} p={p}
                                 onCards={x => setCardsId(x.id)} onComentar={setComentariosNota}
-                                onEditarObs={setEditarLiberadaNota} onDevolver={devolver} onExcluir={excluir} />
+                                onEditarObs={setEditarLiberadaNota} onDevolucao={encaminharParaDevolucao}
+                                onDevolver={devolver} onExcluir={excluir} />
                         ))}
                     </div>
                 </div>

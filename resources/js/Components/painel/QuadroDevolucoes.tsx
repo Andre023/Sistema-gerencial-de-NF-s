@@ -27,14 +27,26 @@ const quando = (iso: string) => {
  * lado do outro dá para bater o olho e ver tudo que está em aberto. Empilhado,
  * o quadro empurraria as notas liberadas para fora da tela.
  */
+/** O que a fila de notas já sabe e não precisa ser redigitado. */
+export interface DadosDaNota {
+    numero_nota: string;
+    fornecedor: string;
+}
+
 export default function QuadroDevolucoes({
-    devolucoes, podeUsar, meuNome, onMudou, p,
+    devolucoes, podeUsar, meuNome, onMudou, daNota, onFecharDaNota, p,
 }: {
     devolucoes: Devolucao[];
     /** Recebimento e pré-lote abrem e conferem; os demais nem veem o quadro. */
     podeUsar: boolean;
     meuNome: string;
     onMudou: (lista: Devolucao[]) => void;
+    /**
+     * Nota encaminhada da fila pelo ícone de devolução: abre o formulário com
+     * número e fornecedor prontos. null = ninguém encaminhou nada.
+     */
+    daNota?: DadosDaNota | null;
+    onFecharDaNota?: () => void;
     p: Palette;
 }) {
     const [lancando, setLancando] = useState(false);
@@ -135,10 +147,19 @@ export default function QuadroDevolucoes({
                 </div>
             )}
 
-            {lancando && (
+            {(lancando || daNota) && (
                 <ModalNovaDevolucao
-                    onFechar={() => setLancando(false)}
-                    onCriada={nova => { onMudou([nova, ...devolucoes]); setLancando(false); }}
+                    // A chave força um formulário novo a cada nota encaminhada:
+                    // sem ela, clicar no ícone de outra nota com o modal aberto
+                    // manteria os campos da anterior.
+                    key={daNota ? `${daNota.numero_nota}-${daNota.fornecedor}` : 'branco'}
+                    inicial={daNota ?? null}
+                    onFechar={() => { setLancando(false); onFecharDaNota?.(); }}
+                    onCriada={nova => {
+                        onMudou([nova, ...devolucoes]);
+                        setLancando(false);
+                        onFecharDaNota?.();
+                    }}
                     p={p}
                 />
             )}
@@ -320,13 +341,15 @@ function Campo({ rotulo, valor, p, forte }: { rotulo: string; valor: string; p: 
  * contexto ao recado. Sem essa trava o quadro voltaria a ter bilhete sem prova,
  * que é o que já acontecia no grupo quando alguém digitava com pressa.
  */
-function ModalNovaDevolucao({ onFechar, onCriada, p }: {
+function ModalNovaDevolucao({ inicial, onFechar, onCriada, p }: {
+    /** Nota e fornecedor vindos da fila — null quando é lançamento do zero. */
+    inicial?: DadosDaNota | null;
     onFechar: () => void;
     onCriada: (d: Devolucao) => void;
     p: Palette;
 }) {
-    const [fornecedor, setFornecedor] = useState('');
-    const [numeroNota, setNumeroNota] = useState('');
+    const [fornecedor, setFornecedor] = useState(inicial?.fornecedor ?? '');
+    const [numeroNota, setNumeroNota] = useState(inicial?.numero_nota ?? '');
     const [motivo, setMotivo] = useState('');
     const [autorizadoPor, setAutorizadoPor] = useState('');
     const [boletoVence, setBoletoVence] = useState('');
@@ -408,10 +431,11 @@ function ModalNovaDevolucao({ onFechar, onCriada, p }: {
     const completo = fornecedor.trim() && numeroNota.trim() && motivo.trim()
         && autorizadoPor.trim() && arquivos.length > 0;
 
-    const campo = (rotulo: string, valor: string, set: (v: string) => void, tipo = 'text') => (
+    const campo = (rotulo: string, valor: string, set: (v: string) => void, tipo = 'text', foco = false) => (
         <label className="block">
             <span className="block text-xs mb-1" style={{ color: p.MUTED }}>{rotulo}</span>
             <input type={tipo} value={valor} onChange={e => set(e.target.value)} maxLength={255}
+                autoFocus={foco}
                 className="w-full rounded-lg text-sm px-3 py-2 outline-none"
                 style={{ background: p.INPUT_BG, color: p.TEXT, border: `1px solid ${p.INPUT_BORDER}` }} />
         </label>
@@ -427,13 +451,22 @@ function ModalNovaDevolucao({ onFechar, onCriada, p }: {
 
                 <div className="flex items-center justify-between px-5 pt-5 pb-4 shrink-0"
                     style={{ borderBottom: `1px solid ${p.BORDER}` }}>
-                    <h3 className="text-sm font-semibold" style={{ color: p.TEXT }}>Nova devolução</h3>
+                    <h3 className="text-sm font-semibold" style={{ color: p.TEXT }}>
+                        {inicial ? `Devolução da nota ${inicial.numero_nota}` : 'Nova devolução'}
+                    </h3>
                     <button type="button" onClick={onFechar} style={{ color: p.MUTED }}>
                         <Icone path="M6 18L18 6M6 6l12 12" />
                     </button>
                 </div>
 
                 <div className="px-5 py-4 space-y-3 overflow-y-auto">
+
+                    {inicial && (
+                        <p className="text-[11px] px-2.5 py-1.5 rounded-lg"
+                            style={{ background: p.ORANGE + '14', color: p.ORANGE, border: `1px solid ${p.ORANGE}33` }}>
+                            Nota e fornecedor vieram da fila. Falta o print e o resto.
+                        </p>
+                    )}
 
                     {/* O print vem primeiro no formulário porque vem primeiro no
                         cartão — e porque é o que trava o envio. */}
@@ -480,7 +513,10 @@ function ModalNovaDevolucao({ onFechar, onCriada, p }: {
 
                     {campo('Nota', numeroNota, setNumeroNota)}
                     {campo('Fornecedor', fornecedor, setFornecedor)}
-                    {campo('Motivo', motivo, setMotivo)}
+                    {/* Foco no Motivo quando a nota veio da fila: nota e
+                        fornecedor já estão preenchidos, e este é o primeiro
+                        campo que ainda pede digitação. */}
+                    {campo('Motivo', motivo, setMotivo, 'text', !!inicial)}
                     {campo('Autorizado por', autorizadoPor, setAutorizadoPor)}
                     {campo('Boleto vence', boletoVence, setBoletoVence, 'date')}
 
