@@ -556,4 +556,56 @@ class ChatTest extends TestCase
         // esta mensagem sumiria silenciosamente da contagem.
         $this->assertSame(1, $resposta->json('nao_lidas'));
     }
+
+    // ─── A barra que abre sozinha ──────────────────────────────────────────────
+
+    public function test_listar_conversas_nao_marca_nada_como_lido(): void
+    {
+        /*
+         * A barra lateral abre sozinha quando chega mensagem, e para montar a
+         * lista ela chama esta rota. Se listar marcasse leitura, o ✓✓ acenderia
+         * no aparelho de quem mandou sem ninguém ter aberto a conversa — o
+         * "visualizado" passaria a mentir, que é justamente o contrário do que
+         * a barra automática deve fazer.
+         *
+         * Ver o efeito de auto-abertura em OnlineSidebar: ele expande a LISTA,
+         * nunca a conversa.
+         */
+        $andre = $this->pessoa();
+        $maria = $this->pessoa(User::ROLE_COMPRAS);
+
+        $this->actingAs($andre)->post(route('conversas.enviar', $maria), ['texto' => 'chegou a nota']);
+
+        $conversa = Conversa::first();
+
+        $this->actingAs($maria)->get(route('conversas.index'))->assertOk();
+
+        // Maria continua devendo resposta, e André não viu ✓✓ nenhum
+        $this->assertSame(1, $conversa->fresh()->naoLidasPara($maria));
+
+        $this->assertNull(
+            $conversa->fresh()->participantes->firstWhere('id', $maria->id)?->pivot?->lida_ate_id,
+            'Listar as conversas não pode andar o ponteiro de leitura de ninguém.',
+        );
+    }
+
+    public function test_a_lista_mostra_a_previa_sem_entregar_a_conversa(): void
+    {
+        $andre = $this->pessoa();
+        $maria = $this->pessoa();
+
+        $this->actingAs($andre)->post(route('conversas.enviar', $maria), ['texto' => 'o caminhao chegou']);
+
+        $resposta = $this->actingAs($maria)->get(route('conversas.index'))->assertOk();
+
+        $linha = collect($resposta->json('pessoas'))->firstWhere('id', $andre->id);
+
+        // A previa e o contador bastam para a barra desenhar o nome em verde.
+        $this->assertSame('o caminhao chegou', $linha['ultima']['previa']);
+        $this->assertSame(1, $linha['nao_lidas']);
+
+        // E as mensagens em si NAO vem por aqui — quem as entrega e o `mostrar`,
+        // que e o mesmo que marca a leitura.
+        $this->assertArrayNotHasKey('mensagens', $linha);
+    }
 }

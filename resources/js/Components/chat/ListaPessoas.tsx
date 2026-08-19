@@ -28,7 +28,7 @@ const quando = (iso: string) => {
  *   4. o resto, por nome
  */
 export default function ListaPessoas({ online, p }: { online: Set<number>; p: Palette }) {
-    const { pessoas, carregandoLista, abrirConversa } = useChat();
+    const { pessoas, carregandoLista, abrirConversa, chegada } = useChat();
 
     if (carregandoLista && !pessoas) {
         return <p className="text-xs text-center py-8" style={{ color: p.MUTED }}>Carregando…</p>;
@@ -75,7 +75,21 @@ export default function ListaPessoas({ online, p }: { online: Set<number>; p: Pa
 
                     <div className="flex-1 min-w-0">
                         <div className="flex items-baseline gap-1.5">
-                            <span className="text-[13px] font-medium truncate flex-1" style={{ color: p.TEXT }}>
+                            {/* O nome diz sozinho quem está devendo resposta.
+                                VERDE enquanto houver mensagem por ler — é estado,
+                                fica parado, e usa a mesma cor que a hora e o
+                                balãozinho ao lado já usavam para dizer isso.
+                                O REALCE (pulsar de leve) só acontece no instante
+                                em que a mensagem cai, e se apaga em 4s. Nome
+                                piscando sem parar, com 26 pessoas podendo falar,
+                                deixa de chamar atenção e passa a atrapalhar. */}
+                            <span
+                                className={`text-[13px] truncate flex-1 ${chegada?.id === pessoa.id ? 'chat-realce' : ''}`}
+                                style={{
+                                    color: pessoa.nao_lidas ? p.GREEN : p.TEXT,
+                                    fontWeight: pessoa.nao_lidas ? 600 : 500,
+                                }}
+                            >
                                 {pessoa.nome}
                             </span>
                             {pessoa.ultima && (

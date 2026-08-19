@@ -33,7 +33,7 @@ export default function OnlineSidebar({ currentUserId }: Props) {
     const { isDark } = useTheme();
     const p: Palette = isDark ? DARK : LIGHT;
 
-    const { pessoas, pendentes, naoLidas, aberta, carregarLista, abrirConversa, fecharConversa } = useChat();
+    const { pessoas, pendentes, naoLidas, aberta, chegada, carregarLista, abrirConversa, fecharConversa } = useChat();
 
     useEffect(() => {
         window.Echo.join('presenca.sistema')
@@ -52,6 +52,25 @@ export default function OnlineSidebar({ currentUserId }: Props) {
     useEffect(() => {
         if (expandida && !pessoas) carregarLista();
     }, [expandida, pessoas, carregarLista]);
+
+    /*
+     * Mensagem nova abre a barra sozinha — e SÓ isso.
+     *
+     * Abre a LISTA, nunca a conversa. A diferença não é de estilo: abrir a
+     * conversa é o que marca as mensagens como lidas (ConversaController::mostrar
+     * chama marcarLida ao entregar a thread). Se a barra abrisse já dentro do
+     * chat, o ✓✓ acenderia no aparelho de quem mandou sem ninguém ter lido nada
+     * — e o "visualizado" passaria a mentir.
+     *
+     * Aqui ninguém vai ao servidor buscar mensagem: o efeito de cima carrega a
+     * LISTA de pessoas, que é só nome, prévia e contador. Prévia não é leitura.
+     *
+     * Estando numa conversa aberta, `expandida` já é true e isto não faz nada —
+     * ninguém é arrancado do meio de uma conversa porque um terceiro falou.
+     */
+    useEffect(() => {
+        if (chegada) setExpandida(true);
+    }, [chegada]);
 
     const abrir = () => setExpandida(true);
 

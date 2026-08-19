@@ -60,6 +60,18 @@ interface ContextoChat {
     erro: string | null;
     /** O outro lado está escrevendo agora (chega por whisper, ver abaixo). */
     outroDigitando: boolean;
+    /**
+     * Quem acabou de mandar mensagem, por poucos segundos.
+     *
+     * Serve a duas coisas de uma vez: abrir a barra lateral sozinha e acender o
+     * realce no nome de quem falou. Some depois de REALCE — daí em diante o
+     * nome continua verde (isso é estado, não aviso), mas parado.
+     *
+     * `n` sobe a cada chegada porque o valor precisa MUDAR sempre: duas
+     * mensagens seguidas da mesma pessoa dariam o mesmo `{id}`, o React não
+     * veria diferença e o realce não reacenderia na segunda.
+     */
+    chegada: { id: number; n: number } | null;
 
     carregarLista: () => void;
     abrirConversa: (pessoaId: number) => void;
@@ -85,6 +97,19 @@ const INTERVALO_AVISO = 2000;
 
 /** Silêncio no teclado que já conta como "parou de escrever". */
 const PARADA = 2500;
+
+/**
+ * Quanto tempo o nome de quem acabou de falar fica em realce.
+ *
+ * Curto de propósito. O realce é o "olha aqui" do instante em que a mensagem
+ * cai; o verde que fica depois já diz que há coisa por ler. Nome piscando sem
+ * parar, numa tela que a equipe encara o dia inteiro e com 26 pessoas podendo
+ * falar, deixa de chamar atenção e passa a atrapalhar.
+ *
+ * Combina com a animação em app.css (.chat-realce): 1s por ciclo, 3 ciclos —
+ * ela termina antes de o realce ser apagado aqui, e não fica cortada no meio.
+ */
+const REALCE = 4000;
 
 /**
  * Prazo de validade do "digitando" que chegou.
@@ -129,6 +154,10 @@ export default function ChatProvider({ userId, children }: PropsWithChildren<{ u
     const [enviando, setEnviando] = useState(false);
     const [erro, setErro] = useState<string | null>(null);
     const [outroDigitando, setOutroDigitando] = useState(false);
+    const [chegada, setChegada] = useState<{ id: number; n: number } | null>(null);
+
+    /** Só para o `n` do `chegada` — ver o comentário na interface acima. */
+    const chegadasRef = useRef(0);
 
     /**
      * O canal da conversa ABERTA — o único lugar do chat onde os dois lados
@@ -520,6 +549,22 @@ export default function ChatProvider({ userId, children }: PropsWithChildren<{ u
                 return [novo, ...atual.filter(x => x.id !== e.autor.id)];
             });
 
+            /*
+             * O sinal que abre a barra lateral e acende o nome de quem falou.
+             *
+             * Fica DEPOIS do `if (minha || naAberta) return` lá em cima, e é de
+             * propósito: mensagem minha (mandada de outra aba) não tem por que
+             * abrir barra nenhuma, e a que chega na conversa já aberta a pessoa
+             * está lendo neste instante.
+             *
+             * Conta removida no meio do caminho não tem id para realçar — aí
+             * fica só o aviso sonoro, como antes.
+             */
+            if (e.autor.id !== null) {
+                chegadasRef.current += 1;
+                setChegada({ id: e.autor.id, n: chegadasRef.current });
+            }
+
             avisar(e.autor.name ?? 'Mensagem nova', e.mensagem);
         };
 
@@ -559,6 +604,22 @@ export default function ChatProvider({ userId, children }: PropsWithChildren<{ u
             canal.stopListening('.ReacaoAtualizada', reagiu);
         };
     }, [userId]);
+
+    /*
+     * O realce se apaga sozinho.
+     *
+     * O timer é refeito a cada chegada (o `chegada` mudou, o efeito rodou de
+     * novo, o anterior foi cancelado na limpeza) — então duas mensagens
+     * seguidas dão 4 segundos contados da SEGUNDA, e não um apagão no meio do
+     * realce da primeira.
+     */
+    useEffect(() => {
+        if (!chegada) return;
+
+        const id = window.setTimeout(() => setChegada(null), REALCE);
+
+        return () => clearTimeout(id);
+    }, [chegada]);
 
     /*
      * ── O canal da conversa aberta ────────────────────────────────────────────
@@ -623,7 +684,7 @@ export default function ChatProvider({ userId, children }: PropsWithChildren<{ u
         <Contexto.Provider value={{
             pessoas, pendentes, naoLidas, carregandoLista,
             aberta, mensagens, carregandoConversa, temAntigas, lidaPeloOutroAte, leituraAoAbrir, enviando, erro,
-            outroDigitando,
+            outroDigitando, chegada,
             carregarLista, abrirConversa, fecharConversa, enviar, carregarAntigas, limparErro,
             reagir, avisarQueDigito,
         }}>

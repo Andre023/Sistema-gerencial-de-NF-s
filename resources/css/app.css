@@ -148,3 +148,33 @@ html {
         opacity: 0.6;
     }
 }
+
+/* ── O realce do nome de quem acabou de mandar mensagem ─────────────────────
+   Três pulsadas suaves e para. O nome segue VERDE depois disso: o verde é o
+   estado ("tem coisa por ler"), o pulsar é o aviso ("chegou agora").
+
+   Por que não pisca para sempre: são 26 pessoas na lista, e uma tela que a
+   equipe encara o dia inteiro. Vários nomes piscando ao mesmo tempo, sem parar,
+   deixam de chamar atenção e viram ruído — e aí ninguém olha para nenhum.
+
+   Quem apaga a classe é o React, 4s depois da mensagem (REALCE, no
+   ChatProvider). A animação termina antes disso de propósito, para não ser
+   cortada no meio de uma pulsada.
+
+   O prefers-reduced-motion vale aqui pelo mesmo motivo dos pontinhos do
+   "digitando": quem pediu ao sistema para não animar nada continua enxergando
+   o recado — pelo verde, que é o que de fato importa. */
+@keyframes chat-realce {
+    0%, 100% { opacity: 1; }
+    50%      { opacity: 0.35; }
+}
+
+.chat-realce {
+    animation: chat-realce 1s ease-in-out 3;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .chat-realce {
+        animation: none;
+    }
+}
