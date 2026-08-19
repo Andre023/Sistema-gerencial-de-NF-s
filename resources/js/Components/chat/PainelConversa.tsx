@@ -283,7 +283,19 @@ export default function PainelConversa({ pessoa, online, meuId, p }: {
         const perto = corpo.scrollHeight - corpo.scrollTop - corpo.clientHeight < 120;
 
         if (perto) fimRef.current?.scrollIntoView({ block: 'end' });
-    }, [mensagens, carregandoConversa]);
+        /*
+         * `outroDigitando` entra nas dependências junto das mensagens.
+         *
+         * A bolha dos pontinhos é o último item da área que rola, então ela
+         * nasce ABAIXO da última mensagem — fora da vista de quem estava lendo o
+         * fim da conversa. Sem rolar, a animação acontece num pedaço da tela que
+         * ninguém vê, e o recurso simplesmente não existe para o usuário.
+         *
+         * Como o efeito roda depois de o React desenhar, o `perto` acima já
+         * mede a área COM a bolha dentro — e a regra de não puxar quem subiu
+         * para reler continua valendo do mesmo jeito.
+         */
+    }, [mensagens, carregandoConversa, outroDigitando]);
 
     /**
      * Ctrl+V com um print na área de transferência.

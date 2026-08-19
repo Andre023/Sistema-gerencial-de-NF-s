@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from 'react';
+import { useCallback, useMemo, useRef, useState } from 'react';
 import { format, parseISO } from 'date-fns';
 import { Mensagem, Reacao } from '@/types';
 import { Palette } from '@/lib/tema';
@@ -68,6 +68,17 @@ export default function Bolha({ mensagem, minha, lido, meuId, onReagir, p }: {
      */
     const timer = useRef<number | null>(null);
 
+    /*
+     * A barra de reações é desenhada no <body>, fora desta árvore (ver
+     * BarraReacoes) — a área das mensagens rola, e ali dentro ela era recortada.
+     * Por isso ela precisa destas duas referências: a bolha, de onde tira a
+     * posição, e o gatilho, que ela ignora ao decidir se o clique foi "fora".
+     */
+    const bolhaRef   = useRef<HTMLDivElement>(null);
+    const gatilhoRef = useRef<HTMLButtonElement>(null);
+
+    const fecharBarra = useCallback(() => setBarraAberta(false), []);
+
     const soltarTimer = () => {
         if (timer.current !== null) {
             clearTimeout(timer.current);
@@ -99,6 +110,7 @@ export default function Bolha({ mensagem, minha, lido, meuId, onReagir, p }: {
                 (onde quem manda é a pressão longa). */}
             {podeReagir && (
                 <button
+                    ref={gatilhoRef}
                     type="button"
                     title="Reagir"
                     onClick={() => setBarraAberta(a => !a)}
@@ -112,21 +124,22 @@ export default function Bolha({ mensagem, minha, lido, meuId, onReagir, p }: {
                 </button>
             )}
 
-            {/* `relative` é o berço da barra de reações, que se posiciona por
-                cima desta bolha (bottom-full) sem empurrar a conversa. */}
-            <div className="relative max-w-[85%]">
+            <div className="max-w-[85%]">
 
                 {barraAberta && (
                     <BarraReacoes
+                        ancoraRef={bolhaRef}
+                        gatilhoRef={gatilhoRef}
                         minha={minha}
                         atual={minhaReacao}
                         onEscolher={escolher}
-                        onFechar={() => setBarraAberta(false)}
+                        onFechar={fecharBarra}
                         p={p}
                     />
                 )}
 
                 <div
+                    ref={bolhaRef}
                     onTouchStart={segurar}
                     onTouchEnd={soltarTimer}
                     onTouchMove={soltarTimer}
