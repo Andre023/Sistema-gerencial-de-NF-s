@@ -242,8 +242,14 @@ o backup existe apenas na VM.
 ### 9.3 Testar o restore (uma vez por mês)
 
 ```bash
-bash /var/www/nfs/scripts/testar-restore.sh /var/backups/nfs/nfs-2026-08-03-0200.sql.gz
+sudo bash /var/www/nfs/scripts/testar-restore.sh /var/backups/nfs/nfs-2026-08-03-0200.sql.gz
 ```
+
+> **O `sudo` não é opcional aqui.** Os backups das 02:00 são criados pelo cron do
+> root com modo 600 — o dump traz e-mails e hashes de senha, e não pode ficar
+> legível para qualquer usuário da máquina. Sem `sudo`, o `gzip` não abre o
+> arquivo. (Os gerados pelo deploy pertencem ao `ubuntu` e abrem sem sudo, o que
+> torna a diferença fácil de não perceber.)
 
 Backup nunca restaurado é backup de fé: dump truncado, tabela faltando ou gzip
 corrompido só aparecem no dia em que você precisa — o pior dia possível para

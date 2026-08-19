@@ -30,6 +30,30 @@ if [[ ! -f "${ARQUIVO}" ]]; then
     exit 1
 fi
 
+# Legivel por quem esta rodando?
+#
+# Isto existe por causa de um alarme falso perigoso. Os backups do cron das 02:00
+# sao criados pelo ROOT, modo 600 (o dump tem e-mails e hashes de senha, ver o
+# umask do backup.sh). Rodando este teste como `ubuntu`, o gzip morre com
+# "Permission denied" — e a mensagem que aparecia era:
+#
+#     ✗ O RESTORE FALHOU. Este backup nao presta — investigue...
+#
+# Ou seja: quem seguisse a rotina mensal do DEPLOY.md concluiria que os backups
+# automaticos estao corrompidos, quando o unico problema era faltar sudo. Num
+# script cuja funcao e dizer se da para confiar no backup, errar para o lado do
+# panico e pior do que nao existir.
+if [[ ! -r "${ARQUIVO}" ]]; then
+    echo "✗ Sem permissao de leitura: ${ARQUIVO}" >&2
+    echo "" >&2
+    echo "  Isto NAO quer dizer que o backup esteja ruim — o arquivo e do root" >&2
+    echo "  (modo 600, porque o dump traz e-mails e hashes de senha)." >&2
+    echo "" >&2
+    echo "  Rode de novo com sudo:" >&2
+    echo "      sudo bash scripts/testar-restore.sh ${ARQUIVO}" >&2
+    exit 1
+fi
+
 cd "${APP_DIR}"
 DB_PROD="$(grep -E '^DB_DATABASE=' .env | head -1 | cut -d= -f2- | tr -d "\"'")"
 DB_TESTE="${DB_PROD}_restore_teste"
