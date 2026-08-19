@@ -21,6 +21,15 @@ import { useChat } from './ChatProvider';
  */
 const SeletorEmoji = lazy(() => import('./SeletorEmoji'));
 
+/**
+ * A que distância do fim ainda se considera que a pessoa está "no fim".
+ *
+ * Só precisa absorver arredondamento de subpixel e o "quase lá" de quem parou a
+ * rolagem com o dedo. Não precisa cobrir a altura da mensagem que está por
+ * chegar — era essa conta errada que fazia foto e mensagem longa não descerem.
+ */
+const MARGEM_FIM = 80;
+
 /** Rótulo do papel embaixo do nome — ajuda a saber com quem se está falando. */
 const PAPEL: Record<string, string> = {
     recebimento: 'Recebimento',
@@ -128,6 +137,35 @@ export default function PainelConversa({ pessoa, online, meuId, p }: {
     const corpoRef   = useRef<HTMLDivElement>(null);
     const arquivoRef = useRef<HTMLInputElement>(null);
     const textoRef   = useRef<HTMLTextAreaElement>(null);
+
+    /*
+     * A pessoa estava no fim da conversa? — medido ENQUANTO ELA ROLA, e não
+     * depois que a mensagem chega.
+     *
+     * A diferença é o bug que isto conserta. Antes, a conta era feita dentro do
+     * efeito, que roda DEPOIS de o React desenhar a mensagem nova: a distância
+     * até o fim já vinha somada com a bolha que acabara de nascer. Mensagem
+     * curta cabia na folga e a conversa descia; foto, mensagem de cinco linhas
+     * ou duas chegando juntas estouravam a folga e a conversa ficava parada.
+     *
+     * Ou seja: falhava justamente no print do ERP, que é o anexo mais comum
+     * daqui — e o jeito de reproduzir era mandar uma foto, não um "oi".
+     *
+     * Guardado numa ref e não num estado: muda a cada quadro de rolagem, e
+     * redesenhar a conversa inteira a cada pixel rolado não tem cabimento.
+     */
+    const estavaNoFimRef = useRef(true);
+
+    const aoRolar = () => {
+        const corpo = corpoRef.current;
+        if (!corpo) return;
+
+        estavaNoFimRef.current =
+            corpo.scrollHeight - corpo.scrollTop - corpo.clientHeight < MARGEM_FIM;
+    };
+
+    /** Id da última mensagem já vista pelo efeito — separa "chegou agora" de "já estava". */
+    const ultimaVistaRef = useRef<number | null>(null);
 
     /*
      * O campo cresce com o que está escrito, em vez de rolar por dentro.
@@ -255,7 +293,15 @@ export default function PainelConversa({ pessoa, online, meuId, p }: {
      */
     const jaPosicionou = useRef(false);
 
-    useEffect(() => { jaPosicionou.current = false; }, [pessoa.id]);
+    useEffect(() => {
+        jaPosicionou.current = false;
+
+        // Conversa nova começa supondo que se está no fim: é onde ela abre
+        // quando não há não lidas. Havendo, o scrollIntoView da abertura dispara
+        // o `aoRolar`, que corrige isto sozinho no quadro seguinte.
+        estavaNoFimRef.current = true;
+        ultimaVistaRef.current = null;
+    }, [pessoa.id]);
 
     useEffect(() => {
         const corpo = corpoRef.current;
@@ -276,26 +322,80 @@ export default function PainelConversa({ pessoa, online, meuId, p }: {
         }
 
         /*
-         * Daqui em diante, só acompanha o fim se a pessoa JÁ estava lá. Quem
-         * subiu para reler algo antigo não quer ser puxado de volta a cada
-         * mensagem que chega.
+         * O que EU acabei de mandar sempre desce, sem perguntar nada.
+         *
+         * É o contrato de todo chat: apertei enviar, quero ver saindo. Mesmo
+         * que eu estivesse lendo algo lá em cima, mandar mensagem é dizer que
+         * terminei de ler — e a bolha nova nasceria fora da tela.
+         *
+         * A bolha otimista tem id negativo e depois é trocada pela real, então
+         * o mesmo envio passa por aqui duas vezes com ids diferentes. Descer
+         * duas vezes para o mesmo lugar não custa nem aparece.
          */
-        const perto = corpo.scrollHeight - corpo.scrollTop - corpo.clientHeight < 120;
+        const ultima = mensagens[mensagens.length - 1];
+        const minhaNova = !!ultima
+            && ultima.id !== ultimaVistaRef.current
+            && ultima.autor_id === meuId;
 
-        if (perto) fimRef.current?.scrollIntoView({ block: 'end' });
+        ultimaVistaRef.current = ultima?.id ?? null;
+
         /*
-         * `outroDigitando` entra nas dependências junto das mensagens.
+         * Fora isso, acompanha o fim só se a pessoa JÁ estava lá — quem subiu
+         * para reler algo antigo não quer ser puxado de volta a cada mensagem.
          *
-         * A bolha dos pontinhos é o último item da área que rola, então ela
-         * nasce ABAIXO da última mensagem — fora da vista de quem estava lendo o
-         * fim da conversa. Sem rolar, a animação acontece num pedaço da tela que
-         * ninguém vê, e o recurso simplesmente não existe para o usuário.
+         * A resposta vem do `aoRolar`, que mede ENQUANTO a pessoa rola. Medir
+         * aqui dentro era o bug: neste ponto o React já desenhou a mensagem
+         * nova, e a distância até o fim já vinha inflada pela altura dela.
          *
-         * Como o efeito roda depois de o React desenhar, o `perto` acima já
-         * mede a área COM a bolha dentro — e a regra de não puxar quem subiu
-         * para reler continua valendo do mesmo jeito.
+         * `outroDigitando` está nas dependências pelo mesmo motivo: a bolha dos
+         * pontinhos nasce como último item da área que rola, e sem descer a
+         * animação acontece num pedaço de tela que ninguém vê.
          */
-    }, [mensagens, carregandoConversa, outroDigitando]);
+        if (minhaNova || estavaNoFimRef.current) {
+            fimRef.current?.scrollIntoView({ block: 'end' });
+        }
+    }, [mensagens, carregandoConversa, outroDigitando, meuId]);
+
+    /*
+     * Foto que termina de carregar DEPOIS de a conversa ter descido.
+     *
+     * A imagem chega ao DOM sem altura (o navegador ainda não baixou o arquivo),
+     * a conversa desce até o fim de um conteúdo que ainda vai crescer, e quando
+     * a foto enfim aparece ela empurra tudo para baixo — deixando de novo o
+     * rodapé fora da tela. Num sistema onde metade das mensagens é print do ERP,
+     * isso é a regra, não a exceção.
+     *
+     * O ouvinte vai na FASE DE CAPTURA porque o evento `load` de <img> não
+     * borbulha: sem o `true`, nada chegaria aqui e seria preciso passar um
+     * callback de PainelConversa até dentro do AnexoDaMensagem.
+     */
+    useEffect(() => {
+        const corpo = corpoRef.current;
+        if (!corpo) return;
+
+        const cresceu = (e: Event) => {
+            const alvo = e.target as HTMLImageElement;
+
+            if (alvo?.tagName !== 'IMG') return;
+
+            /*
+             * Emoji não conta. O <Emoji> já nasce com width e height fixos no
+             * style, então carregar a imagem não muda a altura de nada — e uma
+             * mensagem com vinte emojis dispararia vinte rolagens à toa.
+             * Quem realmente cresce é a foto do anexo, que chega sem altura
+             * reservada (AnexoDaMensagem).
+             */
+            if (alvo.src.includes('/emoji/')) return;
+
+            if (!estavaNoFimRef.current) return;
+
+            fimRef.current?.scrollIntoView({ block: 'end' });
+        };
+
+        corpo.addEventListener('load', cresceu, true);
+
+        return () => corpo.removeEventListener('load', cresceu, true);
+    }, []);
 
     /**
      * Ctrl+V com um print na área de transferência.
@@ -420,7 +520,11 @@ export default function PainelConversa({ pessoa, online, meuId, p }: {
             </div>
 
             {/* ── As mensagens ── */}
-            <div ref={corpoRef} className="flex-1 min-h-0 overflow-y-auto px-3 py-3 space-y-2">
+            <div
+                ref={corpoRef}
+                onScroll={aoRolar}
+                className="flex-1 min-h-0 overflow-y-auto px-3 py-3 space-y-2"
+            >
 
                 {temAntigas && (
                     <button onClick={carregarAntigas}
