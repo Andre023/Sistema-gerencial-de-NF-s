@@ -23,16 +23,28 @@ class CardController extends Controller
 
     public function store(Request $request, Nota $nota): RedirectResponse
     {
-        // Em geral só o pré-lote abre card. Exceções: nota de CEASA (compras
-        // também abre) e os tipos de todo mundo (Importar NF, Trocar nota,
-        // Recusa, Devolução) — que qualquer papel operacional abre, porque não
-        // são erro de um setor. Quem FECHA cada um é outra história, e mora em
-        // Card::podeSerCorrigidoPor().
+        // Em geral só o pré-lote abre card. Três exceções:
+        //
+        //   • nota de CEASA — compras também abre qualquer tipo
+        //   • os tipos de todo mundo (Importar NF, Trocar nota, Recusa,
+        //     Devolução) — qualquer papel operacional abre, porque não são
+        //     erro de um setor só
+        //   • Cadastro — o recebimento abre, porque é ele quem esbarra no item
+        //     sem cadastro na hora de digitar a nota (Card::TIPOS_RECEBIMENTO)
+        //
+        // Quem FECHA cada um é outra história, e mora em
+        // Card::podeSerCorrigidoPor() — o cadastro continua sendo de compras.
         $user = $request->user();
-        $deTodos = in_array($request->input('tipo'), Card::abertosPorQualquerPapel(), true);
+        $tipo = $request->input('tipo');
+
+        $deTodos    = in_array($tipo, Card::abertosPorQualquerPapel(), true);
+        $deCadastro = in_array($tipo, Card::TIPOS_RECEBIMENTO, true);
+
         $podeAbrir = $user->podeGerirCards()
             || ($nota->ceasa && $user->podeCorrigirCard())
-            || ($deTodos && ($user->podeLancarNota() || $user->podeCorrigirCard()));
+            || ($deTodos && ($user->podeLancarNota() || $user->podeCorrigirCard()))
+            || ($deCadastro && $user->podeAbrirCardDeCadastro());
+
         abort_unless($podeAbrir, 403);
 
         if ($nota->liberada_em) {

@@ -121,3 +121,30 @@ html {
     /* Impede o iOS de aumentar a fonte sozinho ao girar a tela */
     -webkit-text-size-adjust: 100%;
 }
+
+/* ── Os pontinhos do "digitando…" do chat ───────────────────────────────────
+   Três pontos que sobem e descem em sequência, como no WhatsApp. O atraso de
+   cada um é dado no componente (Digitando, em PainelConversa) — o que muda de
+   um para o outro é só quando a animação começa, não o desenho dela.
+
+   Fica aqui e não no Tailwind porque é um @keyframes: o Tailwind sabe aplicar
+   animação, mas quem a define é o CSS.
+
+   Volta e meia alguém trabalha com "reduzir movimento" ligado no Windows — daí
+   o prefers-reduced-motion no fim. Sem ele, os pontinhos ficariam pulando na
+   tela de quem pediu explicitamente ao sistema para não animar nada. */
+@keyframes chat-digitando {
+    0%, 60%, 100% { transform: translateY(0);     opacity: 0.35; }
+    30%           { transform: translateY(-3px);  opacity: 1; }
+}
+
+.chat-ponto {
+    animation: chat-digitando 1.2s infinite ease-in-out;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .chat-ponto {
+        animation: none;
+        opacity: 0.6;
+    }
+}

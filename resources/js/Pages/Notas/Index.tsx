@@ -182,11 +182,13 @@ function FormNota({ fornecedores, opcoes, inicial, origemDefault, onSubmit, onCa
  */
 const SEM_TROCA = 'nenhum' as const;
 
-function ModalCards({ nota, onFechar, can, tiposCompras, tiposQualquerPapel, substitutosCadastro, isDark, p }: {
+function ModalCards({ nota, onFechar, can, tiposCompras, tiposQualquerPapel, tiposRecebimento, substitutosCadastro, isDark, p }: {
     nota: Nota | null; onFechar: () => void; can: Permissoes;
     tiposCompras: TipoCard[];
     /** Card::abertosPorQualquerPapel() — quem não é pré-lote só enxerga estes */
     tiposQualquerPapel: TipoCard[];
+    /** Card::abertosPeloRecebimento() — os de cima mais o Cadastro */
+    tiposRecebimento: TipoCard[];
     /** Card::SUBSTITUTOS_DE_CADASTRO — por quais cards o cadastro pode ser trocado */
     substitutosCadastro: TipoCard[];
     isDark: boolean; p: Palette;
@@ -230,10 +232,26 @@ function ModalCards({ nota, onFechar, can, tiposCompras, tiposQualquerPapel, sub
     // e compras, que é o mesmo que não existirem para eles.
     const abreQualquer = can.gerirCards || (nota.ceasa > 0 && ehCompras);
     const deQualquerPapel = tiposQualquerPapel.length ? tiposQualquerPapel : [...DE_TODOS, ...DE_DOCA];
+
+    /*
+     * O recebimento enxerga um a mais: o card de Cadastro.
+     *
+     * A lista vem pronta do servidor (Card::abertosPeloRecebimento) em vez de
+     * ser montada aqui com um `[...deQualquerPapel, 'cadastro']` — é a mesma
+     * regra do comentário acima: lista repetida na tela é lista que fica para
+     * trás quando o controller muda.
+     *
+     * `can.abrirCardCadastro` e não `meuPapel === 'recebimento'`: o pré-lote
+     * também tem a permissão, mas ele já cai no `abreQualquer` acima.
+     */
+    const meusTipos = can.abrirCardCadastro && tiposRecebimento.length
+        ? tiposRecebimento
+        : deQualquerPapel;
+
     const tiposParaAbrir: TipoCard[] = abreQualquer
         ? opcoesTipos(nota)
         : ['recebimento', 'pre_lote', 'compras'].includes(meuPapel)
-            ? opcoesTipos(nota).filter(t => deQualquerPapel.includes(t))
+            ? opcoesTipos(nota).filter(t => meusTipos.includes(t))
             : [];
 
     const agir = (fn: () => void) => { setErro(null); setOcupado(true); fn(); };
@@ -1387,6 +1405,7 @@ export default function Index({ recebimento, preLote, liberadas, canceladas, dev
             <ModalCards nota={notaCards} onFechar={() => setCardsId(null)} can={can}
                 tiposCompras={opcoes.tiposCompras ?? ['cadastro', 'custo', 'quantidade', 'sem_pedido', 'item_n_pedido']}
                 tiposQualquerPapel={opcoes.tiposQualquerPapel ?? []}
+                tiposRecebimento={opcoes.tiposRecebimento ?? []}
                 substitutosCadastro={opcoes.substitutosCadastro ?? []} isDark={isDark} p={p} />
 
             <ModalComentarios

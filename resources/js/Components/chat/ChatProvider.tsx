@@ -2,7 +2,7 @@ import {
     createContext, PropsWithChildren, useCallback, useContext, useEffect, useRef, useState,
 } from 'react';
 import { usePage } from '@inertiajs/react';
-import { Avatar, Mensagem, PageProps, PendenteChat, PessoaChat } from '@/types';
+import { Avatar, Mensagem, PageProps, PendenteChat, PessoaChat, Reacao } from '@/types';
 import { biparMensagem } from '@/lib/som';
 import { otimizarParaEnvio } from '@/lib/imagem';
 
@@ -58,6 +58,8 @@ interface ContextoChat {
     leituraAoAbrir: number;
     enviando: boolean;
     erro: string | null;
+    /** O outro lado está escrevendo agora (chega por whisper, ver abaixo). */
+    outroDigitando: boolean;
 
     carregarLista: () => void;
     abrirConversa: (pessoaId: number) => void;
@@ -65,7 +67,33 @@ interface ContextoChat {
     enviar: (texto: string, arquivo?: File | null) => Promise<void>;
     carregarAntigas: () => void;
     limparErro: () => void;
+    /** Põe, troca ou tira o meu emoji nesta mensagem (o servidor decide qual). */
+    reagir: (mensagemId: number, emoji: string) => void;
+    /** Chamado a cada tecla. O aperto de mão com o outro lado é feito aqui. */
+    avisarQueDigito: () => void;
 }
+
+/*
+ * ── Os tempos do "digitando…" ─────────────────────────────────────────────
+ *
+ * De quanto em quanto tempo, no máximo, um aviso sai daqui enquanto a pessoa
+ * escreve. Sem isto seria um evento POR TECLA — e mesmo sendo whisper (que não
+ * acorda o PHP), mandar 300 quadros por minuto para dizer a mesma coisa é
+ * desperdício de rede no wi-fi do galpão.
+ */
+const INTERVALO_AVISO = 2000;
+
+/** Silêncio no teclado que já conta como "parou de escrever". */
+const PARADA = 2500;
+
+/**
+ * Prazo de validade do "digitando" que chegou.
+ *
+ * O aviso de parada pode se perder — a aba fecha, o wi-fi cai, a pessoa some no
+ * meio da frase. Sem este prazo, o "digitando…" ficaria aceso para sempre, e um
+ * indicador que mente é pior do que não ter indicador.
+ */
+const SUMICO = 6000;
 
 const Contexto = createContext<ContextoChat | null>(null);
 
@@ -100,6 +128,25 @@ export default function ChatProvider({ userId, children }: PropsWithChildren<{ u
     const [leituraAoAbrir, setLeituraAoAbrir] = useState(0);
     const [enviando, setEnviando] = useState(false);
     const [erro, setErro] = useState<string | null>(null);
+    const [outroDigitando, setOutroDigitando] = useState(false);
+
+    /**
+     * O canal da conversa ABERTA — o único lugar do chat onde os dois lados
+     * estão no mesmo canal, e por isso o único por onde o whisper funciona.
+     *
+     * Fica numa ref porque quem o usa é o `avisarQueDigito`, chamado a cada
+     * tecla: um estado faria o componente inteiro redesenhar a cada letra.
+     */
+    const canalConversaRef = useRef<any>(null);
+
+    /** Quando saiu o último aviso — é o que segura o INTERVALO_AVISO. */
+    const ultimoAvisoRef = useRef(0);
+
+    /** Apaga o "digitando" do outro se o aviso de parada dele se perder. */
+    const sumicoRef = useRef<number | null>(null);
+
+    /** Manda o "parou" quando as minhas teclas cessam. */
+    const paradaRef = useRef<number | null>(null);
 
     /*
      * O handler do Echo é registrado uma vez só, mas precisa saber qual conversa
@@ -116,6 +163,53 @@ export default function ChatProvider({ userId, children }: PropsWithChildren<{ u
     }, [conversasPendentes]);
 
     const limparErro = useCallback(() => setErro(null), []);
+
+    // ── "Digitando…" ──────────────────────────────────────────────────────────
+    //
+    // Isto NÃO passa pelo servidor. `whisper` é evento de CLIENTE: sai do
+    // navegador, o Reverb repassa para os outros assinantes do canal e acabou.
+    // Nem PHP nem MySQL acordam — que é justamente o que torna o recurso viável
+    // numa VM de 1 GB com 6 workers de PHP-FPM.
+    //
+    // Se isto fosse um POST por tecla, cada pessoa escrevendo disputaria os
+    // mesmos 6 workers que servem as páginas de verdade.
+
+    /** Corta o aviso pela raiz: some o "parou" pendente e libera o intervalo. */
+    const pararDeAvisar = useCallback(() => {
+        if (paradaRef.current) {
+            clearTimeout(paradaRef.current);
+            paradaRef.current = null;
+        }
+
+        ultimoAvisoRef.current = 0;
+
+        canalConversaRef.current?.whisper('digitando', { digitando: false });
+    }, []);
+
+    const avisarQueDigito = useCallback(() => {
+        const canal = canalConversaRef.current;
+
+        // Conversa que ainda não nasceu (nenhuma mensagem trocada) não tem
+        // canal — e não tem para quem avisar. Escrever nela é normal.
+        if (!canal) return;
+
+        const agora = Date.now();
+
+        if (agora - ultimoAvisoRef.current > INTERVALO_AVISO) {
+            ultimoAvisoRef.current = agora;
+            canal.whisper('digitando', { digitando: true });
+        }
+
+        // Cada tecla adia o "parou". Ele só dispara quando as teclas cessam de
+        // verdade por PARADA milissegundos.
+        if (paradaRef.current) clearTimeout(paradaRef.current);
+
+        paradaRef.current = window.setTimeout(() => {
+            paradaRef.current = null;
+            ultimoAvisoRef.current = 0;
+            canal.whisper('digitando', { digitando: false });
+        }, PARADA);
+    }, []);
 
     // ── Lista de pessoas ──────────────────────────────────────────────────────
 
@@ -216,12 +310,21 @@ export default function ChatProvider({ userId, children }: PropsWithChildren<{ u
          */
         const provisorio = -Date.now();
 
+        /*
+         * Mandou: o "digitando…" do outro lado tem de apagar AGORA.
+         *
+         * Sem isto ele ficaria aceso até o PARADA vencer — e a cena é ruim: a
+         * mensagem já chegou e a tela ainda diz que a pessoa está escrevendo.
+         */
+        pararDeAvisar();
+
         setMensagens(atual => [...atual, {
             id: provisorio,
             texto: limpo || null,
             autor_id: userId,
             autor: null,
             created_at: new Date().toISOString(),
+            reacoes: [],
             anexo: arquivo ? {
                 nome: arquivo.name,
                 mime: arquivo.type,
@@ -288,7 +391,64 @@ export default function ChatProvider({ userId, children }: PropsWithChildren<{ u
         } finally {
             setEnviando(false);
         }
-    }, [aberta, userId]);
+    }, [aberta, userId, pararDeAvisar]);
+
+    // ── Reagir ────────────────────────────────────────────────────────────────
+
+    /**
+     * Põe, troca ou tira o meu emoji nesta mensagem.
+     *
+     * Quem decide QUAL das três coisas acontece é o servidor — aqui só
+     * adivinhamos o resultado para a tela responder na hora, e a resposta
+     * corrige o palpite. É a mesma ideia da bolha otimista do envio.
+     *
+     * O palpite acerta em cheio no caso normal (uma pessoa clicando na própria
+     * tela). Ele só erra se duas pessoas reagirem no mesmo instante — e aí a
+     * resposta, que traz a lista inteira, põe tudo no lugar.
+     */
+    const reagir = useCallback(async (mensagemId: number, emoji: string) => {
+        let anterior: Reacao[] | null = null;
+
+        setMensagens(atual => atual.map(m => {
+            if (m.id !== mensagemId) return m;
+
+            const minhas = m.reacoes ?? [];
+
+            // Guardado para desfazer se o servidor recusar
+            anterior = minhas;
+
+            const jaEra  = minhas.some(r => r.user_id === userId && r.emoji === emoji);
+            const outras = minhas.filter(r => r.user_id !== userId);
+
+            return {
+                ...m,
+                // Clicou no que já estava: tira. Qualquer outro caso: fica o novo
+                // (o filter acima já removeu o meu anterior, se havia).
+                reacoes: jaEra ? outras : [...outras, { emoji, user_id: userId }],
+            };
+        }));
+
+        try {
+            const { data } = await window.axios.post(
+                route('conversas.mensagens.reagir', mensagemId),
+                { emoji },
+            );
+
+            setMensagens(atual => atual.map(m => m.id === mensagemId
+                ? { ...m, reacoes: data.reacoes }
+                : m));
+        } catch {
+            // Devolve a fileira ao que era: melhor não ter reagido do que a tela
+            // mostrar um emoji que o servidor não guardou.
+            if (anterior !== null) {
+                setMensagens(atual => atual.map(m => m.id === mensagemId
+                    ? { ...m, reacoes: anterior! }
+                    : m));
+            }
+
+            setErro('Não foi possível reagir.');
+        }
+    }, [userId]);
 
     // ── Tempo real ────────────────────────────────────────────────────────────
 
@@ -369,21 +529,103 @@ export default function ChatProvider({ userId, children }: PropsWithChildren<{ u
             }
         };
 
+        /*
+         * Reação de alguém numa mensagem.
+         *
+         * O evento traz a lista INTEIRA daquela mensagem, não "fulano pôs 👍" —
+         * então aqui é substituição, não soma. Evento perdido no wi-fi do galpão
+         * custa um piscar de olhos e o próximo conserta; com soma, o contador
+         * ficaria errado para sempre.
+         *
+         * Só interessa se a conversa está aberta: reação de propósito não acende
+         * balãozinho nem toca o bipe. Quem não está olhando não precisa saber.
+         */
+        const reagiu = (e: { conversa_id: number; mensagem_id: number; reacoes: Reacao[] }) => {
+            if (e.conversa_id !== conversaIdRef.current) return;
+
+            setMensagens(atual => atual.map(m => m.id === e.mensagem_id
+                ? { ...m, reacoes: e.reacoes }
+                : m));
+        };
+
         canal.listen('.MensagemEnviada', chegou);
         canal.listen('.ConversaAtualizada', mudou);
+        canal.listen('.ReacaoAtualizada', reagiu);
 
         return () => {
             // stopListening e NÃO leave: o sino mora neste mesmo canal
             canal.stopListening('.MensagemEnviada', chegou);
             canal.stopListening('.ConversaAtualizada', mudou);
+            canal.stopListening('.ReacaoAtualizada', reagiu);
         };
     }, [userId]);
+
+    /*
+     * ── O canal da conversa aberta ────────────────────────────────────────────
+     *
+     * Existe SÓ enquanto a conversa está na tela, e serve SÓ para o "digitando".
+     *
+     * É aqui que mora a diferença entre este recurso custar zero e custar caro.
+     * Nenhum evento do servidor passa por este canal: mensagem, leitura e reação
+     * continuam indo pelo `usuario.{id}` de sempre. O que trafega aqui é whisper
+     * — o Reverb repassa de um navegador ao outro sem tocar em PHP nem MySQL.
+     *
+     * O canal precisou existir porque `usuario.{id}` tem UM assinante (o dono):
+     * um whisper lá não chegaria a ninguém. Aqui os dois lados se encontram.
+     *
+     * Assinar por conversa ABERTA é diferente de assinar todas as conversas: são
+     * no máximo 26 assinaturas (uma por pessoa), e não as centenas paradas que a
+     * decisão original do chat evitou.
+     */
+    useEffect(() => {
+        setOutroDigitando(false);
+
+        // Conversa que ainda não nasceu não tem canal — nem teria o que ouvir.
+        if (conversaId === null) return;
+
+        const nome  = `conversa.${conversaId}`;
+        const canal = window.Echo.private(nome);
+
+        canalConversaRef.current = canal;
+
+        canal.listenForWhisper('digitando', (e: { digitando: boolean }) => {
+            setOutroDigitando(e.digitando);
+
+            if (sumicoRef.current) clearTimeout(sumicoRef.current);
+
+            // O aceso ganha prazo de validade; o apagado não precisa de nenhum.
+            if (e.digitando) {
+                sumicoRef.current = window.setTimeout(() => setOutroDigitando(false), SUMICO);
+            }
+        });
+
+        return () => {
+            /*
+             * Aqui `leave` é o certo — ao contrário do canal do sino, que é
+             * vizinho de porta e só admite `stopListening`. Este canal é desta
+             * conversa e de mais ninguém: sair dele é o ponto do desenho.
+             * Sem o leave, fechar e abrir conversas iria empilhando assinaturas
+             * no Reverb até a aba ser fechada.
+             */
+            window.Echo.leave(nome);
+
+            canalConversaRef.current = null;
+
+            if (sumicoRef.current) clearTimeout(sumicoRef.current);
+            if (paradaRef.current) clearTimeout(paradaRef.current);
+
+            ultimoAvisoRef.current = 0;
+            setOutroDigitando(false);
+        };
+    }, [conversaId]);
 
     return (
         <Contexto.Provider value={{
             pessoas, pendentes, naoLidas, carregandoLista,
             aberta, mensagens, carregandoConversa, temAntigas, lidaPeloOutroAte, leituraAoAbrir, enviando, erro,
+            outroDigitando,
             carregarLista, abrirConversa, fecharConversa, enviar, carregarAntigas, limparErro,
+            reagir, avisarQueDigito,
         }}>
             {children}
         </Contexto.Provider>

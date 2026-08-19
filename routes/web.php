@@ -61,6 +61,11 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::get('/mensagens/{mensagem}/arquivo', [ConversaController::class, 'arquivo'])
             ->name('mensagens.arquivo');
 
+        // Reagir com emoji. Fica no bloco das fixas pelo mesmo motivo do
+        // arquivo: 'mensagens' não pode ser confundido com nome de usuário.
+        Route::post('/mensagens/{mensagem}/reagir', [ConversaController::class, 'reagir'])
+            ->name('mensagens.reagir');
+
         Route::post('/{conversa}/lida', [ConversaController::class, 'lida'])->name('lida');
 
         Route::get('/{pessoa}',  [ConversaController::class, 'mostrar'])->name('mostrar');

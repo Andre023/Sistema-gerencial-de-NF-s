@@ -4,14 +4,17 @@ namespace App\Http\Controllers;
 
 use App\Events\ConversaAtualizada;
 use App\Events\MensagemEnviada;
+use App\Events\ReacaoAtualizada;
 use App\Models\Conversa;
 use App\Models\Mensagem;
+use App\Models\MensagemReacao;
 use App\Models\User;
 use App\Services\Conversas;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
+use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
@@ -239,13 +242,84 @@ class ConversaController extends Controller
         return response()->json(['ok' => true]);
     }
 
+    // ─── REAGIR ────────────────────────────────────────────────────────────────
+
+    /**
+     * Põe, troca ou tira o emoji desta pessoa nesta mensagem.
+     *
+     * É um botão só, e o mesmo botão faz as três coisas — como no WhatsApp:
+     *
+     *   sem reação  + 👍  →  põe 👍
+     *   com 👍      + 👍  →  tira (clicou de novo no que já estava)
+     *   com 👍      + ❤️  →  troca para ❤️ (uma reação por pessoa)
+     *
+     * Reagir de propósito NÃO mexe em `ultima_mensagem_em` nem cria não lida:
+     * um 👍 não pode empurrar a conversa para o topo da lista do outro nem
+     * fazer o celular dele apitar. É o contrário disso que ele serve — é a
+     * resposta que não incomoda.
+     */
+    public function reagir(Request $request, Mensagem $mensagem): JsonResponse
+    {
+        $user = $request->user();
+
+        $this->garanteParticipacao($user, $mensagem);
+
+        $request->validate([
+            // Rule::in e não uma regex de emoji: a lista é curta e fechada, e
+            // "é um dos seis" é a pergunta certa. Validar "parece um emoji"
+            // deixaria passar qualquer símbolo do Unicode.
+            'emoji' => ['required', 'string', Rule::in(MensagemReacao::PERMITIDOS)],
+        ], [
+            'emoji.in' => 'Esse emoji não está entre os de reação.',
+        ]);
+
+        $emoji = (string) $request->input('emoji');
+
+        $atual = $mensagem->reacoes()->where('user_id', $user->id)->first();
+
+        if ($atual && $atual->emoji === $emoji) {
+            $atual->delete();
+        } else {
+            // updateOrCreate e não create: quem já tinha reagido com outro
+            // emoji tem a linha TROCADA. Um create aqui bateria no unique
+            // (mensagem_id, user_id) e devolveria erro 500 para um clique
+            // perfeitamente normal.
+            $mensagem->reacoes()->updateOrCreate(
+                ['user_id' => $user->id],
+                ['emoji'   => $emoji],
+            );
+        }
+
+        // Relida do banco: é ela que vai para os dois lados, e tem de refletir
+        // o que acabou de acontecer, não o que estava em memória antes.
+        $reacoes = $mensagem->reacoes()->get()
+            ->map(fn(MensagemReacao $r) => ['emoji' => $r->emoji, 'user_id' => $r->user_id])
+            ->values()
+            ->all();
+
+        event(new ReacaoAtualizada(
+            $mensagem->conversa->participantes->pluck('id')->all(),
+            $mensagem->conversa_id,
+            $mensagem->id,
+            $reacoes,
+        ));
+
+        return response()->json(['reacoes' => $reacoes]);
+    }
+
     // ─── HELPERS ───────────────────────────────────────────────────────────────
 
     /** As últimas N mensagens (ou as N anteriores a `$antes`), em ordem cronológica. */
     private function pagina(Conversa $conversa, ?int $antes)
     {
         return $conversa->mensagens()
-            ->with('autor:id,name')
+            /*
+             * As reações vêm JUNTO, numa consulta só para a página inteira.
+             *
+             * Sem o eager loading aqui, o paraTela() de cada mensagem buscaria
+             * as suas — 40 consultas por abertura de conversa, em vez de uma.
+             */
+            ->with(['autor:id,name', 'reacoes'])
             ->when($antes, fn($q) => $q->where('id', '<', $antes))
             ->orderByDesc('id')
             ->limit(Conversa::PAGINA)

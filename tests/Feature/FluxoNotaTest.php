@@ -149,13 +149,24 @@ class FluxoNotaTest extends TestCase
         ]);
     }
 
-    public function test_recebimento_nao_abre_card(): void
+    /**
+     * O recebimento não abre card de conferência.
+     *
+     * Este teste usava 'cadastro' como exemplo até o recebimento passar a abrir
+     * justamente esse (é ele quem esbarra no item sem cadastro ao digitar a
+     * nota — ver CardCadastroRecebimentoTest). O que o teste sempre quis dizer
+     * continua valendo, e agora com os tipos certos: 'regra' é do pré-lote,
+     * 'custo' é de compras, e nenhum dos dois nasce na doca.
+     */
+    public function test_recebimento_nao_abre_card_de_conferencia(): void
     {
-        $nota = $this->nota();
+        foreach (['regra', 'custo'] as $tipo) {
+            $nota = $this->nota();
 
-        $this->actingAs($this->recebimento)
-            ->post(route('notas.cards.store', $nota), ['tipo' => 'cadastro'])
-            ->assertForbidden();
+            $this->actingAs($this->recebimento)
+                ->post(route('notas.cards.store', $nota), ['tipo' => $tipo])
+                ->assertForbidden();
+        }
     }
 
     public function test_nao_duplica_card_ativo_do_mesmo_tipo(): void

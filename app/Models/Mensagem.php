@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Support\Facades\Storage;
 
 /**
@@ -69,6 +70,29 @@ class Mensagem extends Model
      */
     public const DIAS_NO_SERVIDOR = 3;
 
+    /**
+     * Quantos dias a MENSAGEM inteira vive antes de a faxina levar.
+     *
+     * Não confundir com DIAS_NO_SERVIDOR, logo acima: aquele é o prazo do
+     * ARQUIVO (3 dias), este é o prazo da LINHA (21 dias). Primeiro a foto sai
+     * do disco e a mensagem continua legível; três semanas depois do envio a
+     * mensagem em si vai embora.
+     *
+     * ── O prazo é de cada mensagem, não do chat ────────────────────────────
+     * A faxina NÃO zera conversa nenhuma. Ela olha uma mensagem de cada vez e
+     * pergunta "esta aqui já fez 21 dias?". A que mandei hoje some daqui a três
+     * semanas; a que mandei ontem some amanhã-mais-vinte. Uma conversa ativa
+     * nunca fica vazia — ela vai perdendo o rabo enquanto ganha começo, como
+     * uma janela que desliza.
+     *
+     * Zerar tudo de três em três semanas seria outra coisa, e errada: apagaria
+     * junto a mensagem de dez minutos atrás, só porque o calendário virou.
+     *
+     * É o que segura o tamanho do chat num patamar em vez de deixar crescer
+     * para sempre — numa VM de 1 GB, tabela que só cresce é problema adiado.
+     */
+    public const DIAS_DE_VIDA = 21;
+
     // ─── Relações ───────────────────────────────────────────────────────────────
 
     public function conversa(): BelongsTo
@@ -79,6 +103,18 @@ class Mensagem extends Model
     public function autor(): BelongsTo
     {
         return $this->belongsTo(User::class, 'user_id');
+    }
+
+    /**
+     * Os emojis pendurados nesta mensagem.
+     *
+     * Some sozinha quando a mensagem some: o cascade está no banco
+     * (mensagem_reacoes.mensagem_id), então a faxina de 21 dias não precisa
+     * saber que reações existem.
+     */
+    public function reacoes(): HasMany
+    {
+        return $this->hasMany(MensagemReacao::class, 'mensagem_id');
     }
 
     // ─── Anexo ──────────────────────────────────────────────────────────────────
@@ -124,12 +160,39 @@ class Mensagem extends Model
      */
     public function paraTela(): array
     {
+        /*
+         * `loadMissing` e não `load`: quando quem chamou já trouxe as reações
+         * junto (é o caso de toda listagem — ver ConversaController::pagina),
+         * esta linha não faz nada. Ela existe para o caso avulso, como a
+         * mensagem recém-criada que volta no 201 do envio.
+         *
+         * Sem ela, uma página de 40 mensagens faria 40 consultas de reação —
+         * o N+1 clássico, e o tipo de coisa que só aparece quando a conversa
+         * fica longa.
+         */
+        $this->loadMissing('reacoes');
+
         return [
             'id'         => $this->id,
             'texto'      => $this->texto,
             'autor_id'   => $this->user_id,
             'autor'      => $this->autor?->name,
             'created_at' => $this->created_at,
+
+            /*
+             * Cru de propósito: um par {emoji, quem} por reação, sem agrupar e
+             * sem dizer qual é "minha".
+             *
+             * Agrupar aqui obrigaria o servidor a saber para QUEM está
+             * montando o payload — e o MensagemEnviada transmite a mesma
+             * mensagem para os dois lados da conversa de uma vez só. Teria de
+             * virar um payload por destinatário. A tela agrupa em duas linhas,
+             * e já sabe quem ela mesma é.
+             */
+            'reacoes' => $this->reacoes
+                ->map(fn(MensagemReacao $r) => ['emoji' => $r->emoji, 'user_id' => $r->user_id])
+                ->values()
+                ->all(),
 
             'anexo' => $this->temAnexo() ? [
                 'nome'    => $this->anexo_nome,

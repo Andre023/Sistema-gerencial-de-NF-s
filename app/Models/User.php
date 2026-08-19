@@ -213,6 +213,23 @@ class User extends Authenticatable
         return $this->ehUmDe(self::ROLE_COMPRAS);
     }
 
+    /**
+     * Abrir card de CADASTRO (item sem cadastro no ERP) — pré-lote e recebimento.
+     *
+     * Separado de podeGerirCards() porque não é o pacote inteiro: o recebimento
+     * ABRE este card, mas continua sem resolver, reabrir ou excluir card nenhum.
+     * Quem CORRIGE o cadastro segue sendo compras (Card::TIPOS_COMPRAS) — é ela
+     * quem mexe no ERP.
+     *
+     * O motivo é de fluxo: o item sem cadastro aparece na hora de digitar a
+     * nota, com o caminhão na porta. Quem está ali vê primeiro, e antes disto
+     * precisava pedir ao pré-lote para abrir o card por ele.
+     */
+    public function podeAbrirCardDeCadastro(): bool
+    {
+        return $this->ehUmDe(self::ROLE_PRE_LOTE, self::ROLE_RECEBIMENTO);
+    }
+
     /** Liberar a nota (o ✅) — ato do pré-lote */
     public function podeLiberarNota(): bool
     {

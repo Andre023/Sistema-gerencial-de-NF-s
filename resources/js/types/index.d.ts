@@ -25,6 +25,13 @@ export interface Permissoes {
     lancarNota: boolean;
     gerirCards: boolean;
     corrigirCard: boolean;
+    /**
+     * Abrir card de Cadastro — pré-lote e recebimento.
+     *
+     * Não é um pedaço de `gerirCards`: quem tem só esta continua sem resolver,
+     * reabrir ou excluir card nenhum. Abre este, e só ele.
+     */
+    abrirCardCadastro: boolean;
     liberarNota: boolean;
     editarNotas: boolean;
     devolverNota: boolean;
@@ -183,6 +190,8 @@ export interface OpcoesSistema {
     tiposCompras?: TipoCard[];
     /** Tipos que qualquer papel operacional pode ABRIR (Card::abertosPorQualquerPapel) */
     tiposQualquerPapel?: TipoCard[];
+    /** Card::abertosPeloRecebimento() — os de qualquer papel mais o Cadastro */
+    tiposRecebimento?: TipoCard[];
     /** Por quais cards o Cadastro é trocado ao ser corrigido (Card::SUBSTITUTOS_DE_CADASTRO) */
     substitutosCadastro?: TipoCard[];
     /** Limiares em dias de cada nível (definidos no backend) */
@@ -238,6 +247,19 @@ export interface AnexoMensagem {
     removido_em: string | null;
 }
 
+/**
+ * Um emoji pendurado numa mensagem, do jeito que o servidor manda: cru, um par
+ * por reação, sem agrupar.
+ *
+ * Quem agrupa é a tela (ver `agrupar` em Bolha.tsx) — o servidor não pode,
+ * porque o mesmo payload vai para os dois lados da conversa e "minha" depende
+ * de quem está olhando.
+ */
+export interface Reacao {
+    emoji: string;
+    user_id: number;
+}
+
 export interface Mensagem {
     id: number;
     texto: string | null;
@@ -245,6 +267,8 @@ export interface Mensagem {
     autor: string | null;
     created_at: string;
     anexo: AnexoMensagem | null;
+    /** Vem sempre, vazio quando ninguém reagiu. */
+    reacoes: Reacao[];
     /**
      * Só no cliente: mensagem que ainda não voltou do servidor. A bolha aparece
      * na hora (com id negativo) e é substituída pela real quando a resposta

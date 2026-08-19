@@ -41,3 +41,13 @@ Schedule::command('chat:limpar-anexos')->dailyAt('03:20');
 // O prazo conta da CONFERÊNCIA: enquanto ninguém conferiu, o print é a única
 // coisa que permite conferir.
 Schedule::command('devolucoes:limpar-anexos')->dailyAt('03:30');
+
+// A janela de três semanas do chat: cada MENSAGEM sai 21 dias depois de ter
+// sido mandada (Mensagem::DIAS_DE_VIDA). Não é uma zeragem periódica — a
+// conversa vai perdendo o rabo enquanto ganha começo, e quem conversa todo dia
+// sempre tem as últimas três semanas inteiras.
+//
+// Depois das outras duas de propósito: às 03:20 os anexos do chat já saíram do
+// disco, então quando esta chega quase não há arquivo para apagar junto —
+// sobra só o DELETE das linhas.
+Schedule::command('chat:limpar-mensagens')->dailyAt('03:40');

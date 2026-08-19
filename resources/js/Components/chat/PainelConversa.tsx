@@ -1,4 +1,8 @@
 import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react';
+import {
+    differenceInCalendarDays, format, isToday, isYesterday, parseISO,
+} from 'date-fns';
+import { ptBR } from 'date-fns/locale';
 import { PessoaChat } from '@/types';
 import { Palette } from '@/lib/tema';
 import Avatar from '@/Components/painel/Avatar';
@@ -55,6 +59,46 @@ function nomeDePrint(extensao: string): string {
 }
 
 /**
+ * A chave que diz se duas mensagens são do mesmo dia.
+ *
+ * 'yyyy-MM-dd' no fuso de QUEM ESTÁ OLHANDO — que é o certo aqui: a divisória
+ * responde "isso foi em que dia para mim?", e não em que dia foi no servidor.
+ */
+function diaDe(iso: string): string {
+    try { return format(parseISO(iso), 'yyyy-MM-dd'); } catch { return ''; }
+}
+
+/**
+ * O texto da divisória de data.
+ *
+ * Três formas, da mais útil para a mais precisa:
+ *
+ *   Hoje / Ontem      — o que responde 90% das vezes, e sem fazer contar
+ *   segunda-feira     — dentro da semana o nome do dia situa melhor que a data
+ *   14 de agosto      — daí para trás, a data por extenso
+ *
+ * O caso do ano cheio quase não acontece com a janela de três semanas do chat
+ * (Mensagem::DIAS_DE_VIDA): mensagem mais velha que isso já não existe. Ele
+ * fica por segurança — o prazo é uma constante, e constante muda.
+ */
+function rotuloDoDia(iso: string): string {
+    try {
+        const d = parseISO(iso);
+
+        if (isToday(d)) return 'Hoje';
+        if (isYesterday(d)) return 'Ontem';
+
+        if (differenceInCalendarDays(new Date(), d) < 7) {
+            return format(d, 'EEEE', { locale: ptBR });
+        }
+
+        return format(d, "d 'de' MMMM 'de' yyyy", { locale: ptBR });
+    } catch {
+        return '';
+    }
+}
+
+/**
  * A conversa aberta dentro da barra lateral.
  *
  * Três faixas fixas, como no WhatsApp: cabeçalho com quem é (e a seta de
@@ -68,7 +112,8 @@ export default function PainelConversa({ pessoa, online, meuId, p }: {
 }) {
     const {
         mensagens, carregandoConversa, temAntigas, lidaPeloOutroAte, leituraAoAbrir, enviando, erro,
-        fecharConversa, enviar, carregarAntigas, limparErro,
+        outroDigitando,
+        fecharConversa, enviar, carregarAntigas, limparErro, reagir, avisarQueDigito,
     } = useChat();
 
     const [texto, setTexto]     = useState('');
@@ -165,6 +210,33 @@ export default function PainelConversa({ pessoa, online, meuId, p }: {
 
         return mensagens.find(m => m.id > leituraAoAbrir && m.autor_id !== meuId)?.id ?? null;
     }, [mensagens, leituraAoAbrir, meuId]);
+
+    /**
+     * Onde entram as divisórias de data: id da mensagem → rótulo do dia dela.
+     *
+     * Calculado UMA vez por mudança na lista, e não dentro do `.map()` do
+     * desenho. Feito lá, cada uma das 40 mensagens compararia a sua data com a
+     * da anterior a cada redesenho — e a conversa redesenha a cada tecla que se
+     * digita no campo de baixo, a cada ✓✓ que chega, a cada reação.
+     *
+     * Só a PRIMEIRA mensagem de cada dia entra no mapa; as outras não têm
+     * divisória e nem aparecem aqui.
+     */
+    const inicioDeDia = useMemo(() => {
+        const mapa = new Map<number, string>();
+        let anterior = '';
+
+        for (const m of mensagens) {
+            const dia = diaDe(m.created_at);
+
+            if (!dia || dia === anterior) continue;
+
+            mapa.set(m.id, rotuloDoDia(m.created_at));
+            anterior = dia;
+        }
+
+        return mapa;
+    }, [mensagens]);
 
     const naoLidaRef = useRef<HTMLDivElement>(null);
 
@@ -362,6 +434,23 @@ export default function PainelConversa({ pessoa, online, meuId, p }: {
 
                 {mensagens.map(m => (
                     <div key={m.id}>
+                        {/* ── A divisória de data ──
+                            Vem ANTES da de "não lidas" quando as duas caem na
+                            mesma mensagem: primeiro o dia começa, depois se diz
+                            onde a leitura parou dentro dele.
+
+                            A pílula é centrada e discreta de propósito: ela é
+                            referência, não conteúdo — quem está lendo a conversa
+                            passa o olho por ela sem parar. */}
+                        {inicioDeDia.has(m.id) && (
+                            <div className="flex justify-center py-2">
+                                <span className="text-[10px] font-medium px-2.5 py-1 rounded-full"
+                                    style={{ background: p.HOVER_ROW, color: p.MUTED }}>
+                                    {inicioDeDia.get(m.id)}
+                                </span>
+                            </div>
+                        )}
+
                         {m.id === primeiraNaoLida && (
                             // A divisória explica por que a conversa não abriu
                             // no fim. Sem ela, a rolagem parada no meio pareceria
@@ -380,10 +469,20 @@ export default function PainelConversa({ pessoa, online, meuId, p }: {
                             mensagem={m}
                             minha={m.autor_id === meuId}
                             lido={m.id > 0 && m.id <= lidaPeloOutroAte}
+                            meuId={meuId}
+                            onReagir={emoji => reagir(m.id, emoji)}
                             p={p}
                         />
                     </div>
                 ))}
+
+                {/* ── "Digitando…" ──
+                    Dentro da área que rola, e como último item: assim ele empurra
+                    a conversa para cima como se fosse uma bolha chegando, que é
+                    o que o WhatsApp faz. Posto por fora (numa faixa fixa), ele
+                    faria a conversa inteira pular 20px a cada vez que o outro
+                    encostasse no teclado. */}
+                {outroDigitando && <Digitando nome={pessoa.nome} p={p} />}
 
                 <div ref={fimRef} />
             </div>
@@ -474,7 +573,19 @@ export default function PainelConversa({ pessoa, online, meuId, p }: {
                     <textarea
                         ref={textoRef}
                         value={texto}
-                        onChange={e => setTexto(e.target.value)}
+                        onChange={e => {
+                            setTexto(e.target.value);
+
+                            /*
+                             * Avisa o outro lado que estou escrevendo.
+                             *
+                             * Sai daqui a CADA tecla, mas o ChatProvider segura:
+                             * um aviso a cada 2 segundos, no máximo. E ele não
+                             * passa pelo servidor — é whisper, vai do navegador
+                             * ao Reverb e do Reverb ao outro navegador.
+                             */
+                            avisarQueDigito();
+                        }}
                         rows={1}
                         maxLength={2000}
                         // Sem texto de fundo com a conversa vazia — o campo fica
@@ -507,6 +618,46 @@ export default function PainelConversa({ pessoa, online, meuId, p }: {
                     </button>
                 </div>
             </form>
+        </div>
+    );
+}
+
+/**
+ * A bolha de "digitando…" — os três pontinhos.
+ *
+ * Desenhada como uma bolha do OUTRO (à esquerda, mesmo fundo das dele) de
+ * propósito: ela ocupa o lugar exato onde a mensagem vai aparecer daqui a
+ * pouco, então quando a mensagem chega nada salta na tela — a bolha cinza
+ * simplesmente vira a mensagem.
+ *
+ * O que a alimenta não custa nada ao servidor: o aviso vem por whisper, de
+ * navegador a navegador, e o PHP nunca fica sabendo (ver ChatProvider).
+ */
+function Digitando({ nome, p }: { nome: string; p: Palette }) {
+    return (
+        <div className="flex justify-start">
+            <div
+                className="rounded-2xl px-3 py-2.5 flex items-center gap-1"
+                style={{ background: p.HOVER_ROW, borderBottomLeftRadius: 4 }}
+                // Quem usa leitor de tela não vê pontinho pular. O aria-label diz
+                // o que eles significam; o aria-live faz o leitor anunciar quando
+                // a bolha aparece, em vez de ficar mudo.
+                role="status"
+                aria-live="polite"
+                aria-label={`${nome.split(' ')[0]} está digitando`}
+            >
+                {[0, 1, 2].map(i => (
+                    <span
+                        key={i}
+                        className="chat-ponto w-1.5 h-1.5 rounded-full"
+                        style={{
+                            background: p.MUTED,
+                            // O que separa um pontinho do outro é só o atraso.
+                            animationDelay: `${i * 180}ms`,
+                        }}
+                    />
+                ))}
+            </div>
         </div>
     );
 }

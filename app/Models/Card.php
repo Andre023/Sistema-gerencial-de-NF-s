@@ -100,6 +100,34 @@ class Card extends Model
     }
 
     /**
+     * Tipos que o RECEBIMENTO abre além dos de qualquer papel.
+     *
+     * "Cadastro" (item sem cadastro no ERP) é erro que quem está na doca vê
+     * primeiro: a nota chega com um item que o sistema não conhece, e quem
+     * descobre é quem está digitando a nota — não o pré-lote, que só olha
+     * depois. Antes disso, o recebimento tinha de pedir ao pré-lote que
+     * abrisse o card, e a pendência esperava por um repasse de recado.
+     *
+     * Fica FORA de abertosPorQualquerPapel() de propósito: ali entraria também
+     * compras, e compras é quem CORRIGE o cadastro no ERP (TIPOS_COMPRAS).
+     * Deixar o mesmo setor abrir e fechar o próprio card tira o sentido de
+     * existir o card.
+     */
+    public const TIPOS_RECEBIMENTO = ['cadastro'];
+
+    /**
+     * Tudo que o recebimento pode abrir — os de qualquer papel mais os dele.
+     *
+     * Fonte única: o controller e a tela perguntam aqui, e não montam a lista
+     * cada um por si. Já aconteceu de Recusa e Devolução serem aceitas pelo
+     * controller e seguirem invisíveis no formulário, porque eram duas listas.
+     */
+    public static function abertosPeloRecebimento(): array
+    {
+        return [...self::abertosPorQualquerPapel(), ...self::TIPOS_RECEBIMENTO];
+    }
+
+    /**
      * Cards que avisam o pré-lote e o recebimento.
      *
      * São os que compras costuma ABRIR (o fornecedor liga avisando) mas não
