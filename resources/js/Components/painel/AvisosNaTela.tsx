@@ -27,9 +27,21 @@ interface Props {
 export default function AvisosNaTela({ avisos, onFechar, onAbrir }: Props) {
     if (!avisos.length) return null;
 
+    /*
+     * Encosta na barra do chat, nunca por cima dela.
+     *
+     * `--barra-chat` é publicada pela própria barra (OnlineSidebar) e vale 0
+     * quando ela não está na tela. Sem isso o card pousava em cima do campo de
+     * escrever — que fica neste mesmo canto — e o clique que ia para "enviar"
+     * abria a nota do aviso. Abrir é uma NAVEGAÇÃO: a fila reaparecia filtrada
+     * por uma nota que ninguém escolheu.
+     */
+    const recuo = { right: 'calc(var(--barra-chat, 0px) + 1rem)' };
+
     return (
         <div
-            className="fixed bottom-4 right-4 z-[60] flex flex-col gap-2 w-[22rem] max-w-[calc(100vw-2rem)] pointer-events-none"
+            className="fixed bottom-4 z-[60] flex flex-col gap-2 w-[22rem] max-w-[calc(100vw-2rem)] pointer-events-none"
+            style={recuo}
             aria-live="polite"
         >
             {avisos.map(a => (

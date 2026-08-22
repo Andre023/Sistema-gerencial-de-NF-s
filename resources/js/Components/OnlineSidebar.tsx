@@ -129,6 +129,44 @@ export default function OnlineSidebar({ currentUserId }: Props) {
 
     const largura = emConversa ? 'w-80' : (expandida ? 'w-64' : 'w-14');
 
+    /*
+     * A barra diz ao resto da tela quanto espaço ocupa, numa variável de CSS.
+     *
+     * Quem precisa disso é o aviso de nota nova (AvisosNaTela): ele mora no
+     * canto inferior DIREITO, que é exatamente onde fica o campo de escrever
+     * do chat. Sem esta medida o card caía por cima do campo, e o clique que ia
+     * para "enviar" abria a nota do aviso — jogando na fila de notas um filtro
+     * que ninguém pediu.
+     *
+     * Vai numa variável, e não numa prop, porque o aviso é irmão da barra (os
+     * dois penduram no layout): passar a largura de um ao outro obrigaria a
+     * subir esse estado até o AuthenticatedLayout só para descer de novo.
+     *
+     * Abaixo de 1024px a barra não existe (`hidden lg:flex`) e a largura é zero:
+     * ali o canto está livre e o aviso volta a encostar na borda.
+     */
+    const larguraPx = emConversa ? 320 : (expandida ? 256 : 56);
+
+    useEffect(() => {
+        const raiz = document.documentElement;
+        const aplicar = () => {
+            const visivel = window.matchMedia('(min-width: 1024px)').matches;
+            raiz.style.setProperty('--barra-chat', `${visivel ? larguraPx : 0}px`);
+        };
+
+        aplicar();
+
+        // A barra some ao estreitar a janela: sem ouvir isso, o aviso ficaria
+        // flutuando longe da borda numa tela onde não há barra nenhuma.
+        const consulta = window.matchMedia('(min-width: 1024px)');
+        consulta.addEventListener('change', aplicar);
+
+        return () => {
+            consulta.removeEventListener('change', aplicar);
+            raiz.style.removeProperty('--barra-chat');
+        };
+    }, [larguraPx]);
+
     return (
         <aside
             className={`hidden lg:flex flex-col sticky top-16 h-[calc(100vh-4rem)] border-l shadow-sm

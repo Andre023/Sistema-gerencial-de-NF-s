@@ -435,9 +435,10 @@ function ModalEditarLiberada({ nota, can, onFechar, p }: {
     const [obs, setObs] = useState('');
     const [ceasa, setCeasa] = useState(0);
     const [salvando, setSalvando] = useState(false);
+    const [erro, setErro] = useState<string | null>(null);
 
     useEffect(() => {
-        if (nota) { setObs(nota.observacao ?? ''); setCeasa(nota.ceasa); }
+        if (nota) { setObs(nota.observacao ?? ''); setCeasa(nota.ceasa); setErro(null); }
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [nota?.id]);
 
@@ -449,12 +450,24 @@ function ModalEditarLiberada({ nota, can, onFechar, p }: {
 
     const salvar = () => {
         setSalvando(true);
+        setErro(null);
         const dados: Record<string, string | number | null> = {};
         if (can.editarObservacao) dados.observacao = obs.trim() || null;
         if (podeCeasa) dados.ceasa = ceasa;
         router.patch(route('notas.editar-liberada', nota.id), dados as any, {
             preserveScroll: true,
             onSuccess: () => onFechar(),
+            /*
+             * Falhou: a janela FICA ABERTA, com o texto onde estava.
+             *
+             * Fechar aqui era o pior desfecho possível — a observação sumia da
+             * tela sem ter sido gravada, e quem escreveu ia embora achando que
+             * tinha salvado. Enquanto a janela está aberta o texto continua na
+             * mão da pessoa, que pode tentar de novo sem redigitar.
+             */
+            onError: e => setErro(Object.values(e)[0] ?? 'Não foi possível salvar.'),
+            // Cancelada no meio (outra navegação atropelou): idem, nada foi gravado.
+            onCancel: () => setErro('O salvamento foi interrompido — tente de novo.'),
             onFinish: () => setSalvando(false),
         });
     };
@@ -493,6 +506,12 @@ function ModalEditarLiberada({ nota, can, onFechar, p }: {
                             })}
                         </div>
                     </div>
+                )}
+                {erro && (
+                    <p className="text-sm rounded-lg px-3 py-2" role="alert"
+                        style={{ background: p.RED + '1a', color: p.RED, border: `1px solid ${p.RED}44` }}>
+                        {erro}
+                    </p>
                 )}
                 <div className="flex flex-col-reverse sm:flex-row sm:justify-end gap-2 sm:gap-3 pt-3" style={{ borderTop: `1px solid ${p.BORDER}` }}>
                     <button type="button" onClick={onFechar} className="px-4 py-2.5 text-sm rounded-lg" style={{ color: p.MUTED }}>
@@ -1090,12 +1109,49 @@ export default function Index({ recebimento, preLote, liberadas, canceladas, dev
     const visaoSimplesRef = useRef(visaoSimples);
     visaoSimplesRef.current = visaoSimples;
 
-    // Reload de segurança (debounced) para os casos que não dá pra patchar no cliente
+    /*
+     * Reload de segurança (debounced) para os casos que não dá pra patchar no
+     * cliente. Dois cuidados, os dois aprendidos na marra:
+     *
+     *  1. `async: true` — impede este reload de ATROPELAR o que a pessoa está
+     *     fazendo. O Inertia atende uma visita SÍNCRONA por vez e aborta a que
+     *     estiver em andamento quando outra começa. Este reload nasce de um
+     *     evento do Reverb, ou seja da ação de QUALQUER pessoa e a qualquer
+     *     instante — inclusive no meio do "Salvar" daqui. Era assim que uma
+     *     observação recém-escrita sumia: o PATCH era cortado no caminho e
+     *     nada avisava. Na fila assíncrona ele espera a vez sem cancelar
+     *     ninguém, que é o certo para uma atualização de fundo.
+     *
+     *  2. Um de cada vez — a fila assíncrona aceita quantos vierem, e sem esta
+     *     trava dois reloads poderiam voltar fora de ordem, deixando a tela com
+     *     a fila mais VELHA das duas. Enquanto um está no ar, o evento que
+     *     chega só marca que há novidade; o próximo sai quando o atual volta.
+     */
     const reloadTimer = useRef<ReturnType<typeof setTimeout>>();
+    const reloadNoAr  = useRef(false);
+    const reloadPendente = useRef(false);
+
     const reloadDebounced = () => {
+        if (reloadNoAr.current) { reloadPendente.current = true; return; }
+
         clearTimeout(reloadTimer.current);
         reloadTimer.current = setTimeout(() => {
-            router.reload({ only: ['recebimento', 'preLote', 'liberadas', 'resumoAlertas', 'resumoTipos', 'totalReconferir'] });
+            reloadNoAr.current = true;
+            router.reload({
+                // 'canceladas' entra junto: o caminho do patch (visaoSimples)
+                // mexe nessa lista, e sem ela aqui a nota cancelada sumia da
+                // fila mas não aparecia em "Canceladas neste dia" — sempre que
+                // houvesse filtro ativo, que é quando este reload manda.
+                only: ['recebimento', 'preLote', 'liberadas', 'canceladas', 'resumoAlertas', 'resumoTipos', 'totalReconferir'],
+                async: true,
+                onFinish: () => {
+                    reloadNoAr.current = false;
+                    if (reloadPendente.current) {
+                        reloadPendente.current = false;
+                        reloadDebounced();
+                    }
+                },
+            });
         }, 400);
     };
 
@@ -1155,7 +1211,13 @@ export default function Index({ recebimento, preLote, liberadas, canceladas, dev
                 reloadDebounced();   // casos estruturais/filtrados: reload leve
             }
         });
-        return () => { window.Echo.leave('notas'); clearTimeout(reloadTimer.current); };
+        return () => {
+            window.Echo.leave('notas');
+            clearTimeout(reloadTimer.current);
+            // Corta a corrente: sem isto, o onFinish de um reload que voltasse
+            // depois de a tela sair agendaria o próximo no vazio.
+            reloadPendente.current = false;
+        };
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
