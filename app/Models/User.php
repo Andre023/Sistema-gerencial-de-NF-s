@@ -377,4 +377,25 @@ class User extends Authenticatable
     {
         return $this->podeLancarNota();
     }
+
+    /**
+     * Usar a aba Campanha — a carta de aniversário que vai ao fornecedor.
+     *
+     * É trabalho de compras: quem negocia o investimento é quem escreve a
+     * carta. O admin entra junto, como em todo o resto do sistema.
+     *
+     * A segunda metade da regra é o interruptor: com a campanha desligada em
+     * Configurações, a aba não existe para ninguém. É o que tira a tela do
+     * caminho fora da época da promoção, sem mexer no papel de ninguém.
+     */
+    public function podeUsarCampanha(): bool
+    {
+        return $this->ehUmDe(self::ROLE_COMPRAS) && Configuracao::campanhaAtiva();
+    }
+
+    /** Abrir Configurações (Usuários e Campanha) — só admin */
+    public function podeGerenciarConfiguracoes(): bool
+    {
+        return $this->isAdmin();
+    }
 }

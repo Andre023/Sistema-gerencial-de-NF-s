@@ -58,6 +58,8 @@ class HandleInertiaRequests extends Middleware
                     'editarCeasaLiberada'      => $user->podeEditarCeasaLiberada(),
                     'anexarNota'              => $user->podeAnexarNota(),
                     'usarDevolucoes'          => $user->podeUsarDevolucoes(),
+                    'usarCampanha'            => $user->podeUsarCampanha(),
+                    'gerenciarConfiguracoes'  => $user->podeGerenciarConfiguracoes(),
                 ] : null,
             ],
             // O sino: estado inicial da lista. Depois disso quem mantém ao vivo

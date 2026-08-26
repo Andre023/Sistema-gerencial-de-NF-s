@@ -67,5 +67,10 @@ class AppServiceProvider extends ServiceProvider
         // dois conferem, de propósito: o aviso vai numa direção ou na outra
         // conforme quem descobriu o problema.
         Gate::define('usar-devolucoes',    fn(User $u) => $u->podeUsarDevolucoes());
+
+        // Campanha de aniversário: papel de compras E o interruptor do admin
+        // ligado. Desligada, a aba não abre nem para quem sabe o endereço.
+        Gate::define('usar-campanha',      fn(User $u) => $u->podeUsarCampanha());
+        Gate::define('gerenciar-configuracoes', fn(User $u) => $u->podeGerenciarConfiguracoes());
     }
 }

@@ -123,9 +123,18 @@ export default function AuthenticatedLayout({
                                         Prioridades
                                     </NavLink>
                                 )}
-                                {can.gerenciarUsuarios && (
-                                    <NavLink href={route('usuarios.index')} active={route().current('usuarios.*')}>
-                                        Usuários
+                                {can.usarCampanha && (
+                                    <NavLink href={route('campanha.index')} active={route().current('campanha.*')}>
+                                        Campanha
+                                    </NavLink>
+                                )}
+                                {/* Usuários deixou de ser aba e virou a primeira
+                                    seção de Configurações — eram cinco links
+                                    disputando espaço com o sino em 1024px. */}
+                                {can.gerenciarConfiguracoes && (
+                                    <NavLink href={route('usuarios.index')}
+                                        active={route().current('usuarios.*') || route().current('configuracoes.*')}>
+                                        Configurações
                                     </NavLink>
                                 )}
                             </div>
@@ -233,9 +242,15 @@ export default function AuthenticatedLayout({
                                 Prioridades
                             </ResponsiveNavLink>
                         )}
-                        {can.gerenciarUsuarios && (
-                            <ResponsiveNavLink href={route('usuarios.index')} active={route().current('usuarios.*')}>
-                                Usuários
+                        {can.usarCampanha && (
+                            <ResponsiveNavLink href={route('campanha.index')} active={route().current('campanha.*')}>
+                                Campanha
+                            </ResponsiveNavLink>
+                        )}
+                        {can.gerenciarConfiguracoes && (
+                            <ResponsiveNavLink href={route('usuarios.index')}
+                                active={route().current('usuarios.*') || route().current('configuracoes.*')}>
+                                Configurações
                             </ResponsiveNavLink>
                         )}
                     </div>

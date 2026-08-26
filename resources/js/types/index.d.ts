@@ -56,6 +56,13 @@ export interface Permissoes {
     anexarNota: boolean;
     /** Abrir e conferir cards no quadro de devoluções — recebimento e pré-lote */
     usarDevolucoes: boolean;
+    /**
+     * Abrir a aba Campanha (a carta de aniversário) — compras e admin, e só
+     * enquanto o admin mantiver a campanha ligada em Configurações.
+     */
+    usarCampanha: boolean;
+    /** Abrir Configurações (Usuários e Campanha) — só admin */
+    gerenciarConfiguracoes: boolean;
 }
 
 /**

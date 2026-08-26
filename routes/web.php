@@ -1,8 +1,10 @@
 <?php
 
 use App\Http\Controllers\AnexoController;
+use App\Http\Controllers\CampanhaController;
 use App\Http\Controllers\CardController;
 use App\Http\Controllers\ComentarioController;
+use App\Http\Controllers\ConfiguracaoController;
 use App\Http\Controllers\ConversaController;
 use App\Http\Controllers\DevolucaoController;
 use App\Http\Controllers\DossieController;
@@ -153,12 +155,39 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::patch('/{fornecedor}', [PrioridadeController::class, 'alternar'])->name('alternar');
     });
 
-    // ── Usuários (só admin) ────────────────────────────────────────────────────
-    Route::middleware('can:gerenciar-usuarios')->prefix('usuarios')->name('usuarios.')->group(function () {
+    // ── Campanha de aniversário (compras + admin) ──────────────────────────────
+    //
+    // A carta que vai ao fornecedor: o comprador preenche nome, faturamento e
+    // investimento, e leva o Word pronto. O Gate 'usar-campanha' junta as duas
+    // condições — ser de compras E a campanha estar ligada pelo admin.
+    Route::middleware('can:usar-campanha')->prefix('campanha')->name('campanha.')->group(function () {
+        Route::get('/',            [CampanhaController::class, 'index'])->name('index');
+        Route::post('/baixar',     [CampanhaController::class, 'baixar'])->name('baixar');
+
+        // O esqueleto do texto é de cada comprador: salvar guarda o dele,
+        // restaurar apaga e devolve o padrão da loja.
+        Route::post('/texto',      [CampanhaController::class, 'salvarTexto'])->name('texto.salvar');
+        Route::delete('/texto',    [CampanhaController::class, 'restaurarTexto'])->name('texto.restaurar');
+    });
+
+    // ── Configurações (só admin) ───────────────────────────────────────────────
+    //
+    // O painel do admin, com seletor à esquerda. Usuários mora aqui dentro
+    // desde que saiu da navbar — o menu não comportava mais uma aba, e o lugar
+    // de "quem pode o quê" é junto das outras chaves do sistema.
+    Route::middleware('can:gerenciar-usuarios')->prefix('configuracoes/usuarios')->name('usuarios.')->group(function () {
         Route::get('/',              [UserController::class, 'index'])->name('index');
         Route::post('/',             [UserController::class, 'store'])->name('store');
         Route::patch('/{user}',      [UserController::class, 'update'])->name('update');
         Route::delete('/{user}',     [UserController::class, 'destroy'])->name('destroy');
+    });
+
+    Route::middleware('can:gerenciar-configuracoes')->prefix('configuracoes')->name('configuracoes.')->group(function () {
+        // A porta da tela: entra pela primeira seção.
+        Route::get('/', fn() => redirect()->route('usuarios.index'))->name('index');
+
+        Route::get('/campanha',   [ConfiguracaoController::class, 'campanha'])->name('campanha');
+        Route::patch('/campanha', [ConfiguracaoController::class, 'atualizarCampanha'])->name('campanha.atualizar');
     });
 });
 

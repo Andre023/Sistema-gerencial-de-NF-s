@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
+import Secoes from '@/Components/configuracoes/Secoes';
 import { Head, router, usePage } from '@inertiajs/react';
 import { Papel } from '@/types';
 import { useTheme } from '@/Contexts/ThemeContext';
@@ -198,8 +198,8 @@ export default function Index({ usuarios, papeis }: Props) {
     ];
 
     return (
-        <AuthenticatedLayout header={null}>
-            <Head title="Usuários" />
+        <Secoes atual="usuarios">
+            <Head title="Configurações — Usuários" />
 
             <Modal aberto={modalNovo} onFechar={() => { setModalNovo(false); setErros({}); }} titulo="Novo usuário" p={p}>
                 <FormUsuario papeis={papeis} onSubmit={criar} onCancelar={() => { setModalNovo(false); setErros({}); }}
@@ -214,8 +214,8 @@ export default function Index({ usuarios, papeis }: Props) {
                 )}
             </Modal>
 
-            <div className="flex-1 w-full py-6 px-4 sm:px-6 lg:px-8 max-w-4xl mx-auto space-y-4 transition-colors duration-200"
-                style={{ background: p.BG }}>
+            {/* O respiro e a largura vêm da moldura de Configurações. */}
+            <div className="space-y-4">
 
                 <div className="flex flex-wrap items-center justify-between gap-3">
                     <h1 className="text-lg font-semibold" style={{ color: p.TEXT }}>Usuários</h1>
@@ -287,6 +287,6 @@ export default function Index({ usuarios, papeis }: Props) {
                 </div>
 
             </div>
-        </AuthenticatedLayout>
+        </Secoes>
     );
 }
