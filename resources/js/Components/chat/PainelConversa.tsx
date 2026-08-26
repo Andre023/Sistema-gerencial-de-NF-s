@@ -114,7 +114,15 @@ function rotuloDoDia(iso: string): string {
  * voltar), o corpo que rola, e o campo de escrever colado embaixo.
  */
 export default function PainelConversa({ pessoa, online, meuId, p }: {
-    pessoa: PessoaChat;
+    /*
+     * O papel é opcional — e só ele.
+     *
+     * Vindo de um rosto da barra recolhida, o painel abre antes de a lista de
+     * pessoas chegar: ali sabemos o id, o nome e o rosto (vieram nos pendentes
+     * ou na presença), mas ainda não o papel. Preferimos abrir sem a legenda a
+     * segurar o campo de escrever esperando por ela.
+     */
+    pessoa: Omit<PessoaChat, 'papel'> & Partial<Pick<PessoaChat, 'papel'>>;
     online: boolean;
     meuId: number;
     p: Palette;
@@ -301,6 +309,33 @@ export default function PainelConversa({ pessoa, online, meuId, p }: {
         // o `aoRolar`, que corrige isto sozinho no quadro seguinte.
         estavaNoFimRef.current = true;
         ultimaVistaRef.current = null;
+    }, [pessoa.id]);
+
+    /*
+     * Abriu a conversa → o cursor já está no campo.
+     *
+     * Clicar no rosto de alguém é dizer "quero falar com essa pessoa". Pedir um
+     * segundo clique só para poder digitar é cobrar duas vezes pela mesma
+     * intenção — e num galpão, com a mão ocupada, o segundo clique é o que faz
+     * a pessoa desistir e ir gritar do outro lado.
+     *
+     * Roda também ao TROCAR de conversa (a chave é `pessoa.id`, não a montagem):
+     * o painel não desmonta ao pular de uma pessoa para outra, e sem isso o
+     * foco ficaria preso na conversa anterior.
+     *
+     * Não espera as mensagens chegarem de propósito. O campo já está na tela e
+     * já aceita texto: quem sabe o que vai escrever começa a escrever enquanto
+     * o histórico carrega, em vez de olhar para um cursor que ainda não existe.
+     *
+     * `preventScroll` porque aqui queremos o cursor, e não um empurrão na
+     * rolagem: quem manda na posição da conversa é o efeito de abertura logo
+     * abaixo, que para na primeira não lida.
+     *
+     * Só o desktop chega aqui — a barra é `hidden lg:flex`. No celular isto
+     * abriria o teclado por cima da tela a cada toque num rosto.
+     */
+    useEffect(() => {
+        textoRef.current?.focus({ preventScroll: true });
     }, [pessoa.id]);
 
     useEffect(() => {
@@ -514,7 +549,9 @@ export default function PainelConversa({ pessoa, online, meuId, p }: {
                         {pessoa.nome}
                     </p>
                     <p className="text-[11px] truncate" style={{ color: online ? p.GREEN : p.MUTED }}>
-                        {online ? 'online' : (PAPEL[pessoa.papel] ?? pessoa.papel)}
+                        {/* Sem papel ainda: o espaço fica vazio por um instante,
+                            em vez de a linha saltar quando ele chegar. */}
+                        {online ? 'online' : (pessoa.papel ? (PAPEL[pessoa.papel] ?? pessoa.papel) : ' ')}
                     </p>
                 </div>
             </div>

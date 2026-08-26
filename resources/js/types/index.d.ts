@@ -82,7 +82,7 @@ export interface Fornecedor {
     prioridade?: boolean;
 }
 
-export type TipoCard = 'cadastro' | 'regra' | 'custo' | 'quantidade' | 'sem_pedido' | 'item_n_pedido' | 'importar_nf' | 'reconferir' | 'trocar_nota' | 'recusa' | 'devolucao';
+export type TipoCard = 'cadastro' | 'regra' | 'custo' | 'quantidade' | 'sem_pedido' | 'item_n_pedido' | 'importar_nf' | 'reconferir' | 'recusa' | 'devolucao';
 export type StatusCard = 'aberto' | 'resolvido';
 
 export interface Card {

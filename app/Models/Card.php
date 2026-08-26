@@ -34,7 +34,7 @@ class Card extends Model
         'reaberturas'  => 'integer',
     ];
 
-    public const TIPOS = ['cadastro', 'regra', 'custo', 'quantidade', 'sem_pedido', 'item_n_pedido', 'importar_nf', 'reconferir', 'trocar_nota', 'recusa', 'devolucao'];
+    public const TIPOS = ['cadastro', 'regra', 'custo', 'quantidade', 'sem_pedido', 'item_n_pedido', 'importar_nf', 'reconferir', 'recusa', 'devolucao'];
 
     /**
      * Rótulo legível. Só entra aqui o tipo que o padrão não resolve bem —
@@ -70,9 +70,14 @@ class Card extends Model
      * podem ABRIR e marcar como feito. Ficam fora de TIPOS_COMPRAS, mas
      * qualquer papel operacional os resolve.
      *   • importar_nf  — a NF precisa ser importada no ERP
-     *   • trocar_nota  — a nota tem de ser trocada com o fornecedor
+     *
+     * Já houve aqui um "trocar_nota" (a nota tem de ser trocada com o
+     * fornecedor). Saiu porque dizia a mesma coisa que a Recusa e só dividia o
+     * mesmo fato em dois cardões: quando a nota tem de ser trocada, a
+     * mercadoria daquela nota não entra — que é recusa. Os cards que existiam
+     * viraram recusa na migration `cards_trocar_nota_viram_recusa`.
      */
-    public const TIPOS_TODOS = ['importar_nf', 'trocar_nota'];
+    public const TIPOS_TODOS = ['importar_nf'];
 
     /**
      * Recusa e devolução — a mercadoria não fica.
@@ -139,7 +144,7 @@ class Card extends Model
      * "Importar NF" fica de fora de propósito: é tarefa de ERP, que a própria
      * compras costuma fazer, e não algo que dependa de olhar a doca.
      */
-    public const TIPOS_AVISAM_DOCA = [...self::TIPOS_DOCA, 'trocar_nota'];
+    public const TIPOS_AVISAM_DOCA = self::TIPOS_DOCA;
 
     /**
      * Ao corrigir CADASTRO, o card é obrigatoriamente trocado por um destes.

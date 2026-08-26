@@ -26,9 +26,9 @@ class CardController extends Controller
         // Em geral só o pré-lote abre card. Três exceções:
         //
         //   • nota de CEASA — compras também abre qualquer tipo
-        //   • os tipos de todo mundo (Importar NF, Trocar nota, Recusa,
-        //     Devolução) — qualquer papel operacional abre, porque não são
-        //     erro de um setor só
+        //   • os tipos de todo mundo (Importar NF, Recusa, Devolução) —
+        //     qualquer papel operacional abre, porque não são erro de um
+        //     setor só
         //   • Cadastro — o recebimento abre, porque é ele quem esbarra no item
         //     sem cadastro na hora de digitar a nota (Card::TIPOS_RECEBIMENTO)
         //

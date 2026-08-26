@@ -93,7 +93,6 @@ export default function OnlineSidebar({ currentUserId }: Props) {
     const naoLidasDe = (id: number) => pendentes.find(x => x.id === id)?.nao_lidas ?? 0;
 
     const emConversa = expandida && aberta !== null;
-    const pessoaAberta = pessoas?.find(x => x.id === aberta) ?? null;
 
     /*
      * A ordem dos ícones na barra recolhida — a regra do WhatsApp:
@@ -126,6 +125,39 @@ export default function OnlineSidebar({ currentUserId }: Props) {
 
         return [...comPendencia, ...demaisOnline];
     }, [usuariosOnline, pendentes, online]);
+
+    /*
+     * Com quem a conversa está aberta — mesmo antes de a lista chegar.
+     *
+     * Clicando um rosto na barra RECOLHIDA, `pessoas` ainda é null: a lista só
+     * é buscada quando a barra expande, e a resposta demora uma ida ao
+     * servidor. Sem o atalho abaixo o painel não renderizava nesse intervalo —
+     * a barra alargava para w-80 e ficava vazia. Quem clicou na foto para já
+     * digitar batia num vão sem campo, e as primeiras teclas caíam no nada.
+     *
+     * O atalho usa o que a própria barra recolhida já tem na mão: nome e rosto
+     * de quem está ali (vindos dos pendentes ou da presença). É o bastante para
+     * abrir; o resto (papel, contadores) entra sozinho quando a lista chega,
+     * porque aí ela volta a ser a fonte.
+     */
+    const pessoaAberta = useMemo(() => {
+        if (aberta === null) return null;
+
+        const daLista = pessoas?.find(x => x.id === aberta);
+        if (daLista) return daLista;
+
+        const conhecido = naBarraRecolhida.find(u => u.id === aberta);
+        if (!conhecido) return null;
+
+        return {
+            id: conhecido.id,
+            nome: conhecido.name,
+            avatar: conhecido.avatar,
+            conversa_id: null,
+            nao_lidas: 0,
+            ultima: null,
+        };
+    }, [aberta, pessoas, naBarraRecolhida]);
 
     const largura = emConversa ? 'w-80' : (expandida ? 'w-64' : 'w-14');
 

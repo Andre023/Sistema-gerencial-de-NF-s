@@ -212,7 +212,7 @@ class Notificador
      * Recalcula o aviso da DOCA a partir do estado atual da nota.
      *
      * Espelha o sincronizarCompras, para os cards que compras abre mas não
-     * fecha: recusa, devolução e trocar nota. Quem resolve é quem está com a
+     * fecha: recusa e devolução. Quem resolve é quem está com a
      * mercadoria e o papel na mão — pré-lote e recebimento —, e são eles que
      * precisam saber.
      *

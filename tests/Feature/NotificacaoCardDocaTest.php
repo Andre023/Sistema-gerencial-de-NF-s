@@ -54,7 +54,7 @@ class NotificacaoCardDocaTest extends TestCase
     /** @return array<array<string>> */
     public static function tiposQuePedemDoca(): array
     {
-        return [['recusa'], ['devolucao'], ['trocar_nota']];
+        return [['recusa'], ['devolucao']];
     }
 
     // ─── O aviso chega ────────────────────────────────────────────────────────
@@ -100,13 +100,13 @@ class NotificacaoCardDocaTest extends TestCase
         $nota = $this->nota();
 
         $this->actingAs($this->compras)->post(route('notas.cards.store', $nota), ['tipo' => 'recusa']);
-        $this->actingAs($this->compras)->post(route('notas.cards.store', $nota), ['tipo' => 'trocar_nota']);
+        $this->actingAs($this->compras)->post(route('notas.cards.store', $nota), ['tipo' => 'devolucao']);
 
         $avisos = Notificacao::where('user_id', $this->preLoteA->id)
             ->where('tipo', Notificacao::TIPO_DOCA)->viva()->get();
 
         $this->assertCount(1, $avisos);
-        $this->assertEqualsCanonicalizing(['recusa', 'trocar_nota'], $avisos->first()->dados['tipos']);
+        $this->assertEqualsCanonicalizing(['recusa', 'devolucao'], $avisos->first()->dados['tipos']);
     }
 
     // ─── Ninguém é avisado da própria ação ────────────────────────────────────
@@ -176,7 +176,7 @@ class NotificacaoCardDocaTest extends TestCase
         $nota = $this->nota();
 
         $this->actingAs($this->compras)->post(route('notas.cards.store', $nota), ['tipo' => 'recusa']);
-        $this->actingAs($this->compras)->post(route('notas.cards.store', $nota), ['tipo' => 'trocar_nota']);
+        $this->actingAs($this->compras)->post(route('notas.cards.store', $nota), ['tipo' => 'devolucao']);
 
         $recusa = $nota->cards()->where('tipo', 'recusa')->firstOrFail();
 
@@ -186,7 +186,7 @@ class NotificacaoCardDocaTest extends TestCase
             ->where('tipo', Notificacao::TIPO_DOCA)->viva()->first();
 
         $this->assertNotNull($vivo, 'Ainda há um card de doca aberto — o aviso continua.');
-        $this->assertSame(['trocar_nota'], $vivo->dados['tipos']);
+        $this->assertSame(['devolucao'], $vivo->dados['tipos']);
     }
 
     // ─── Não atropela o aviso de compras ──────────────────────────────────────

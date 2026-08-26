@@ -40,8 +40,8 @@ class Notificacao extends Model
     /** Nota recém lançada (caminhão na porta) — o pré-lote precisa analisar */
     public const TIPO_LANCADA = 'lancada';
     /**
-     * Card que só quem tem a mercadoria e o papel na mão resolve (recusa,
-     * devolução, trocar nota) — pré-lote e recebimento precisam agir.
+     * Card que só quem tem a mercadoria e o papel na mão resolve (recusa e
+     * devolução) — pré-lote e recebimento precisam agir.
      *
      * Tipo PRÓPRIO, e não uma reutilização de TIPO_DIVERGENCIA, porque os dois
      * avisos convivem na mesma nota: encerrar o de compras encerraria este

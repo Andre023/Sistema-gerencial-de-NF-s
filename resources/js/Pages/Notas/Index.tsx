@@ -196,9 +196,9 @@ function ModalCards({ nota, onFechar, can, tiposCompras, tiposQualquerPapel, tip
     // Compras só corrige os tipos dela (regra é do pré-lote); admin corrige tudo
     const meuPapel = usePage().props.auth.user.role;
     const ehCompras = meuPapel === 'compras';
-    // Cards "de todo mundo" (Importar NF, Trocar nota): recebimento e compras
-    // marcam via "Corrigido"; o pré-lote usa "Resolver" (já tem o botão dele).
-    const DE_TODOS: TipoCard[] = ['importar_nf', 'trocar_nota'];
+    // Cards "de todo mundo" (Importar NF): recebimento e compras marcam via
+    // "Corrigido"; o pré-lote usa "Resolver" (já tem o botão dele).
+    const DE_TODOS: TipoCard[] = ['importar_nf'];
     // Recusa e Devolução: qualquer papel ABRE, mas fecha só quem está com a
     // mercadoria. Compras não aparece aqui de propósito — marcar "resolvido"
     // sem ver a doca seria afirmar que a carga saiu. (Card::TIPOS_DOCA)
@@ -578,7 +578,7 @@ function BotaoGrupo({ aberto, onAlternar, rotulo, total, travado, p }: {
 
 function opcoesTipos(nota: Nota): TipoCard[] {
     const ativos = nota.cards.filter(c => c.status !== 'resolvido').map(c => c.tipo);
-    const base: TipoCard[] = ['cadastro', 'regra', 'custo', 'quantidade', 'sem_pedido', 'item_n_pedido', 'importar_nf', 'trocar_nota', 'recusa', 'devolucao'];
+    const base: TipoCard[] = ['cadastro', 'regra', 'custo', 'quantidade', 'sem_pedido', 'item_n_pedido', 'importar_nf', 'recusa', 'devolucao'];
     // "Reconferir" só existe em nota de CEASA (pedido de nova conferência)
     if (nota.ceasa > 0) base.push('reconferir');
     return base.filter(t => !ativos.includes(t));
@@ -1664,11 +1664,12 @@ export default function Index({ recebimento, preLote, liberadas, canceladas, dev
 
                 {/* ── Filas ───────────────────────────────────────────────────── */}
                 {secaoFila('secao-recebimento', 'Recebimento', 'caminhão na porta — prioridade', recebimentoL, p.RED)}
-                {secaoFila('secao-pre-lote', 'Pré-lote', 'notas antecipadas', preLoteL, p.ACCENT)}
 
-                {/* ── Devoluções ──────────────────────────────────────────────────
-                    Fica entre as filas e as liberadas: é assunto de nota que
-                    ainda está em jogo, não de histórico do dia. */}
+                {/* ── Devoluções ────────────────────────────────────────
+                    Logo abaixo do recebimento, e não depois das duas filas: a
+                    devolução nasce na doca, com o caminhão ainda na porta, e
+                    é ali que ela precisa estar à vista. Embaixo do pré-lote
+                    ela ficava atrás de uma lista que costuma ser longa. */}
                 {can.usarDevolucoes && (
                     <div id="secao-devolucoes" className="scroll-mt-20">
                         <QuadroDevolucoes
@@ -1684,6 +1685,8 @@ export default function Index({ recebimento, preLote, liberadas, canceladas, dev
                         />
                     </div>
                 )}
+
+                {secaoFila('secao-pre-lote', 'Pré-lote', 'notas antecipadas', preLoteL, p.ACCENT)}
 
                 {/* ── Liberadas ───────────────────────────────────────────────── */}
                 <div id="secao-liberadas" className="rounded-xl overflow-hidden scroll-mt-20" style={{ background: p.SURFACE, border: `1px solid ${p.BORDER}` }}>

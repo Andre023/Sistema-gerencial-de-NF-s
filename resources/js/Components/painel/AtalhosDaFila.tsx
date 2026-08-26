@@ -23,8 +23,10 @@ export default function AtalhosDaFila({ podeVerDevolucoes }: { podeVerDevolucoes
 
     const atalhos: Atalho[] = [
         { id: 'secao-recebimento', rotulo: 'Recebimento' },
-        { id: 'secao-pre-lote',    rotulo: 'Pré-lote' },
+        // A ordem espelha a da página de propósito. São âncoras, não telas —
+        // listá-las fora de ordem faria a tela subir onde a barra sugeria descer.
         ...(podeVerDevolucoes ? [{ id: 'secao-devolucoes', rotulo: 'Devoluções' }] : []),
+        { id: 'secao-pre-lote',    rotulo: 'Pré-lote' },
         { id: 'secao-liberadas',   rotulo: 'Liberadas' },
         { id: 'secao-canceladas',  rotulo: 'Canceladas' },
     ];

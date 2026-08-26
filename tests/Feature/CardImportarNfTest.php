@@ -117,41 +117,26 @@ class CardImportarNfTest extends TestCase
             ->assertForbidden();
     }
 
-    // ── "Trocar nota": mesmo espirito do Importar NF ─────────────────────────
+    // ── "Trocar nota" saiu de cena ─────────────────────────────────
 
-    public function test_qualquer_papel_operacional_abre_trocar_nota(): void
+    /**
+     * O tipo foi unificado com a Recusa (migration
+     * cards_trocar_nota_viram_recusa). Este teste existe para que ele não
+     * volte por descuido: a lista de TIPOS é escrita à mão em mais de um
+     * lugar, e um "trocar_nota" reaparecendo no controller sem estar na tela
+     * seria um card que ninguém consegue abrir — ou pior, um que abre e a
+     * tela mostra cru.
+     */
+    public function test_trocar_nota_nao_existe_mais(): void
     {
-        foreach ([$this->recebimento, $this->compras, $this->preLote] as $quem) {
-            $nota = $this->nota();
-            $this->actingAs($quem)
-                ->post(route('notas.cards.store', $nota), ['tipo' => 'trocar_nota'])
-                ->assertRedirect()->assertSessionHasNoErrors();
+        $this->assertNotContains('trocar_nota', Card::TIPOS);
 
-            $this->assertDatabaseHas('cards', ['nota_id' => $nota->id, 'tipo' => 'trocar_nota']);
-        }
-    }
-
-    public function test_recebimento_e_compras_marcam_trocar_nota_como_feito(): void
-    {
-        foreach ([$this->recebimento, $this->compras] as $quem) {
-            $nota = $this->nota();
-            $card = $this->card($nota, 'trocar_nota');
-
-            $this->actingAs($quem)
-                ->patch(route('notas.cards.corrigir', [$nota, $card]))
-                ->assertRedirect()->assertSessionHasNoErrors();
-
-            $this->assertSame(Card::STATUS_RESOLVIDO, $card->fresh()->status);
-        }
-    }
-
-    public function test_visitante_nao_abre_trocar_nota(): void
-    {
-        $visitante = User::factory()->create(['role' => User::ROLE_VISITANTE]);
         $nota = $this->nota();
 
-        $this->actingAs($visitante)
+        $this->actingAs($this->preLote)
             ->post(route('notas.cards.store', $nota), ['tipo' => 'trocar_nota'])
-            ->assertForbidden();
+            ->assertSessionHasErrors('tipo');
+
+        $this->assertDatabaseMissing('cards', ['nota_id' => $nota->id, 'tipo' => 'trocar_nota']);
     }
 }
