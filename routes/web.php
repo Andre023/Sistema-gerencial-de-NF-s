@@ -168,6 +168,11 @@ Route::middleware(['auth', 'verified'])->group(function () {
         // restaurar apaga e devolve o padrão da loja.
         Route::post('/texto',      [CampanhaController::class, 'salvarTexto'])->name('texto.salvar');
         Route::delete('/texto',    [CampanhaController::class, 'restaurarTexto'])->name('texto.restaurar');
+
+        // A base de faturamento: o ranking de compras que vem do ERP em .xlsx.
+        // Cada envio troca a base inteira — é uma foto dos últimos 12 meses.
+        Route::post('/planilha',   [CampanhaController::class, 'importarPlanilha'])->name('planilha.importar');
+        Route::delete('/planilha', [CampanhaController::class, 'removerPlanilha'])->name('planilha.remover');
     });
 
     // ── Configurações (só admin) ───────────────────────────────────────────────

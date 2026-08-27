@@ -2,16 +2,21 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\CampanhaFornecedor;
 use App\Models\CampanhaTexto;
 use App\Models\Configuracao;
 use App\Models\Fornecedor;
 use App\Services\DocumentoWord;
 use App\Support\CartaCampanha;
+use App\Support\PlanilhaDeCompras;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response as HttpResponse;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
 use Inertia\Response;
+use RuntimeException;
 use Symfony\Component\HttpFoundation\HeaderUtils;
 
 /**
@@ -36,13 +41,63 @@ class CampanhaController extends Controller
             'padrao'    => $padrao,
             'temPerfil' => $perfil !== null,
 
-            // Só os nomes: o campo é de texto livre (o parceiro pode nem estar
-            // cadastrado), e a lista serve para sugerir e evitar erro de
-            // digitação no nome que vai impresso na carta.
-            'fornecedores' => Fornecedor::orderBy('nome')->pluck('nome'),
+            'fornecedores' => $this->fornecedoresParaSugerir(),
+            'base'         => $this->baseDeFaturamento(),
 
-            'limiteDeCaracteres' => CartaCampanha::LIMITE_DE_CARACTERES,
+            'limiteDeCaracteres'  => CartaCampanha::LIMITE_DE_CARACTERES,
+            'percentualSugerido'  => CartaCampanha::PERCENTUAL_SUGERIDO,
         ]);
+    }
+
+    /**
+     * A lista que alimenta o campo de fornecedor.
+     *
+     * Com a planilha de compras enviada, sugere OS FORNECEDORES DELA — são os
+     * que têm faturamento para preencher sozinho. Sem planilha, cai no cadastro
+     * de fornecedores das notas, que ao menos evita erro de digitação no nome.
+     *
+     * O campo continua de texto livre nos dois casos: o parceiro da campanha
+     * pode não estar em nenhuma das duas listas.
+     *
+     * @return list<array{nome: string, faturamento: float|null}>
+     */
+    private function fornecedoresParaSugerir(): array
+    {
+        $daPlanilha = CampanhaFornecedor::orderBy('nome')->get(['nome', 'faturamento']);
+
+        if ($daPlanilha->isNotEmpty()) {
+            return $daPlanilha
+                ->map(fn(CampanhaFornecedor $f) => [
+                    'nome'        => $f->nome,
+                    'faturamento' => (float) $f->faturamento,
+                ])
+                ->all();
+        }
+
+        return Fornecedor::orderBy('nome')
+            ->pluck('nome')
+            ->map(fn(string $nome) => ['nome' => $nome, 'faturamento' => null])
+            ->all();
+    }
+
+    /** De onde veio a base hoje — ou null, se ninguém enviou planilha ainda. */
+    private function baseDeFaturamento(): ?array
+    {
+        $bruto = Configuracao::obter(Configuracao::CAMPANHA_BASE);
+
+        if ($bruto === null) {
+            return null;
+        }
+
+        $base = json_decode($bruto, true);
+
+        // A tabela é a fonte da verdade: se alguém apagou a base por fora, o
+        // rótulo não pode continuar prometendo fornecedor que não existe mais.
+        if (! is_array($base) || CampanhaFornecedor::query()->doesntExist()) {
+            return null;
+        }
+
+        return $base;
     }
 
     /** Salva o esqueleto desta pessoa — um por conta. */
@@ -73,6 +128,77 @@ class CampanhaController extends Controller
         CampanhaTexto::where('user_id', $request->user()->id)->delete();
 
         return redirect()->route('campanha.index')->with('sucesso', 'Texto padrão restaurado.');
+    }
+
+    /**
+     * Recebe o ranking de compras do ERP e troca a base de faturamento inteira.
+     *
+     * É substituição, não mistura: a planilha é uma fotografia dos últimos 12
+     * meses, e juntar a foto nova com a velha deixaria na tela fornecedor que
+     * saiu do ranking, com valor de um período que já passou.
+     *
+     * A troca inteira roda dentro de uma transação — planilha recusada no meio
+     * do caminho não pode deixar a base pela metade, com uns fornecedores da
+     * foto nova e outros da antiga.
+     */
+    public function importarPlanilha(Request $request): RedirectResponse
+    {
+        $request->validate([
+            // 10 MB: a base real tem 217 KB, mas planilha do ERP costuma vir
+            // com aba extra e formatação que incham o arquivo.
+            'planilha' => ['required', 'file', 'max:10240'],
+        ]);
+
+        $arquivo = $request->file('planilha');
+
+        if (strtolower((string) $arquivo->getClientOriginalExtension()) !== 'xlsx') {
+            throw ValidationException::withMessages([
+                'planilha' => 'Envie em .xlsx — no Excel: Arquivo → Salvar como → Pasta de Trabalho do Excel.',
+            ]);
+        }
+
+        try {
+            $linhas = PlanilhaDeCompras::ler((string) $arquivo->getRealPath());
+        } catch (RuntimeException $erro) {
+            // O leitor explica o que faltou ("não achei a coluna Fornecedor");
+            // vira erro de campo, embaixo do seletor de arquivo.
+            throw ValidationException::withMessages(['planilha' => $erro->getMessage()]);
+        }
+
+        DB::transaction(function () use ($linhas) {
+            CampanhaFornecedor::query()->delete();
+
+            // Em lotes: 1.075 linhas num INSERT só estoura o limite de
+            // marcadores do MySQL e a memória da VM sem precisar.
+            foreach (array_chunk($linhas, 500) as $lote) {
+                CampanhaFornecedor::insert(array_map(fn(array $linha) => [
+                    'nome'        => mb_substr($linha['nome'], 0, 200),
+                    'chave'       => mb_substr(CampanhaFornecedor::chaveDe($linha['nome']), 0, 200),
+                    'faturamento' => $linha['faturamento'],
+                ], $lote));
+            }
+        });
+
+        Configuracao::definir(Configuracao::CAMPANHA_BASE, json_encode([
+            'arquivo'     => mb_substr($arquivo->getClientOriginalName(), 0, 120),
+            'linhas'      => count($linhas),
+            'enviada_em'  => now()->toIso8601String(),
+            'enviado_por' => $request->user()->name,
+        ], JSON_UNESCAPED_UNICODE));
+
+        return redirect()->route('campanha.index')->with(
+            'sucesso',
+            number_format(count($linhas), 0, ',', '.') . ' fornecedores importados da planilha.',
+        );
+    }
+
+    /** Apaga a base — para quando a planilha subiu errada. */
+    public function removerPlanilha(): RedirectResponse
+    {
+        CampanhaFornecedor::query()->delete();
+        Configuracao::definir(Configuracao::CAMPANHA_BASE, null);
+
+        return redirect()->route('campanha.index')->with('sucesso', 'Base de faturamento removida.');
     }
 
     /** Gera o .docx da carta e devolve para download. Nada é gravado. */

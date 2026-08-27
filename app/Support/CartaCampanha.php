@@ -37,6 +37,15 @@ final class CartaCampanha
     public const LIMITE_DE_CARACTERES = 20000;
 
     /**
+     * O investimento que a tela sugere sozinha ao reconhecer o fornecedor na
+     * planilha de compras: 2% do faturamento dos últimos 12 meses.
+     *
+     * É só o ponto de partida — o comprador ajusta na tela antes de gerar a
+     * carta, e os atalhos de porcentagem continuam ao lado do campo.
+     */
+    public const PERCENTUAL_SUGERIDO = 2.0;
+
+    /**
      * O texto de fábrica. É só o ponto de partida: o admin troca o padrão da
      * loja em Configurações, e cada comprador salva o dele por cima.
      */

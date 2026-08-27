@@ -6,13 +6,33 @@ import { DARK, LIGHT, Palette } from '@/lib/tema';
 import { MARCADORES, cartaEmTexto, dinheiro, montarCarta } from '@/lib/campanha';
 import Icone from '@/Components/painel/Icone';
 
+/**
+ * Um fornecedor sugerido no campo. Vem da planilha de compras (com o
+ * faturamento junto) ou, quando ninguém enviou planilha, do cadastro das
+ * notas — aí só o nome, e o valor continua sendo digitado à mão.
+ */
+export interface Sugestao {
+    nome: string;
+    faturamento: number | null;
+}
+
+/** De onde veio a base de faturamento que está valendo. */
+interface Base {
+    arquivo: string;
+    linhas: number;
+    enviada_em: string;
+    enviado_por: string;
+}
+
 interface Props {
     /** O texto salvo desta pessoa — ou o padrão da loja, se ela nunca salvou. */
     texto: string;
     padrao: string;
     temPerfil: boolean;
-    fornecedores: string[];
+    fornecedores: Sugestao[];
+    base: Base | null;
     limiteDeCaracteres: number;
+    percentualSugerido: number;
 }
 
 // ─── Dinheiro ──────────────────────────────────────────────────────────────────
@@ -49,22 +69,29 @@ function CampoDinheiro({ digitos, onDigitos, p, id, autoFocus }: {
 const semAcento = (t: string) =>
     t.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
 
-function CampoFornecedor({ valor, onValor, fornecedores, p }: {
-    valor: string; onValor: (v: string) => void; fornecedores: string[]; p: Palette;
+function CampoFornecedor({ valor, onValor, onEscolher, onSair, fornecedores, p }: {
+    valor: string;
+    onValor: (v: string) => void;
+    /** Escolheu um da lista — é aqui que o faturamento entra sozinho. */
+    onEscolher: (f: Sugestao) => void;
+    /** Saiu do campo: última chance de reconhecer o nome digitado à mão. */
+    onSair: () => void;
+    fornecedores: Sugestao[];
+    p: Palette;
 }) {
     const [aberto, setAberto] = useState(false);
 
-    // O campo é livre de propósito: o parceiro da campanha pode nem ter nota no
-    // sistema. A lista só sugere — é ela que evita o erro de digitação no nome
-    // que vai impresso na carta.
+    // O campo é livre de propósito: o parceiro da campanha pode nem estar na
+    // planilha. A lista só sugere — é ela que evita o erro de digitação no nome
+    // que vai impresso na carta, e que traz o valor junto.
     const sugestoes = useMemo(() => {
         const busca = semAcento(valor.trim());
         if (busca.length < 2) return [];
 
-        return fornecedores.filter(nome => semAcento(nome).includes(busca)).slice(0, 8);
+        return fornecedores.filter(f => semAcento(f.nome).includes(busca)).slice(0, 8);
     }, [valor, fornecedores]);
 
-    const mostrar = aberto && sugestoes.length > 0 && !(sugestoes.length === 1 && sugestoes[0] === valor.trim());
+    const mostrar = aberto && sugestoes.length > 0 && !(sugestoes.length === 1 && sugestoes[0].nome === valor.trim());
 
     return (
         <div className="relative">
@@ -73,7 +100,10 @@ function CampoFornecedor({ valor, onValor, fornecedores, p }: {
                 value={valor}
                 onChange={e => { onValor(e.target.value); setAberto(true); }}
                 onFocus={() => setAberto(true)}
-                onBlur={() => setTimeout(() => setAberto(false), 120)}
+                // O atraso deixa o clique na sugestão acontecer antes de a
+                // lista sumir — sem ele, o mousedown fecha e o clique cai no
+                // vazio.
+                onBlur={() => setTimeout(() => { setAberto(false); onSair(); }, 120)}
                 onKeyDown={e => { if (e.key === 'Escape') setAberto(false); }}
                 placeholder="Nome do fornecedor como vai na carta"
                 autoComplete="off"
@@ -84,18 +114,23 @@ function CampoFornecedor({ valor, onValor, fornecedores, p }: {
             {mostrar && (
                 <ul className="absolute z-20 mt-1 w-full rounded-lg overflow-hidden shadow-lg max-h-60 overflow-y-auto"
                     style={{ background: p.SURFACE, border: `1px solid ${p.BORDER}` }}>
-                    {sugestoes.map(nome => (
-                        <li key={nome}>
+                    {sugestoes.map(f => (
+                        <li key={f.nome}>
                             <button
                                 type="button"
                                 onMouseDown={e => e.preventDefault()}
-                                onClick={() => { onValor(nome); setAberto(false); }}
-                                className="w-full text-left text-sm px-3 py-2 truncate transition"
+                                onClick={() => { onEscolher(f); setAberto(false); }}
+                                className="w-full flex items-center gap-3 text-left text-sm px-3 py-2 transition"
                                 style={{ color: p.TEXT }}
                                 onMouseEnter={e => (e.currentTarget.style.background = p.HOVER_ROW)}
                                 onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
                             >
-                                {nome}
+                                <span className="truncate">{f.nome}</span>
+                                {f.faturamento !== null && (
+                                    <span className="ml-auto shrink-0 text-xs tabular-nums" style={{ color: p.MUTED }}>
+                                        {dinheiro(f.faturamento)}
+                                    </span>
+                                )}
                             </button>
                         </li>
                     ))}
@@ -107,13 +142,17 @@ function CampoFornecedor({ valor, onValor, fornecedores, p }: {
 
 // ─── Tela ──────────────────────────────────────────────────────────────────────
 
-export default function Index({ texto: textoSalvo, padrao, temPerfil, fornecedores, limiteDeCaracteres }: Props) {
+export default function Index({
+    texto: textoSalvo, padrao, temPerfil, fornecedores, base, limiteDeCaracteres, percentualSugerido,
+}: Props) {
     const { isDark } = useTheme();
     const p = isDark ? DARK : LIGHT;
 
     const [fornecedor, setFornecedor] = useState('');
     const [faturamentoDig, setFaturamentoDig] = useState('');
     const [investimentoDig, setInvestimentoDig] = useState('');
+    /** Os valores desta carta vieram da planilha (e não da mão de alguém). */
+    const [veioDaPlanilha, setVeioDaPlanilha] = useState(false);
 
     const [texto, setTexto] = useState(textoSalvo);
     const [confirmandoRestauro, setConfirmandoRestauro] = useState(false);
@@ -121,7 +160,11 @@ export default function Index({ texto: textoSalvo, padrao, temPerfil, fornecedor
     const [copiado, setCopiado] = useState(false);
     const [erro, setErro] = useState('');
 
+    const [planilha, setPlanilha] = useState<File | null>(null);
+    const [erroPlanilha, setErroPlanilha] = useState('');
+
     const areaTexto = useRef<HTMLTextAreaElement>(null);
+    const campoArquivo = useRef<HTMLInputElement>(null);
 
     // Depois de salvar ou restaurar, o servidor manda o texto novo — a tela
     // acompanha. Enquanto ninguém salva, o rascunho é de quem está digitando.
@@ -145,6 +188,70 @@ export default function Index({ texto: textoSalvo, padrao, temPerfil, fornecedor
     const aplicarPercentual = (pct: number) => {
         if (!faturamento) return;
         setInvestimentoDig(String(Math.round(faturamento * pct))); // pct já em centavos por real
+        setVeioDaPlanilha(false);
+    };
+
+    /**
+     * Escolheu o fornecedor na lista: o nome vai para o campo e, se a planilha
+     * souber o faturamento dele, os dois valores já entram preenchidos — o
+     * investimento na porcentagem sugerida. Os dois seguem editáveis.
+     */
+    const escolherFornecedor = (f: Sugestao) => {
+        setFornecedor(f.nome);
+
+        if (f.faturamento === null) {
+            return;
+        }
+
+        setFaturamentoDig(String(Math.round(f.faturamento * 100)));
+        setInvestimentoDig(String(Math.round(f.faturamento * percentualSugerido)));
+        setVeioDaPlanilha(true);
+    };
+
+    /**
+     * Digitou o nome inteiro em vez de clicar na sugestão. Se ele está na
+     * planilha e o faturamento ainda está vazio, preenche do mesmo jeito.
+     *
+     * A condição do campo vazio é o que impede a tela de passar por cima de um
+     * valor que a pessoa acabou de digitar à mão.
+     */
+    const completarPeloNome = () => {
+        if (faturamentoDig !== '' || fornecedor.trim() === '') {
+            return;
+        }
+
+        const procurado = semAcento(fornecedor.trim());
+        const achado = fornecedores.find(f => f.faturamento !== null && semAcento(f.nome) === procurado);
+
+        if (achado) {
+            escolherFornecedor(achado);
+        }
+    };
+
+    const enviarPlanilha = () => {
+        if (!planilha) return;
+
+        setErroPlanilha('');
+        setOcupado(true);
+
+        router.post(route('campanha.planilha.importar'), { planilha }, {
+            forceFormData: true, // é upload: precisa ir como multipart, não JSON
+            preserveScroll: true,
+            onError: erros => setErroPlanilha(erros.planilha ?? 'Não foi possível ler a planilha.'),
+            onSuccess: () => {
+                setPlanilha(null);
+                if (campoArquivo.current) campoArquivo.current.value = '';
+            },
+            onFinish: () => setOcupado(false),
+        });
+    };
+
+    const removerBase = () => {
+        setOcupado(true);
+        router.delete(route('campanha.planilha.remover'), {
+            preserveScroll: true,
+            onFinish: () => setOcupado(false),
+        });
     };
 
     const salvarTexto = () => {
@@ -246,21 +353,39 @@ export default function Index({ texto: textoSalvo, padrao, temPerfil, fornecedor
 
                             <div>
                                 <label htmlFor="fornecedor" className={rotulo} style={{ color: p.MUTED }}>Fornecedor</label>
-                                <CampoFornecedor valor={fornecedor} onValor={setFornecedor} fornecedores={fornecedores} p={p} />
+                                <CampoFornecedor
+                                    valor={fornecedor}
+                                    onValor={setFornecedor}
+                                    onEscolher={escolherFornecedor}
+                                    onSair={completarPeloNome}
+                                    fornecedores={fornecedores}
+                                    p={p}
+                                />
+                                {base && (
+                                    <p className="text-xs mt-1.5" style={{ color: p.MUTED }}>
+                                        {veioDaPlanilha
+                                            ? <span style={{ color: p.GREEN }}>
+                                                Valores preenchidos pela planilha ({percentualSugerido.toLocaleString('pt-BR')}% de investimento).
+                                              </span>
+                                            : `Escolha na lista e o faturamento vem da planilha, com ${percentualSugerido.toLocaleString('pt-BR')}% de investimento.`}
+                                    </p>
+                                )}
                             </div>
 
                             <div>
                                 <label htmlFor="faturamento" className={rotulo} style={{ color: p.MUTED }}>
                                     Faturamento nos últimos 12 meses
                                 </label>
-                                <CampoDinheiro id="faturamento" digitos={faturamentoDig} onDigitos={setFaturamentoDig} p={p} />
+                                <CampoDinheiro id="faturamento" digitos={faturamentoDig}
+                                    onDigitos={v => { setFaturamentoDig(v); setVeioDaPlanilha(false); }} p={p} />
                             </div>
 
                             <div>
                                 <label htmlFor="investimento" className={rotulo} style={{ color: p.MUTED }}>
                                     Investimento sugerido
                                 </label>
-                                <CampoDinheiro id="investimento" digitos={investimentoDig} onDigitos={setInvestimentoDig} p={p} />
+                                <CampoDinheiro id="investimento" digitos={investimentoDig}
+                                    onDigitos={v => { setInvestimentoDig(v); setVeioDaPlanilha(false); }} p={p} />
 
                                 {/* Atalhos: o valor quase sempre nasce de uma porcentagem do
                                     faturamento, e a conta na calculadora era o passo de fora
@@ -286,6 +411,62 @@ export default function Index({ texto: textoSalvo, padrao, temPerfil, fornecedor
                                     )}
                                 </div>
                             </div>
+                        </section>
+
+                        {/* ── A planilha de compras ──
+                            Fica embaixo dos dados de propósito: é preparo, não o
+                            trabalho de todo dia. Quem já tem a base enviada passa
+                            direto por aqui e só olha a linha de conferência. */}
+                        <section className="rounded-xl p-4 sm:p-5" style={cartao}>
+                            <h2 className="text-sm font-semibold" style={{ color: p.TEXT }}>Base de faturamento</h2>
+
+                            {base ? (
+                                <p className="text-xs mt-1.5 leading-relaxed" style={{ color: p.MUTED }}>
+                                    <span className="font-medium" style={{ color: p.TEXT }}>{base.arquivo}</span>
+                                    {' · '}{base.linhas.toLocaleString('pt-BR')} fornecedores
+                                    {' · '}enviada em {new Date(base.enviada_em).toLocaleDateString('pt-BR')} por {base.enviado_por}
+                                </p>
+                            ) : (
+                                <p className="text-xs mt-1.5 leading-relaxed" style={{ color: p.MUTED }}>
+                                    Envie o <span style={{ color: p.TEXT }}>Ranking de Compras</span> (.xlsx) e o faturamento
+                                    passa a entrar sozinho ao escolher o fornecedor. Sem ele, dá para digitar os valores à mão.
+                                </p>
+                            )}
+
+                            <div className="flex flex-wrap items-center gap-2 mt-3">
+                                <input
+                                    ref={campoArquivo}
+                                    type="file"
+                                    accept=".xlsx"
+                                    onChange={e => { setPlanilha(e.target.files?.[0] ?? null); setErroPlanilha(''); }}
+                                    className="block w-full text-xs file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-medium file:cursor-pointer"
+                                    style={{ color: p.MUTED }}
+                                />
+
+                                <button
+                                    onClick={enviarPlanilha}
+                                    disabled={!planilha || ocupado}
+                                    className="text-sm font-medium px-3 py-2 rounded-lg transition disabled:opacity-40"
+                                    style={{ background: p.ACCENT, color: '#fff' }}
+                                >
+                                    {ocupado && planilha ? 'Lendo…' : base ? 'Substituir base' : 'Enviar planilha'}
+                                </button>
+
+                                {base && !planilha && (
+                                    <button
+                                        onClick={removerBase}
+                                        disabled={ocupado}
+                                        className="text-xs px-2.5 py-2 rounded-lg transition disabled:opacity-40"
+                                        style={{ color: p.RED, border: `1px solid ${p.RED}55` }}
+                                    >
+                                        Remover
+                                    </button>
+                                )}
+                            </div>
+
+                            {erroPlanilha && (
+                                <p className="text-xs mt-2 leading-relaxed" style={{ color: p.RED }}>{erroPlanilha}</p>
+                            )}
                         </section>
 
                         <section className="rounded-xl p-4 sm:p-5" style={cartao}>

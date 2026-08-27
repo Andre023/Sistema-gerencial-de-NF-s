@@ -31,6 +31,9 @@ class Configuracao extends Model
     /** O esqueleto que todo comprador vê antes de salvar o dele. */
     public const CAMPANHA_TEXTO_PADRAO = 'campanha_texto_padrao';
 
+    /** De onde veio a base de faturamento: arquivo, data, quem enviou, linhas. */
+    public const CAMPANHA_BASE = 'campanha_base';
+
     public static function obter(string $chave, ?string $padrao = null): ?string
     {
         $valor = Cache::rememberForever(

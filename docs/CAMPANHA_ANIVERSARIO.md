@@ -56,6 +56,54 @@ Detalhes que evitam surpresa:
 - Linha em branco separa parágrafo. No Word o respiro vem do espaçamento, não de
   parágrafo vazio.
 
+## A planilha de compras (o faturamento automático)
+
+Na tela da campanha há um cartão **Base de faturamento**. Sobe ali o
+`Ranking_de_Compras_Total.xlsx` — o mesmo que o ERP exporta — e o faturamento
+passa a entrar sozinho: ao escolher o fornecedor na lista, o valor aparece
+preenchido e o investimento vem calculado em **2%**
+(`CartaCampanha::PERCENTUAL_SUGERIDO`). Os dois campos seguem editáveis.
+
+Quem sobe: compras e admin, os mesmos que usam a aba.
+
+### O que o leitor aceita
+
+`App\Support\PlanilhaDeCompras` acha as colunas pelo NOME, não pela posição —
+planilha de ERP muda de um mês para o outro:
+
+- coluna do fornecedor: `Fornecedor` ou `Razão Social`;
+- coluna do valor, nesta ordem de preferência: `Valor de Compra Total` →
+  `Compra Total` → `Faturamento` → `Valor de Compra` → `Valor Total`;
+- o cabeçalho pode estar até na décima linha (planilha com título em cima);
+- a aba pode ser qualquer uma: vale a primeira que tiver as duas colunas;
+- número escrito como texto (`R$ 1.234,56`) é entendido;
+- a linha `TOTAL GERAL` e o rodapé de observação são descartados — mas
+  **`TOTAL QUIMICA LIMITADA` continua sendo fornecedor** (o filtro casa o nome
+  inteiro, não o começo).
+
+### O que ele NÃO faz
+
+Fórmula sem valor calculado junto. O Excel sempre grava o resultado, então isso
+só aparece em arquivo gerado por script — e aí a linha cai fora, em vez de
+virar um zero silencioso na carta.
+
+### Substituição, não mistura
+
+Cada envio **troca a base inteira**, dentro de uma transação. É uma fotografia
+dos últimos 12 meses: juntar a foto nova com a velha deixaria na tela
+fornecedor que saiu do ranking, com valor de um período que já passou.
+
+O botão **Remover** apaga a base. Sem base, a tela volta a sugerir os
+fornecedores do cadastro das notas (sem valor) e tudo é digitado à mão, como
+antes.
+
+### Preenchimento sem clicar na lista
+
+Se o comprador digitar o nome inteiro e sair do campo, a tela reconhece o
+fornecedor pela `chave` (maiúsculas, sem acento, espaços colapsados) e preenche
+igual — **desde que o faturamento ainda esteja vazio**. Valor digitado à mão
+nunca é sobrescrito.
+
 ## O texto de cada comprador
 
 Cada um pode escrever o seu e clicar em **Salvar meu texto** — fica guardado na
@@ -86,11 +134,13 @@ download.
 | O quê | Onde |
 |---|---|
 | Texto de fábrica e substituição dos marcadores | `app/Support/CartaCampanha.php` |
+| Leitura do .xlsx do ranking | `app/Support/PlanilhaDeCompras.php` |
+| Base de faturamento (uma linha por fornecedor) | `app/Models/CampanhaFornecedor.php` |
 | A mesma substituição, para a prévia | `resources/js/lib/campanha.ts` |
 | Montagem do .docx | `app/Services/DocumentoWord.php` |
 | Telas | `resources/js/Pages/Campanha/Index.tsx`, `Pages/Configuracoes/Campanha.tsx` |
 | Chaves do sistema (liga/desliga, texto padrão) | `app/Models/Configuracao.php` |
-| Testes | `tests/Feature/CampanhaTest.php` |
+| Testes | `tests/Feature/CampanhaTest.php`, `tests/Feature/CampanhaPlanilhaTest.php` |
 
 > `CartaCampanha.php` e `campanha.ts` fazem a MESMA substituição — um para o
 > arquivo entregue, outro para a prévia enquanto se digita. Mexeu num, mexa no
