@@ -1861,6 +1861,19 @@ export default function Index({ recebimento, preLote, liberadas, canceladas, dev
                                                 {n.comentarios_count > 0 && <span className="text-xs font-medium">{n.comentarios_count}</span>}
                                             </button>
 
+                                            {/* Ocorrências: a nota liberada é justamente a que mais
+                                                pede o histórico — depois de fechada ela ainda é
+                                                editada, devolvida e às vezes excluída, e é aqui que
+                                                se pergunta quem mexeu. Sem permissão porque ver é de
+                                                todo papel operacional (Gate 'ver-ocorrencias'). */}
+                                            <button onClick={() => setOcorrenciasNota(n)} title="Ocorrências — tudo o que aconteceu com esta nota"
+                                                className="inline-flex items-center p-1.5 rounded-lg transition acoes-hover"
+                                                style={{ color: p.MUTED }}
+                                                onMouseEnter={e => (e.currentTarget.style.background = p.HOVER_ROW)}
+                                                onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}>
+                                                <Icone path={ICONE_OCORRENCIAS} />
+                                            </button>
+
                                             {/* Editar observação (recebimento/compras/pré-lote) e lembrete CEASA (recebimento) */}
                                             {(can.editarObservacao || can.editarCeasaLiberada) && (
                                                 <button onClick={() => setEditarLiberadaNota(n)} title="Editar observação / CEASA"

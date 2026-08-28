@@ -237,6 +237,38 @@ class OcorrenciaTest extends TestCase
             ->assertForbidden();
     }
 
+    /**
+     * A nota LIBERADA também tem ocorrências — e é a que mais precisa delas.
+     *
+     * Depois de fechada ela continua sendo mexida: observação editada, devolvida
+     * ao recebimento, às vezes excluída. É justamente aí que alguém pergunta
+     * quem mexeu, e por isso o histórico não pode parar na liberação.
+     *
+     * O teste existe para segurar uma restrição por status que alguém possa
+     * achar natural acrescentar depois ("log é da fila").
+     */
+    public function test_nota_liberada_continua_com_ocorrencias(): void
+    {
+        $nota = $this->nota();
+
+        $this->actingAs($this->preLote)->post(route('notas.liberar', $nota));
+        $this->assertNotNull($nota->fresh()->liberada_em, 'a nota precisa estar liberada para este teste valer');
+
+        // Mexer na nota JÁ liberada tem de continuar entrando no livro
+        $this->actingAs($this->recebimento)
+            ->patch(route('notas.editar-liberada', $nota), ['observacao' => 'faltou 1 caixa']);
+
+        $acoes = collect(
+            $this->actingAs($this->preLote)
+                ->getJson(route('notas.ocorrencias.index', $nota))
+                ->assertOk()
+                ->json('ocorrencias')
+        )->pluck('acao');
+
+        $this->assertContains(Ocorrencia::NOTA_LIBERADA, $acoes);
+        $this->assertContains(Ocorrencia::NOTA_EDITADA, $acoes, 'edição depois de liberada tem de ficar registrada');
+    }
+
     /** O log é só de leitura: não existe rota para escrever nem para apagar. */
     public function test_nao_existe_rota_para_escrever_ou_apagar(): void
     {
