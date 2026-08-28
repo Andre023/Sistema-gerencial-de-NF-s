@@ -22,7 +22,8 @@ interface Props {
     liberadas: Nota[];
     canceladas: Nota[];
     devolucoes: Devolucao[];
-    fornecedores: Fornecedor[];
+    /** Chega só quando o formulário pede (Inertia::optional no controller). */
+    fornecedores?: Fornecedor[];
     dataFiltro: string;
     resumoAlertas: ResumoAlertas;
     resumoTipos: ResumoTipos;
@@ -40,8 +41,10 @@ interface DadosForm {
     loja: number | ''; origem: string; ceasa: number; observacao: string;
 }
 
-function FormNota({ fornecedores, opcoes, inicial, origemDefault, onSubmit, onCancelar, carregando, erros, labelSubmit, p }: {
+function FormNota({ fornecedores, opcoes, inicial, origemDefault, onSubmit, onCancelar, carregando, carregandoFornecedores, erros, labelSubmit, p }: {
     fornecedores: Fornecedor[]; opcoes: OpcoesSistema; inicial?: Nota; origemDefault: string;
+    /** A lista de fornecedores ainda está a caminho (ver Inertia::optional). */
+    carregandoFornecedores?: boolean;
     onSubmit: (d: Omit<DadosForm, 'fornecedor'>) => void; onCancelar: () => void;
     carregando: boolean; erros: Record<string, string>; labelSubmit: string; p: Palette;
 }) {
@@ -101,7 +104,7 @@ function FormNota({ fornecedores, opcoes, inicial, origemDefault, onSubmit, onCa
                 ) : (
                     <CampoFornecedor fornecedores={fornecedores} valor={form.fornecedor}
                         onChange={v => setForm(prev => ({ ...prev, fornecedor: v, fornecedor_id: v.id }))}
-                        erro={erros.fornecedor_id} p={p} />
+                        erro={erros.fornecedor_id} carregando={carregandoFornecedores} p={p} />
                 )}
                 <label className="flex items-center gap-2 mt-2 cursor-pointer select-none">
                     <input type="checkbox" checked={form.fornecedor_novo}
@@ -256,11 +259,10 @@ function ModalCards({ nota, onFechar, can, tiposCompras, tiposQualquerPapel, tip
             : [];
 
     const agir = (fn: () => void) => { setErro(null); setOcupado(true); fn(); };
-    const opts = {
+    const opts = acaoNaFila({
         onError: (e: Record<string, string>) => setErro(Object.values(e)[0] ?? 'Não foi possível concluir.'),
         onFinish: () => setOcupado(false),
-        preserveScroll: true,
-    };
+    });
 
     const abrirCard = (e: React.FormEvent) => {
         e.preventDefault();
@@ -455,8 +457,7 @@ function ModalEditarLiberada({ nota, can, onFechar, p }: {
         const dados: Record<string, string | number | null> = {};
         if (can.editarObservacao) dados.observacao = obs.trim() || null;
         if (podeCeasa) dados.ceasa = ceasa;
-        router.patch(route('notas.editar-liberada', nota.id), dados as any, {
-            preserveScroll: true,
+        router.patch(route('notas.editar-liberada', nota.id), dados as any, acaoNaFila({
             onSuccess: () => onFechar(),
             /*
              * Falhou: a janela FICA ABERTA, com o texto onde estava.
@@ -470,7 +471,7 @@ function ModalEditarLiberada({ nota, can, onFechar, p }: {
             // Cancelada no meio (outra navegação atropelou): idem, nada foi gravado.
             onCancel: () => setErro('O salvamento foi interrompido — tente de novo.'),
             onFinish: () => setSalvando(false),
-        });
+        }));
     };
 
     const CEASAS = [{ v: 0, l: 'Nenhum' }, { v: 3, l: 'CEASA' }, { v: 1, l: 'CEASA 1' }, { v: 2, l: 'CEASA 2' }];
@@ -1036,6 +1037,44 @@ function LinhaFila({ nota, onCards, onComentar, onAnexos, onDevolucao, onEditar,
     );
 }
 
+/**
+ * As props que uma ação na fila pode mudar — e só elas.
+ *
+ * Toda ação no Inertia é POST → 302 → GET desta página. Sem esta lista o GET
+ * remonta TUDO, inclusive os ~2.800 fornecedores: 136 KB dos 202 KB da resposta,
+ * mais 88 ms de PHP montando modelos que a tela joga fora. Medido em produção,
+ * era o maior desperdício de cada clique.
+ *
+ * O que fica de fora sobrevive: num reload PARCIAL o Inertia mantém as props
+ * anteriores. `flash` e `errors` são `always` no servidor e chegam de qualquer
+ * jeito — sem isso os avisos de sucesso e erro parariam de aparecer.
+ */
+const PROPS_DA_FILA = [
+    'recebimento', 'preLote', 'liberadas', 'canceladas',
+    'resumoAlertas', 'resumoTipos', 'totalReconferir',
+] as const;
+
+/**
+ * Os retornos que as ações daqui usam. Declarado à mão em vez de importar o
+ * VisitOptions: ele mora em @inertiajs/core, que só está instalado como
+ * dependência de @inertiajs/react — apontar para lá amarraria a tela a um
+ * caminho que não é nosso.
+ */
+interface OpcoesAcao {
+    onSuccess?: () => void;
+    onError?: (erros: Record<string, string>) => void;
+    onFinish?: () => void;
+    onCancel?: () => void;
+    preserveState?: boolean;
+}
+
+/** Opções padrão de toda ação da fila: recarrega só o que ela pode ter mudado. */
+const acaoNaFila = (extra: OpcoesAcao = {}) => ({
+    only: [...PROPS_DA_FILA],
+    preserveScroll: true,
+    ...extra,
+});
+
 // ─── Página ─────────────────────────────────────────────────────────────────────
 
 export default function Index({ recebimento, preLote, liberadas, canceladas, devolucoes, fornecedores, dataFiltro, resumoAlertas, resumoTipos, totalReconferir, filtros, opcoes }: Props) {
@@ -1050,6 +1089,32 @@ export default function Index({ recebimento, preLote, liberadas, canceladas, dev
     const [anexosNota, setAnexosNota] = useState<Nota | null>(null);
     const [editarLiberadaNota, setEditarLiberadaNota] = useState<Nota | null>(null);
     const [ocorrenciasNota, setOcorrenciasNota] = useState<Nota | null>(null);
+
+    /*
+     * A lista de fornecedores chega sob demanda (Inertia::optional no servidor).
+     *
+     * São 136 KB que só o formulário de lançar/editar nota usa. Buscá-la ao
+     * abrir o formulário custa uma ida ao servidor; mandá-la em toda resposta
+     * custava 88 ms de PHP e 67% do payload a CADA clique na fila.
+     *
+     * Uma vez buscada ela fica: reload parcial mantém as props que não pediu,
+     * e todas as ações da fila são parciais. Ou seja, uma busca por visita.
+     */
+    const precisaDeFornecedores = modalNova || !!modalEditar;
+    const buscandoFornecedores = useRef(false);
+
+    useEffect(() => {
+        if (!precisaDeFornecedores || fornecedores || buscandoFornecedores.current) return;
+
+        buscandoFornecedores.current = true;
+        router.reload({
+            only: ['fornecedores'],
+            // `async` para não atropelar um envio em andamento — mesmo motivo
+            // do reload do tempo real, logo abaixo.
+            async: true,
+            onFinish: () => { buscandoFornecedores.current = false; },
+        });
+    }, [precisaDeFornecedores, fornecedores]);
     /* O quadro de devoluções tem estado próprio: ele muda por conta (conferir,
        lançar, excluir) sem passar pelo reload da fila de notas. */
     const [devolucoesL, setDevolucoesL] = useState(devolucoes);
@@ -1299,8 +1364,7 @@ export default function Index({ recebimento, preLote, liberadas, canceladas, dev
 
     const criar = (dados: any, confirmarMover = false) => {
         setSubmetendo(true);
-        router.post(route('notas.store'), { ...dados, confirmar_mover: confirmarMover }, {
-            preserveScroll: true,
+        router.post(route('notas.store'), { ...dados, confirmar_mover: confirmarMover }, acaoNaFila({
             onSuccess: () => { setModalNova(false); setErros({}); },
             onError: e => {
                 // A nota já existe na outra fila: o backend devolve a fila atual
@@ -1317,28 +1381,28 @@ export default function Index({ recebimento, preLote, liberadas, canceladas, dev
                 setErros(e);
             },
             onFinish: () => setSubmetendo(false),
-        });
+        }));
     };
 
     const salvarEdicao = (dados: any) => {
         if (!modalEditar) return;
         setSubmetendo(true);
-        router.patch(route('notas.update', modalEditar.id), dados, {
+        router.patch(route('notas.update', modalEditar.id), dados, acaoNaFila({
             onSuccess: () => { setModalEditar(null); setErros({}); },
             onError: e => setErros(e),
             onFinish: () => setSubmetendo(false),
-        });
+        }));
     };
 
     const liberarRapido = (n: Nota) => {
         if (!confirm(`Liberar a nota ${n.numero_nota} (${n.fornecedor.nome})?`)) return;
-        router.post(route('notas.liberar', n.id), {}, { preserveScroll: true });
+        router.post(route('notas.liberar', n.id), {}, acaoNaFila());
     };
 
     // 🙋‍♂️ "estou olhando esta nota". O servidor decide: reserva, solta (se já é
     // minha) ou avisa quem está nela (volta em flash.erro, que vira toast).
     const visualizar = (n: Nota) => {
-        router.post(route('notas.visualizar', n.id), {}, { preserveScroll: true, preserveState: true });
+        router.post(route('notas.visualizar', n.id), {}, acaoNaFila({ preserveState: true }));
     };
 
     // Estorna a liberação: tira das liberadas e volta a nota para o recebimento
@@ -1346,17 +1410,17 @@ export default function Index({ recebimento, preLote, liberadas, canceladas, dev
     const cancelar = (n: Nota) => {
         const motivo = prompt(`Cancelar a nota ${n.numero_nota} (${n.fornecedor.nome})?\n\nMotivo (opcional):`);
         if (motivo === null) return; // desistiu
-        router.post(route('notas.cancelar', n.id), { motivo: motivo || undefined } as any, { preserveScroll: true });
+        router.post(route('notas.cancelar', n.id), { motivo: motivo || undefined } as any, acaoNaFila());
     };
 
     const descancelar = (n: Nota) => {
         if (!confirm(`Desfazer o cancelamento da nota ${n.numero_nota}? Ela volta para a fila.`)) return;
-        router.post(route('notas.descancelar', n.id), {}, { preserveScroll: true });
+        router.post(route('notas.descancelar', n.id), {}, acaoNaFila());
     };
 
     const devolver = (n: Nota) => {
         if (!confirm(`Devolver a nota ${n.numero_nota} ao recebimento? Ela sai das liberadas e volta para a fila para reajuste.`)) return;
-        router.post(route('notas.devolver', n.id), {}, { preserveScroll: true });
+        router.post(route('notas.devolver', n.id), {}, acaoNaFila());
     };
 
     const excluir = (n: Nota) => {
@@ -1366,7 +1430,7 @@ export default function Index({ recebimento, preLote, liberadas, canceladas, dev
             : `Excluir a nota ${n.numero_nota}? Esta ação pode ser revertida pelo administrador.`;
 
         if (!confirm(aviso)) return;
-        router.delete(route('notas.destroy', n.id));
+        router.delete(route('notas.destroy', n.id), acaoNaFila());
     };
 
     const sla = opcoes.sla ?? { atencao: 1, alerta: 3, critico: 7 };
@@ -1468,7 +1532,7 @@ export default function Index({ recebimento, preLote, liberadas, canceladas, dev
             <Head title="Notas" />
 
             <Modal aberto={modalNova} onFechar={() => setModalNova(false)} titulo="Lançar nota" p={p}>
-                <FormNota fornecedores={fornecedores} opcoes={opcoes} onSubmit={criar}
+                <FormNota fornecedores={fornecedores ?? []} carregandoFornecedores={!fornecedores} opcoes={opcoes} onSubmit={criar}
                     origemDefault={user.role === 'pre_lote' ? 'pre_lote' : 'recebimento'}
                     onCancelar={() => setModalNova(false)} carregando={submetendo} erros={erros}
                     labelSubmit="Lançar nota" p={p} />
@@ -1476,7 +1540,7 @@ export default function Index({ recebimento, preLote, liberadas, canceladas, dev
 
             <Modal aberto={!!modalEditar} onFechar={() => setModalEditar(null)} titulo="Editar nota" p={p}>
                 {modalEditar && (
-                    <FormNota fornecedores={fornecedores} opcoes={opcoes} inicial={modalEditar}
+                    <FormNota fornecedores={fornecedores ?? []} carregandoFornecedores={!fornecedores} opcoes={opcoes} inicial={modalEditar}
                         origemDefault={modalEditar.origem}
                         onSubmit={salvarEdicao} onCancelar={() => setModalEditar(null)}
                         carregando={submetendo} erros={erros} labelSubmit="Salvar alterações" p={p} />
@@ -1494,7 +1558,7 @@ export default function Index({ recebimento, preLote, liberadas, canceladas, dev
                 onFechar={() => setComentariosNota(null)}
                 baseUrl={comentariosNota ? `/notas/${comentariosNota.id}/comentarios` : null}
                 titulo={comentariosNota ? `Nota ${comentariosNota.numero_nota} — ${comentariosNota.fornecedor.nome}` : ''}
-                onMudou={() => router.reload({ only: ['recebimento', 'preLote', 'liberadas'] })}
+                onMudou={() => router.reload({ only: [...PROPS_DA_FILA] })}
                 recarregarToken={echoTick}
                 podeComentar={can.interagir}
                 p={p} />
@@ -1504,7 +1568,7 @@ export default function Index({ recebimento, preLote, liberadas, canceladas, dev
                 onFechar={() => setAnexosNota(null)}
                 baseUrl={anexosNota ? `/notas/${anexosNota.id}/anexos` : null}
                 titulo={anexosNota ? `Nota ${anexosNota.numero_nota} — ${anexosNota.fornecedor.nome}` : ''}
-                onMudou={() => router.reload({ only: ['recebimento', 'preLote', 'liberadas'] })}
+                onMudou={() => router.reload({ only: [...PROPS_DA_FILA] })}
                 podeAnexar={can.anexarNota}
                 p={p} />
 

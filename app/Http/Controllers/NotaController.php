@@ -154,7 +154,6 @@ class NotaController extends Controller
             ->get()
             ->map(fn(Devolucao $d) => $d->paraQuadro());
 
-        $fornecedores = Fornecedor::select('id', 'nome')->orderBy('nome')->get();
 
         return Inertia::render('Notas/Index', [
             'recebimento'   => $recebimento,
@@ -162,7 +161,21 @@ class NotaController extends Controller
             'liberadas'     => $liberadas,
             'canceladas'    => $canceladas,
             'devolucoes'    => $devolucoes,
-            'fornecedores'  => $fornecedores,
+            /*
+             * A lista inteira de fornecedores só quando alguém pede.
+             *
+             * São ~2.800 nomes, 136 KB — 67% de tudo o que esta tela devolve, e
+             * a única prop aqui que nunca muda. Ia junto em toda resposta,
+             * inclusive no redirect de cada card confirmado: 88 ms só para o
+             * Laravel montar modelos que seriam descartados (o SQL leva 4 ms).
+             *
+             * `optional` deixa a prop de fora até ser pedida por nome. Quem
+             * precisa dela é o formulário de lançar/editar nota, e ele a busca
+             * ao abrir — uma vez por sessão de tela, em vez de a cada clique.
+             */
+            'fornecedores'  => Inertia::optional(
+                fn() => Fornecedor::select('id', 'nome')->orderBy('nome')->get()
+            ),
             'dataFiltro'      => $dataFiltro,
             'resumoAlertas'   => $resumoAlertas,
             'resumoTipos'     => $resumoTipos,

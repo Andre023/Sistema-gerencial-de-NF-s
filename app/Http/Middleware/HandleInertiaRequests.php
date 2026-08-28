@@ -5,6 +5,7 @@ namespace App\Http\Middleware;
 use App\Services\Conversas;
 use App\Services\Notificador;
 use Illuminate\Http\Request;
+use Inertia\Inertia;
 use Inertia\Middleware;
 
 class HandleInertiaRequests extends Middleware
@@ -76,12 +77,21 @@ class HandleInertiaRequests extends Middleware
             // alguém expande a barra.
             'conversasPendentes' => $user ? Conversas::pendentesDe($user) : [],
 
-            // Mensagens de uma ação (ex.: "Nota movida.") — o layout mostra como
-            // toast. Sem isto, o ->with('sucesso', ...) dos controllers se perde.
-            'flash' => [
-                'sucesso' => fn() => $request->session()->get('sucesso'),
-                'erro'    => fn() => $request->session()->get('erro'),
-            ],
+            /*
+             * Mensagens de uma ação (ex.: "Nota movida.") — o layout mostra como
+             * toast. Sem isto, o ->with('sucesso', ...) dos controllers se perde.
+             *
+             * `always` porque as ações da fila pedem reload PARCIAL (`only:`), e
+             * num parcial o Inertia devolve só as props pedidas e mantém as
+             * antigas para o resto. O flash ficaria preso no valor anterior: o
+             * "Nota liberada" nunca apareceria, e o aviso de quem já está
+             * olhando a nota — que chega por flash.erro — se perderia junto.
+             * Os `errors` de validação já vêm assim do próprio Inertia.
+             */
+            'flash' => Inertia::always([
+                'sucesso' => $request->session()->get('sucesso'),
+                'erro'    => $request->session()->get('erro'),
+            ]),
         ];
     }
 }

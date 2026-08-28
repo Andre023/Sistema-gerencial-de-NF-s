@@ -2,8 +2,10 @@ import { useState, useMemo, useEffect, useRef } from 'react';
 import { Fornecedor } from '@/types';
 import { Palette } from '@/lib/tema';
 
-export default function CampoFornecedor({ fornecedores, valor, onChange, erro, p }: {
+export default function CampoFornecedor({ fornecedores, valor, onChange, erro, carregando = false, p }: {
     fornecedores: Fornecedor[]; valor: { id: number | ''; nome: string };
+    /** A lista chega sob demanda; sem este aviso o campo parece vazio de verdade. */
+    carregando?: boolean;
     onChange: (f: { id: number | ''; nome: string }) => void; erro?: string; p: Palette;
 }) {
     const [busca, setBusca] = useState(valor.nome);
@@ -29,7 +31,9 @@ export default function CampoFornecedor({ fornecedores, valor, onChange, erro, p
         <div ref={ref} className="relative">
             <input type="text" value={busca}
                 onChange={e => { setBusca(e.target.value); onChange({ id: '', nome: e.target.value }); setAberto(true); }}
-                onFocus={() => setAberto(true)} placeholder="Buscar fornecedor..." autoComplete="off"
+                onFocus={() => setAberto(true)}
+                placeholder={carregando ? 'Carregando fornecedores...' : 'Buscar fornecedor...'}
+                autoComplete="off"
                 className="block w-full rounded-lg text-sm px-3 py-2 outline-none transition"
                 style={{ background: p.INPUT_BG, color: p.TEXT, border: `1px solid ${erro ? p.RED : p.INPUT_BORDER}` }}
             />
