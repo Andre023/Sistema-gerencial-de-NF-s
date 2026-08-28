@@ -137,23 +137,24 @@ class NotaController extends Controller
             ->map(fn($n) => $n->paraTabela($dataFiltro));
 
         /*
-         * O quadro de devoluções.
+         * O quadro de devoluções — a mesma regra das notas, aplicada a cards.
          *
-         * Não segue o filtro de data das notas de propósito: um card fica no
-         * quadro até alguém conferir, e sumir por virar o dia é justamente o
-         * que fazia o recado se perder no WhatsApp. Os conferidos ficam à
-         * mostra por uma semana — o mesmo prazo em que os arquivos vivem.
+         * A NÃO conferida arrasta: fica no quadro todo dia até alguém conferir.
+         * Sumir por virar o dia é justamente o que fazia o recado se perder no
+         * WhatsApp.
+         *
+         * A conferida pertence ao DIA EM QUE FOI CONFERIDA, como as notas
+         * liberadas: quem abre a tela de ontem vê o que foi resolvido ontem.
          */
         $devolucoes = Devolucao::with(['anexos', 'criadaPor:id,name', 'conferidaPor:id,name'])
             ->where(fn($q) => $q
                 ->whereNull('conferida_em')
-                ->orWhere('conferida_em', '>=', now()->subDays(Devolucao::DIAS_APOS_CONFERIR)))
+                ->orWhereDate('conferida_em', $dataFiltro))
             // Não conferidas primeiro; dentro de cada grupo, a mais nova antes
             ->orderByRaw('conferida_em is null desc')
             ->orderByDesc('id')
             ->get()
             ->map(fn(Devolucao $d) => $d->paraQuadro());
-
 
         return Inertia::render('Notas/Index', [
             'recebimento'   => $recebimento,

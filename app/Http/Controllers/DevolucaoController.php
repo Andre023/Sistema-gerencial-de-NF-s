@@ -41,7 +41,14 @@ class DevolucaoController extends Controller
             'numero_nota'    => ['required', 'string', 'max:60'],
             'motivo'         => ['required', 'string', 'max:255'],
             'autorizado_por' => ['required', 'string', 'max:255'],
-            'boleto_vence'   => ['nullable', 'date'],
+            // Vários boletos: a nota grande sai parcelada. `date_format` e não
+            // `date` porque queremos exatamente o dia — 'date' aceitaria texto
+            // solto que o Carbon adivinha, e "12/09" viraria outra coisa.
+            'boletos_vencem'   => ['nullable', 'array', 'max:20'],
+            'boletos_vencem.*' => ['required', 'date_format:Y-m-d'],
+            // Devolução que não terá boleto nenhum. Diferente da lista
+            // vazia, que quer dizer "o boleto ainda não saiu".
+            'sem_boleto'       => ['sometimes', 'boolean'],
 
             // Pelo menos um arquivo — é a razão de o card existir.
             'arquivos'   => ['required', 'array', 'min:1', 'max:' . DevolucaoAnexo::MAX_POR_CARD],
@@ -55,7 +62,11 @@ class DevolucaoController extends Controller
             'arquivos.max'      => 'No máximo ' . DevolucaoAnexo::MAX_POR_CARD . ' arquivos por card.',
             'arquivos.*.max'    => 'Arquivo grande demais (máximo ' . (DevolucaoAnexo::TAMANHO_MAX_KB / 1024) . ' MB).',
             'arquivos.*.mimes'  => 'Formato não aceito. Envie foto (JPG, PNG, WebP, HEIC) ou PDF.',
+            'boletos_vencem.max'      => 'No máximo 20 vencimentos por devolução.',
+            'boletos_vencem.*.date_format' => 'Data de vencimento inválida.',
         ]);
+
+        $semBoleto = $request->boolean('sem_boleto');
 
         /*
          * Card e arquivos numa transação só.
@@ -71,13 +82,22 @@ class DevolucaoController extends Controller
         $gravados = [];
 
         try {
-            $devolucao = DB::transaction(function () use ($dados, $request, &$gravados) {
+            $devolucao = DB::transaction(function () use ($dados, $request, $semBoleto, &$gravados) {
                 $devolucao = Devolucao::create([
                     'fornecedor'     => trim($dados['fornecedor']),
                     'numero_nota'    => trim($dados['numero_nota']),
                     'motivo'         => trim($dados['motivo']),
                     'autorizado_por' => trim($dados['autorizado_por']),
-                    'boleto_vence'   => $dados['boleto_vence'] ?? null,
+                    /*
+                     * Ordenadas e sem repetição: a lista é lida de cima para
+                     * baixo, e o mesmo dia duas vezes só confunde quem confere.
+                     *
+                     * Com "sem boleto" marcado a lista vai vazia: a tela esconde
+                     * as datas nesse caso, e guardar o que ela não mostra deixaria
+                     * o card se contradizendo se alguém desmarcasse depois.
+                     */
+                    'boletos_vencem' => $semBoleto ? [] : $this->datasLimpas($dados['boletos_vencem'] ?? []),
+                    'sem_boleto'     => $semBoleto,
                     'criada_por'     => $request->user()->id,
                 ]);
 
@@ -273,6 +293,14 @@ class DevolucaoController extends Controller
         ]);
 
         return $caminho;
+    }
+
+    /** @param array<int,string> $datas */
+    private function datasLimpas(array $datas): array
+    {
+        return array_values(array_unique(
+            collect($datas)->filter()->sort()->all(),
+        ));
     }
 
     /** Só o basename, sem caractere de controle, no tamanho da coluna. */

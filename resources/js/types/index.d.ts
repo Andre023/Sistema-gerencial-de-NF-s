@@ -180,8 +180,19 @@ export interface Devolucao {
     numero_nota: string;
     motivo: string;
     autorizado_por: string;
-    /** YYYY-MM-DD, ou null quando não há boleto com data */
-    boleto_vence: string | null;
+    /**
+     * Vencimentos dos boletos, em YYYY-MM-DD e já ordenados. Vazio quando a
+     * devolução ainda não tem boleto emitido — uma nota grande sai parcelada,
+     * e o recado precisa citar todas as datas.
+     */
+    boletos_vencem: string[];
+    /**
+     * Não haverá boleto nesta devolução.
+     *
+     * Diferente de `boletos_vencem` vazio, que quer dizer "o boleto ainda não
+     * saiu" — ali há o que esperar, aqui não há.
+     */
+    sem_boleto: boolean;
     criada_por: string | null;
     conferida_em: string | null;
     conferida_por: string | null;

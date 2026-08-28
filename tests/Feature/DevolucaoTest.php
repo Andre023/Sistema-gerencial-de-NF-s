@@ -50,7 +50,7 @@ class DevolucaoTest extends TestCase
             'fornecedor'     => 'VERDE CAMPO',
             'motivo'         => 'FALTA',
             'autorizado_por' => 'FELIPE CABRAL',
-            'boleto_vence'   => '2026-09-11',
+            'boletos_vencem' => ['2026-09-11'],
             'arquivos'       => [UploadedFile::fake()->image('print.png', 900, 600)],
             ...$extra,
         ];
@@ -77,7 +77,7 @@ class DevolucaoTest extends TestCase
 
         $devolucao = Devolucao::firstOrFail();
 
-        $this->assertSame('2026-09-11', $devolucao->boleto_vence->toDateString());
+        $this->assertSame(['2026-09-11'], $devolucao->boletos_vencem);
         $this->assertSame($this->recebimento->id, $devolucao->criada_por);
         $this->assertCount(1, $devolucao->anexos);
 
@@ -110,12 +110,91 @@ class DevolucaoTest extends TestCase
         $this->assertDatabaseCount('devolucoes', 0);
     }
 
-    /** O boleto pode não ter data — nem toda devolução sai com boleto emitido. */
-    public function test_boleto_sem_data_passa(): void
+    /**
+     * O boleto pode ainda não ter data — nem toda devolução sai com ele emitido.
+     *
+     * Repare que isto NÃO é o mesmo que a marca "sem boleto": aqui há boleto a
+     * caminho e alguém vai cobrar a data depois. Os dois testes seguintes
+     * cuidam da outra situação.
+     */
+    public function test_boleto_ainda_nao_emitido_passa(): void
     {
-        $this->lanca($this->recebimento, ['boleto_vence' => ''])->assertCreated();
+        $this->lanca($this->recebimento, ['boletos_vencem' => []])->assertCreated();
 
-        $this->assertNull(Devolucao::firstOrFail()->boleto_vence);
+        $devolucao = Devolucao::firstOrFail();
+
+        $this->assertSame([], $devolucao->boletos_vencem);
+        $this->assertFalse($devolucao->sem_boleto, 'lista vazia não quer dizer que não haverá boleto');
+    }
+
+    /** Sem a marca, a devolução é com boleto — é o caso normal da doca. */
+    public function test_com_boleto_e_o_padrao(): void
+    {
+        $this->lanca($this->preLote)->assertCreated();
+
+        $this->assertFalse(Devolucao::firstOrFail()->sem_boleto);
+    }
+
+    /**
+     * Marcou "sem boleto": a data vai embora junto.
+     *
+     * A tela esconde os campos de vencimento quando a marca está ligada, então
+     * guardar data aqui deixaria o card se contradizendo caso alguém
+     * desmarcasse depois — mostrando um vencimento que ninguém digitou.
+     */
+    public function test_sem_boleto_descarta_as_datas(): void
+    {
+        $this->lanca($this->recebimento, [
+            'sem_boleto'     => '1',
+            'boletos_vencem' => ['2026-09-11', '2026-10-30'],
+        ])->assertCreated();
+
+        $devolucao = Devolucao::firstOrFail();
+
+        $this->assertTrue($devolucao->sem_boleto);
+        $this->assertSame([], $devolucao->boletos_vencem);
+    }
+
+    /** O quadro precisa da marca para escolher o título e a cor do cartão. */
+    public function test_o_quadro_expoe_a_marca(): void
+    {
+        $this->lanca($this->preLote, ['sem_boleto' => '1'])->assertCreated();
+
+        $this->assertArrayHasKey('sem_boleto', Devolucao::firstOrFail()->paraQuadro());
+        $this->assertTrue(Devolucao::firstOrFail()->paraQuadro()['sem_boleto']);
+    }
+
+    /** Nota grande sai parcelada: o recado precisa citar todos os vencimentos. */
+    public function test_aceita_varios_vencimentos(): void
+    {
+        $this->lanca($this->preLote, [
+            'boletos_vencem' => ['2026-10-30', '2026-09-11', '2026-09-25'],
+        ])->assertCreated();
+
+        // Guardadas em ORDEM: a lista é lida de cima para baixo, e a primeira a
+        // vencer é a que interessa primeiro.
+        $this->assertSame(
+            ['2026-09-11', '2026-09-25', '2026-10-30'],
+            Devolucao::firstOrFail()->boletos_vencem,
+        );
+    }
+
+    public function test_vencimento_repetido_entra_uma_vez_so(): void
+    {
+        $this->lanca($this->preLote, [
+            'boletos_vencem' => ['2026-09-11', '2026-09-11'],
+        ])->assertCreated();
+
+        $this->assertSame(['2026-09-11'], Devolucao::firstOrFail()->boletos_vencem);
+    }
+
+    public function test_data_invalida_e_recusada(): void
+    {
+        $this->actingAs($this->preLote)
+            ->post(route('devolucoes.store'), $this->dados(['boletos_vencem' => ['12/09/2026']]))
+            ->assertSessionHasErrors('boletos_vencem.0');
+
+        $this->assertDatabaseCount('devolucoes', 0);
     }
 
     public function test_aceita_varios_prints_e_pdf(): void
@@ -414,20 +493,38 @@ class DevolucaoTest extends TestCase
             ->assertInertia(fn($pagina) => $pagina->where('auth.can.usarDevolucoes', false));
     }
 
-    public function test_card_conferido_some_do_quadro_depois_da_semana(): void
+    public function test_conferida_pertence_ao_dia_em_que_foi_conferida(): void
     {
-        // O quadro mostra o conferido por uma semana — o mesmo prazo dos
-        // arquivos — para dar tempo de alguém voltar e reconferir.
+        // Mesma regra das notas liberadas: quem abre a tela de ontem vê o que
+        // foi resolvido ontem, e o quadro de hoje não carrega o de sempre.
         $this->lanca($this->preLote);
         $devolucao = Devolucao::firstOrFail();
 
         $devolucao->forceFill([
-            'conferida_em'  => now()->subDays(Devolucao::DIAS_APOS_CONFERIR + 1),
+            'conferida_em'  => now()->subDay(),
             'conferida_por' => $this->recebimento->id,
         ])->save();
 
         $this->actingAs($this->preLote)
             ->get(route('notas.index'))
             ->assertInertia(fn($pagina) => $pagina->has('devolucoes', 0));
+
+        // No dia dela, aparece
+        $this->actingAs($this->preLote)
+            ->get(route('notas.index', ['data' => now()->subDay()->toDateString()]))
+            ->assertInertia(fn($pagina) => $pagina->has('devolucoes', 1));
+    }
+
+    public function test_nao_conferida_arrasta_todo_dia(): void
+    {
+        // O oposto: enquanto ninguém confere, o card não pode sumir por virar o
+        // dia — era exatamente assim que o recado se perdia no WhatsApp.
+        $this->lanca($this->preLote);
+
+        Devolucao::firstOrFail()->forceFill(['created_at' => now()->subMonth()])->save();
+
+        $this->actingAs($this->recebimento)
+            ->get(route('notas.index'))
+            ->assertInertia(fn($pagina) => $pagina->has('devolucoes', 1));
     }
 }

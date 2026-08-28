@@ -195,20 +195,12 @@ function CartaoDevolucao({ devolucao: d, podeUsar, ocupado, onConferir, onReabri
     const urlDe = (a: DevolucaoAnexo) => route('devolucoes.arquivo', [d.id, a.id]);
 
     /*
-     * Vencimento do boleto: o que faz o card ser urgente ou não.
+     * Vencimento: o que faz o card ser urgente ou não.
      *
-     * Vermelho quando já venceu ou vence hoje, âmbar até três dias. É a única
-     * informação do card que muda de peso com o tempo — e a que fazia alguém
-     * relendo o grupo do WhatsApp perceber tarde demais.
+     * Vermelho quando já venceu ou vence hoje, âmbar até três dias — pintado
+     * data a data, logo abaixo. É a única informação do card que muda de peso
+     * com o tempo, e a que fazia alguém relendo o grupo perceber tarde demais.
      */
-    const diasAteVencer = d.boleto_vence
-        ? differenceInCalendarDays(parseISO(d.boleto_vence), new Date())
-        : null;
-
-    const corVencimento = diasAteVencer === null ? p.MUTED
-        : diasAteVencer <= 0 ? p.RED
-        : diasAteVencer <= 3 ? p.AMBER
-        : p.TEXT;
 
     return (
         <div className="shrink-0 rounded-xl overflow-hidden flex flex-col"
@@ -262,8 +254,14 @@ function CartaoDevolucao({ devolucao: d, podeUsar, ocupado, onConferir, onReabri
 
             {/* ── Os campos, na ordem do recado que isto substitui ── */}
             <div className="p-3 space-y-1.5 flex-1">
-                <p className="text-[11px] font-bold uppercase tracking-wide" style={{ color: p.ORANGE }}>
-                    Fazer devolução com boleto
+                {/* O título diz de cara se há boleto para cobrar.
+                    Roxo, e não vermelho ou âmbar, de propósito: logo abaixo as
+                    datas de vencimento usam essa escala para urgência, e repetir
+                    a cor aqui faria "sem boleto" parecer atrasado — quando é
+                    justamente o card que não tem prazo nenhum a vencer. */}
+                <p className="text-[11px] font-bold uppercase tracking-wide"
+                    style={{ color: d.sem_boleto ? p.PURPLE : p.ORANGE }}>
+                    Fazer devolução {d.sem_boleto ? 'sem boleto' : 'com boleto'}
                 </p>
 
                 <Campo rotulo="Nota" valor={d.numero_nota} p={p} forte />
@@ -271,13 +269,24 @@ function CartaoDevolucao({ devolucao: d, podeUsar, ocupado, onConferir, onReabri
                 <Campo rotulo="Motivo" valor={d.motivo} p={p} />
                 <Campo rotulo="Autorizado por" valor={d.autorizado_por} p={p} />
 
-                {d.boleto_vence && (
-                    <p className="text-xs flex gap-1.5">
-                        <span style={{ color: p.MUTED }}>Boleto vence:</span>
-                        <strong style={{ color: corVencimento }}>
-                            {dia(d.boleto_vence)}
-                            {diasAteVencer !== null && diasAteVencer <= 0 && ' (vencido)'}
-                        </strong>
+                {d.boletos_vencem.length > 0 && (
+                    <p className="text-xs flex gap-1.5 flex-wrap">
+                        <span style={{ color: p.MUTED }}>
+                            {d.boletos_vencem.length > 1 ? 'Boletos vencem:' : 'Boleto vence:'}
+                        </span>
+                        {d.boletos_vencem.map(data => {
+                            // Cada data se pinta sozinha: numa nota parcelada a
+                            // primeira pode estar vencida e a última longe, e uma
+                            // cor só para todas esconderia justamente a urgente.
+                            const dias = differenceInCalendarDays(parseISO(data), new Date());
+                            const cor = dias <= 0 ? p.RED : dias <= 3 ? p.AMBER : p.TEXT;
+
+                            return (
+                                <strong key={data} style={{ color: cor }} title={dias <= 0 ? 'Vencido' : `em ${dias} dia(s)`}>
+                                    {dia(data)}{dias <= 0 && ' (vencido)'}
+                                </strong>
+                            );
+                        })}
                     </p>
                 )}
             </div>
@@ -352,7 +361,11 @@ function ModalNovaDevolucao({ inicial, onFechar, onCriada, p }: {
     const [numeroNota, setNumeroNota] = useState(inicial?.numero_nota ?? '');
     const [motivo, setMotivo] = useState('');
     const [autorizadoPor, setAutorizadoPor] = useState('');
-    const [boletoVence, setBoletoVence] = useState('');
+    /* Uma nota grande sai parcelada: a lista começa com um campo vazio e
+       cresce conforme a pessoa acrescenta vencimentos. */
+    const [vencimentos, setVencimentos] = useState<string[]>(['']);
+    /** Não haverá boleto. Diferente de "ainda não saiu" — ver o model Devolucao. */
+    const [semBoleto, setSemBoleto] = useState(false);
     const [arquivos, setArquivos] = useState<File[]>([]);
     const [previas, setPrevias] = useState<string[]>([]);
     const [erro, setErro] = useState<string | null>(null);
@@ -409,7 +422,14 @@ function ModalNovaDevolucao({ inicial, onFechar, onCriada, p }: {
             corpo.append('numero_nota', numeroNota.trim());
             corpo.append('motivo', motivo.trim());
             corpo.append('autorizado_por', autorizadoPor.trim());
-            if (boletoVence) corpo.append('boleto_vence', boletoVence);
+            // Só as preenchidas: o campo em branco é o convite para digitar,
+            // não uma data vazia para o servidor recusar.
+            corpo.append('sem_boleto', semBoleto ? '1' : '0');
+            // Sem boleto não manda data: o servidor descartaria de qualquer
+            // forma, e mandar as duas coisas é o pedido se contradizendo.
+            if (!semBoleto) {
+                vencimentos.filter(Boolean).forEach(v => corpo.append('boletos_vencem[]', v));
+            }
 
             // Reduz e converte para WebP no aparelho: a VM tem 1 GB e não abre
             // print de celular sem risco (ver lib/imagem).
@@ -518,7 +538,52 @@ function ModalNovaDevolucao({ inicial, onFechar, onCriada, p }: {
                         campo que ainda pede digitação. */}
                     {campo('Motivo', motivo, setMotivo, 'text', !!inicial)}
                     {campo('Autorizado por', autorizadoPor, setAutorizadoPor)}
-                    {campo('Boleto vence', boletoVence, setBoletoVence, 'date')}
+
+                    {/* A marca vem ANTES das datas: marcada, não há data que
+                        preencher, e deixar os campos à mostra convidaria a
+                        digitar algo que seria descartado no envio. */}
+                    <label className="flex items-center gap-2 cursor-pointer select-none">
+                        <input type="checkbox" checked={semBoleto}
+                            onChange={e => setSemBoleto(e.target.checked)}
+                            style={{ accentColor: p.PURPLE }} />
+                        <span className="text-sm" style={{ color: semBoleto ? p.PURPLE : p.MUTED }}>
+                            Sem boleto
+                        </span>
+                    </label>
+
+                    <div hidden={semBoleto}>
+                        <span className="block text-xs mb-1" style={{ color: p.MUTED }}>
+                            Vencimento do boleto
+                            <span className="ml-1 opacity-70">(pode ter mais de um)</span>
+                        </span>
+
+                        <div className="space-y-1.5">
+                            {vencimentos.map((v, i) => (
+                                <div key={i} className="flex items-center gap-1.5">
+                                    <input type="date" value={v}
+                                        onChange={e => setVencimentos(l => l.map((x, j) => j === i ? e.target.value : x))}
+                                        className="flex-1 rounded-lg text-sm px-3 py-2 outline-none"
+                                        style={{ background: p.INPUT_BG, color: p.TEXT, border: `1px solid ${p.INPUT_BORDER}` }} />
+
+                                    {/* O primeiro campo não some: sem ele a pessoa
+                                        ficaria sem onde digitar a primeira data. */}
+                                    {vencimentos.length > 1 && (
+                                        <button type="button" title="Tirar este vencimento"
+                                            onClick={() => setVencimentos(l => l.filter((_, j) => j !== i))}
+                                            className="px-2 py-2 rounded-lg" style={{ color: p.RED }}>
+                                            <Icone path="M6 18L18 6M6 6l12 12" className="w-4 h-4" />
+                                        </button>
+                                    )}
+                                </div>
+                            ))}
+                        </div>
+
+                        <button type="button" onClick={() => setVencimentos(l => [...l, ''])}
+                            className="mt-1.5 text-xs font-medium px-2 py-1 rounded-md transition"
+                            style={{ color: p.ACCENT, background: p.ACCENT + '14' }}>
+                            + Outro vencimento
+                        </button>
+                    </div>
 
                     {erro && <p className="text-xs" style={{ color: p.RED }}>{erro}</p>}
                 </div>

@@ -26,15 +26,22 @@ class Devolucao extends Model
         'numero_nota',
         'motivo',
         'autorizado_por',
-        'boleto_vence',
+        'boletos_vencem',
+        'sem_boleto',
         'criada_por',
         'conferida_em',
         'conferida_por',
     ];
 
     protected $casts = [
-        'boleto_vence' => 'date',
-        'conferida_em' => 'datetime',
+        // Lista de 'YYYY-MM-DD'. Uma nota grande sai parcelada, e o recado
+        // precisa citar todos os vencimentos — com um só, os outros viravam
+        // combinado de boca.
+        'boletos_vencem' => 'array',
+        // Não é o mesmo que a lista vazia: vazia = o boleto ainda não saiu
+        // (alguém vai cobrar a data); sem_boleto = não haverá boleto.
+        'sem_boleto'     => 'boolean',
+        'conferida_em'   => 'datetime',
     ];
 
     /**
@@ -75,7 +82,8 @@ class Devolucao extends Model
             'numero_nota'    => $this->numero_nota,
             'motivo'         => $this->motivo,
             'autorizado_por' => $this->autorizado_por,
-            'boleto_vence'   => $this->boleto_vence?->toDateString(),
+            'boletos_vencem' => $this->boletos_vencem ?? [],
+            'sem_boleto'     => (bool) $this->sem_boleto,
             'criada_por'     => $this->criadaPor?->name,
             'conferida_em'   => $this->conferida_em,
             'conferida_por'  => $this->conferidaPor?->name,
