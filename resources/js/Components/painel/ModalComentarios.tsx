@@ -4,13 +4,21 @@ import { Palette } from '@/lib/tema';
 import Modal from './Modal';
 import Icone from './Icone';
 
-/** Um item da linha do tempo: evento de auditoria ou comentário. */
-export type ItemTimeline =
-    | { tipo: 'evento'; id: string; acao: string; usuario: string; em: string }
-    | {
-          tipo: 'comentario'; id: number; texto: string; usuario: string;
-          usuario_id: number | null; em: string; pode_excluir: boolean;
-      };
+/**
+ * Um comentário — e só.
+ *
+ * Esta thread já misturava eventos deduzidos ("abriu custo", "corrigiu
+ * custo") com o que as pessoas escreviam. O histórico saiu daqui e virou o
+ * livro de ocorrências, que registra na hora da ação: aqui ficou a conversa.
+ */
+export interface ItemComentario {
+    id: number;
+    texto: string;
+    usuario: string;
+    usuario_id: number | null;
+    em: string;
+    pode_excluir: boolean;
+}
 
 const quando = (iso: string) => {
     try { return format(parseISO(iso), "dd/MM/yyyy 'às' HH:mm"); } catch { return iso; }
@@ -32,7 +40,7 @@ export default function ModalComentarios({ aberto, onFechar, baseUrl, titulo, on
     podeComentar?: boolean;
     p: Palette;
 }) {
-    const [timeline, setTimeline] = useState<ItemTimeline[]>([]);
+    const [comentarios, setComentarios] = useState<ItemComentario[]>([]);
     const [texto, setTexto] = useState('');
     const [carregando, setCarregando] = useState(false);
     const [enviando, setEnviando] = useState(false);
@@ -45,7 +53,7 @@ export default function ModalComentarios({ aberto, onFechar, baseUrl, titulo, on
         setErro(null);
         try {
             const { data } = await window.axios.get(baseUrl);
-            setTimeline(data.timeline);
+            setComentarios(data.comentarios);
         } catch {
             setErro('Não foi possível carregar a conversa.');
         } finally {
@@ -65,8 +73,8 @@ export default function ModalComentarios({ aberto, onFechar, baseUrl, titulo, on
 
     // Rola para o fim quando a thread cresce
     useEffect(() => {
-        if (aberto && timeline.length) fimRef.current?.scrollIntoView({ block: 'end' });
-    }, [timeline, aberto]);
+        if (aberto && comentarios.length) fimRef.current?.scrollIntoView({ block: 'end' });
+    }, [comentarios, aberto]);
 
     const enviar = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -75,7 +83,7 @@ export default function ModalComentarios({ aberto, onFechar, baseUrl, titulo, on
         setErro(null);
         try {
             const { data } = await window.axios.post(baseUrl, { texto: texto.trim() });
-            setTimeline(data.timeline);
+            setComentarios(data.comentarios);
             setTexto('');
             onMudou?.();
         } catch (err: any) {
@@ -89,7 +97,7 @@ export default function ModalComentarios({ aberto, onFechar, baseUrl, titulo, on
         if (!baseUrl || !confirm('Excluir este comentário?')) return;
         try {
             const { data } = await window.axios.delete(`${baseUrl}/${id}`);
-            setTimeline(data.timeline);
+            setComentarios(data.comentarios);
             onMudou?.();
         } catch {
             setErro('Não foi possível excluir o comentário.');
@@ -106,21 +114,16 @@ export default function ModalComentarios({ aberto, onFechar, baseUrl, titulo, on
                         <p className="text-sm text-center py-6" style={{ color: p.MUTED }}>Carregando...</p>
                     )}
 
-                    {!carregando && timeline.length === 0 && (
+                    {!carregando && comentarios.length === 0 && (
                         <p className="text-sm text-center py-6" style={{ color: p.MUTED }}>
-                            Nenhum histórico ainda.
+                            Nenhum comentário ainda.
+                            <span className="block text-xs mt-1">
+                                O histórico da nota está em Ocorrências.
+                            </span>
                         </p>
                     )}
 
-                    {!carregando && timeline.map(item => item.tipo === 'evento' ? (
-                        // Evento de auditoria — linha discreta
-                        <div key={item.id} className="flex items-center gap-2 text-xs" style={{ color: p.MUTED }}>
-                            <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ background: p.BORDER }} />
-                            <span><strong style={{ color: p.TEXT }}>{item.usuario}</strong> {item.acao}</span>
-                            <span className="ml-auto shrink-0">{quando(item.em)}</span>
-                        </div>
-                    ) : (
-                        // Comentário — bolha
+                    {!carregando && comentarios.map(item => (
                         <div key={item.id} className="flex gap-2.5 group">
                             <span className="w-7 h-7 rounded-full shrink-0 flex items-center justify-center text-[10px] font-bold text-white"
                                 style={{ background: p.ACCENT }}>

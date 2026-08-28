@@ -2,7 +2,15 @@
 
 namespace App\Providers;
 
+use App\Models\Anexo;
+use App\Models\Card;
+use App\Models\Comentario;
+use App\Models\Nota;
 use App\Models\User;
+use App\Observers\AnexoObserver;
+use App\Observers\CardObserver;
+use App\Observers\ComentarioObserver;
+use App\Observers\NotaObserver;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Vite;
 use Illuminate\Support\ServiceProvider;
@@ -24,6 +32,16 @@ class AppServiceProvider extends ServiceProvider
     public function boot(): void
     {
         Vite::prefetch(concurrency: 3);
+
+        // ─── Livro de ocorrências ─────────────────────────────────────
+        //
+        // Nos observers, e não espalhado pelos controllers, de propósito: assim a
+        // rota nova que alguém escrever amanhã já nasce registrada. Ver
+        // App\Services\Ocorrencias para as duas camadas do desenho.
+        Nota::observe(NotaObserver::class);
+        Card::observe(CardObserver::class);
+        Comentario::observe(ComentarioObserver::class);
+        Anexo::observe(AnexoObserver::class);
 
         // ─── Senha ──────────────────────────────────────────────────────────────
         //
@@ -57,6 +75,10 @@ class AppServiceProvider extends ServiceProvider
         Gate::define('gerenciar-prioridades', fn(User $u) => $u->podeGerenciarPrioridades());
         Gate::define('importar-fornecedores', fn(User $u) => $u->podeImportarFornecedores());
         Gate::define('interagir',          fn(User $u) => $u->podeInteragir());
+        // Ver o livro de ocorrências é de todo papel operacional — registro que
+        // só a chefia enxerga vira vigilância; visto por quem trabalha na nota,
+        // vira o combinado da equipe. Ninguém apaga: não há rota para isso.
+        Gate::define('ver-ocorrencias',    fn(User $u) => $u->podeInteragir());
         Gate::define('cancelar-nota',      fn(User $u) => $u->podeCancelarNota());
         Gate::define('editar-observacao',  fn(User $u) => $u->podeEditarObservacao());
         Gate::define('editar-ceasa-liberada',      fn(User $u) => $u->podeEditarCeasaLiberada());

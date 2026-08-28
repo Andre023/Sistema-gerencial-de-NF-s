@@ -8,7 +8,9 @@ use App\Models\Card;
 use App\Models\Devolucao;
 use App\Models\Fornecedor;
 use App\Models\Nota;
+use App\Models\Ocorrencia;
 use App\Services\Notificador;
+use App\Services\Ocorrencias;
 use Carbon\Carbon;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -310,6 +312,7 @@ class NotaController extends Controller
         }
 
         if ($existente->liberada_em) {
+            Ocorrencias::intencao(Ocorrencia::NOTA_RECEBIDA);
             $existente->update(['recebida_em' => now()]);
             event(new NotaAtualizada($existente));
 
@@ -335,6 +338,10 @@ class NotaController extends Controller
 
         // Trocar de fila reinicia o relógio do envelhecimento: ela esperou na
         // fila ANTERIOR. Guardamos de onde veio (vira "Pré-lote desde 19/06").
+        Ocorrencias::intencao(Ocorrencia::NOTA_MOVIDA, [
+            'de'   => $existente->origem,
+            'para' => $dados['origem'],
+        ]);
         $existente->update([
             'origem'             => $dados['origem'],
             'origem_anterior'    => $existente->origem,
@@ -414,6 +421,7 @@ class NotaController extends Controller
             return back()->withErrors(['nota' => 'A nota ainda tem divergência em aberto — resolva os cards antes de liberar.']);
         }
 
+        Ocorrencias::intencao(Ocorrencia::NOTA_LIBERADA);
         $nota->update([
             'liberada_por' => $request->user()->id,
             'liberada_em'  => now(),
@@ -453,6 +461,9 @@ class NotaController extends Controller
             'motivo' => 'nullable|string|max:500',
         ]);
 
+        Ocorrencias::intencao(Ocorrencia::NOTA_CANCELADA, array_filter([
+            'motivo' => $dados['motivo'] ?? null,
+        ]));
         $nota->update([
             'cancelada_em'        => now(),
             'cancelada_por'       => $request->user()->id,
@@ -481,6 +492,7 @@ class NotaController extends Controller
             return back()->withErrors(['nota' => 'Esta nota não está cancelada.']);
         }
 
+        Ocorrencias::intencao(Ocorrencia::NOTA_DESCANCELADA);
         $nota->update([
             'cancelada_em'        => null,
             'cancelada_por'       => null,
@@ -548,6 +560,7 @@ class NotaController extends Controller
             return back()->withErrors(['nota' => 'Esta nota não está liberada.']);
         }
 
+        Ocorrencias::intencao(Ocorrencia::NOTA_DEVOLVIDA);
         $nota->update([
             'liberada_por' => null,
             'liberada_em'  => null,

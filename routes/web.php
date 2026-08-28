@@ -11,6 +11,7 @@ use App\Http\Controllers\DossieController;
 use App\Http\Controllers\EstatisticaController;
 use App\Http\Controllers\FornecedorController;
 use App\Http\Controllers\NotaController;
+use App\Http\Controllers\OcorrenciaController;
 use App\Http\Controllers\NotificacaoController;
 use App\Http\Controllers\PrioridadeController;
 use App\Http\Controllers\ProfileController;
@@ -131,6 +132,12 @@ Route::middleware(['auth', 'verified'])->group(function () {
             Route::post('/',               [ComentarioController::class, 'store'])->name('store');
             Route::delete('/{comentario}', [ComentarioController::class, 'destroy'])->name('destroy');
         });
+
+        // Ocorrências: o que aconteceu com a nota, quem fez e quando. Só GET —
+        // ninguém escreve nem apaga por aqui. Quem grava são os observers, na
+        // hora do fato; log que a tela consegue editar não vale como registro.
+        Route::get('/{nota}/ocorrencias', [OcorrenciaController::class, 'index'])
+             ->name('ocorrencias.index');
     });
 
     // ── Fornecedores ───────────────────────────────────────────────────────────
