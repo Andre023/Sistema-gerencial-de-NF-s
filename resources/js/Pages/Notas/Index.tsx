@@ -186,7 +186,7 @@ function FormNota({ fornecedores, opcoes, inicial, origemDefault, onSubmit, onCa
  */
 const SEM_TROCA = 'nenhum' as const;
 
-function ModalCards({ nota, onFechar, can, tiposCompras, tiposQualquerPapel, tiposRecebimento, substitutosCadastro, isDark, p }: {
+function ModalCards({ nota, onFechar, can, tiposCompras, tiposQualquerPapel, tiposRecebimento, substitutosCadastro, executar, isDark, p }: {
     nota: Nota | null; onFechar: () => void; can: Permissoes;
     tiposCompras: TipoCard[];
     /** Card::abertosPorQualquerPapel() — quem não é pré-lote só enxerga estes */
@@ -195,6 +195,11 @@ function ModalCards({ nota, onFechar, can, tiposCompras, tiposQualquerPapel, tip
     tiposRecebimento: TipoCard[];
     /** Card::SUBSTITUTOS_DE_CADASTRO — por quais cards o cadastro pode ser trocado */
     substitutosCadastro: TipoCard[];
+    /**
+     * Quem de fato dispara a ação. Vem da página porque é lá que mora a
+     * `patch()` e o estado das listas — o modal só sabe QUAL ação quer.
+     */
+    executar: (a: AcaoRapida, cb?: { onSuccess?: () => void; onError?: (m: string) => void; onFinish?: () => void }) => void;
     isDark: boolean; p: Palette;
 }) {
     // Compras só corrige os tipos dela (regra é do pré-lote); admin corrige tudo
@@ -258,18 +263,30 @@ function ModalCards({ nota, onFechar, can, tiposCompras, tiposQualquerPapel, tip
             ? opcoesTipos(nota).filter(t => meusTipos.includes(t))
             : [];
 
-    const agir = (fn: () => void) => { setErro(null); setOcupado(true); fn(); };
-    const opts = acaoNaFila({
-        onError: (e: Record<string, string>) => setErro(Object.values(e)[0] ?? 'Não foi possível concluir.'),
-        onFinish: () => setOcupado(false),
-    });
+    /**
+     * Dispara a ação e devolve o controle do "ocupado" ao modal.
+     *
+     * `depois` roda só quando deu certo — é onde os campos do formulário são
+     * limpos, e limpá-los num erro apagaria o que a pessoa acabou de digitar.
+     */
+    const agir = (acao: AcaoRapida, depois?: () => void) => {
+        setErro(null);
+        setOcupado(true);
+        executar(acao, {
+            onSuccess: depois,
+            onError: setErro,
+            onFinish: () => setOcupado(false),
+        });
+    };
 
     const abrirCard = (e: React.FormEvent) => {
         e.preventDefault();
         if (!tipoNovo) return;
-        agir(() => router.post(route('notas.cards.store', nota.id), { tipo: tipoNovo, detalhe: detalheNovo || undefined } as any, {
-            ...opts, onSuccess: () => { setTipoNovo(''); setDetalheNovo(''); },
-        }));
+        agir(
+            { metodo: 'post', url: route('notas.cards.store', nota.id),
+              dados: { tipo: tipoNovo, detalhe: detalheNovo || undefined } },
+            () => { setTipoNovo(''); setDetalheNovo(''); },
+        );
     };
 
     /**
@@ -279,20 +296,22 @@ function ModalCards({ nota, onFechar, can, tiposCompras, tiposQualquerPapel, tip
      * Corrigir cadastro raramente fecha o assunto — em geral só muda de
      * assunto: o item passou a existir, mas existir não é estar no pedido.
      */
-    const corrigir = (c: Card, substituto?: TipoCard | typeof SEM_TROCA) => agir(() => router.patch(
-        route('notas.cards.corrigir', [nota.id, c.id]),
-        (substituto ? { substituto } : {}) as any,
-        { ...opts, onSuccess: () => setTrocando(null) },
-    ));
-    const resolver = (c: Card) => agir(() => router.patch(route('notas.cards.resolver', [nota.id, c.id]), {}, opts));
-    const reabrir  = (c: Card) => agir(() => router.patch(route('notas.cards.reabrir', [nota.id, c.id]), {}, opts));
+    const corrigir = (c: Card, substituto?: TipoCard | typeof SEM_TROCA) => agir(
+        { metodo: 'patch', url: route('notas.cards.corrigir', [nota.id, c.id]),
+          dados: substituto ? { substituto } : {} },
+        () => setTrocando(null),
+    );
+    const resolver = (c: Card) => agir({ metodo: 'patch', url: route('notas.cards.resolver', [nota.id, c.id]) });
+    const reabrir  = (c: Card) => agir({ metodo: 'patch', url: route('notas.cards.reabrir', [nota.id, c.id]) });
     const excluirCard = (c: Card) => {
         if (!confirm(`Excluir o card de ${TIPO_CARD_LABEL[c.tipo]}?`)) return;
-        agir(() => router.delete(route('notas.cards.destroy', [nota.id, c.id]), opts));
+        agir({ metodo: 'delete', url: route('notas.cards.destroy', [nota.id, c.id]) });
     };
     const liberar = () => {
         if (!confirm(`Liberar a nota ${nota.numero_nota}?`)) return;
-        agir(() => router.post(route('notas.liberar', nota.id), {}, { ...opts, onSuccess: () => onFechar() }));
+        // Liberar ainda é Inertia (NotaController); o modal fecha e a fila
+        // recarrega como sempre — a conversão dele vem depois da medição.
+        agir({ metodo: 'post', url: route('notas.liberar', nota.id) }, () => onFechar());
     };
 
     const statusCor = nota.status === 'com_divergencia' ? p.RED
@@ -1075,6 +1094,39 @@ const acaoNaFila = (extra: OpcoesAcao = {}) => ({
     ...extra,
 });
 
+/** Mostra o toast do layout a partir de uma resposta que não passou pelo Inertia. */
+const avisar = (msg: { sucesso?: string; erro?: string }) =>
+    document.dispatchEvent(new CustomEvent('nfs:aviso', { detail: msg }));
+
+/**
+ * A ação que traz de volta SÓ a nota que mudou.
+ *
+ * ── O problema ────────────────────────────────────────────────────────────
+ * Toda ação era POST → 302 → GET da fila inteira. Medido em produção: 303 ms e
+ * 158 KB montados no servidor (48 na fila + 137 liberadas do dia) para entregar
+ * 0,90 KB — a única nota alterada. E piorava ao longo do dia: cada nota liberada
+ * encarecia todas as ações seguintes, porque cada uma remontava a lista do dia.
+ * O sistema ficava mais lento quanto mais a equipe trabalhava.
+ *
+ * ── O que muda ────────────────────────────────────────────────────────────
+ * Uma viagem em vez de duas, e o servidor monta uma linha em vez de 185.
+ * A `patch()` já sabia aplicar uma nota sozinha — é o que ela faz com os eventos
+ * do Reverb desde sempre. Aqui ela passa a receber a mesma linha pela resposta
+ * da própria ação.
+ *
+ * ── Por que a resposta, e não o evento do Reverb ──────────────────────────
+ * O evento já chega a quem agiu (o broadcast não usa `toOthers`), então daria
+ * para não pedir nada de volta e deixar o websocket entregar. Mas aí o Reverb
+ * fora do ar faria a ação parecer que não fez nada — sintoma muito pior do que
+ * "não vejo o que os outros fizeram", que é o que uma queda do Reverb já causa
+ * hoje. A resposta da ação é o caminho que não depende de nada além dela mesma.
+ */
+type AcaoRapida = {
+    metodo: 'post' | 'patch' | 'delete';
+    url: string;
+    dados?: Record<string, unknown>;
+};
+
 // ─── Página ─────────────────────────────────────────────────────────────────────
 
 export default function Index({ recebimento, preLote, liberadas, canceladas, devolucoes, fornecedores, dataFiltro, resumoAlertas, resumoTipos, totalReconferir, filtros, opcoes }: Props) {
@@ -1284,6 +1336,52 @@ export default function Index({ recebimento, preLote, liberadas, canceladas, dev
         setRecebimentoL(l => naFila && nota.origem === 'recebimento' ? asc([...sem(l), nota]) : sem(l));
         setPreLoteL(l => naFila && nota.origem === 'pre_lote' ? ascPrio([...sem(l), nota]) : sem(l));
         setLiberadasL(l => liberadaHoje ? desc([...sem(l), nota]) : sem(l));
+    };
+
+    /**
+     * Executa uma ação da fila pelo caminho curto quando dá, pelo antigo quando
+     * não dá. Ver o comentário de AcaoRapida, acima, para os números.
+     *
+     * Com filtro ativo cai no Inertia de sempre: a tela não tem como saber se a
+     * nota alterada ainda pertence à lista filtrada, e aplicar a linha por conta
+     * própria a deixaria visível num filtro que ela já não satisfaz.
+     */
+    const executarAcao = async (
+        acao: AcaoRapida,
+        cb: { onSuccess?: () => void; onError?: (m: string) => void; onFinish?: () => void } = {},
+    ): Promise<void> => {
+        if (!visaoSimplesRef.current) {
+            const { metodo, url, dados } = acao;
+            router[metodo](url, (dados ?? {}) as any, acaoNaFila({
+                onSuccess: cb.onSuccess,
+                onError: e => cb.onError?.(Object.values(e)[0] ?? 'Não foi possível concluir.'),
+                onFinish: cb.onFinish,
+            }));
+            return;
+        }
+
+        try {
+            const { data } = await window.axios.request({
+                method: acao.metodo,
+                url: acao.url,
+                data: acao.dados ?? {},
+            });
+
+            // A nota volta no MESMO formato que o evento do Reverb entrega, então
+            // a patch() a trata sem saber por onde ela chegou.
+            if (data?.nota) patch({ nota: data.nota });
+            if (data?.sucesso) avisar({ sucesso: data.sucesso });
+
+            cb.onSuccess?.();
+        } catch (e: any) {
+            const porCampo = Object.values(
+                (e?.response?.data?.errors ?? {}) as Record<string, string[]>,
+            )[0];
+
+            cb.onError?.(e?.response?.data?.erro ?? porCampo?.[0] ?? 'Não foi possível concluir.');
+        } finally {
+            cb.onFinish?.();
+        }
     };
 
     useEffect(() => {
@@ -1551,7 +1649,8 @@ export default function Index({ recebimento, preLote, liberadas, canceladas, dev
                 tiposCompras={opcoes.tiposCompras ?? ['cadastro', 'custo', 'quantidade', 'sem_pedido', 'item_n_pedido']}
                 tiposQualquerPapel={opcoes.tiposQualquerPapel ?? []}
                 tiposRecebimento={opcoes.tiposRecebimento ?? []}
-                substitutosCadastro={opcoes.substitutosCadastro ?? []} isDark={isDark} p={p} />
+                substitutosCadastro={opcoes.substitutosCadastro ?? []}
+                executar={executarAcao} isDark={isDark} p={p} />
 
             <ModalComentarios
                 aberto={!!comentariosNota}

@@ -40,25 +40,15 @@ class NotaAtualizada implements ShouldBroadcastNow
         }
 
         // Recarrega a nota + relações para refletir a mudança recém-feita.
-        // Formatada relativa a "hoje" (correto para quem vê o dia atual — o caso comum).
-        $nota = $this->nota?->fresh([
-            'fornecedor:id,nome,prioridade',
-            'user:id,name,avatar_tipo,avatar_valor',
-            'liberadaPor:id,name,avatar_tipo,avatar_valor',
-            'visualizadaPor:id,name,avatar_tipo,avatar_valor',
-            'canceladaPor:id,name,avatar_tipo,avatar_valor',
-            'cards',
-        ]);
+        // A montagem mora no model (Nota::paraTelaAgora) porque a resposta das
+        // ações entrega esta MESMA linha — e duas cópias da lista de relações
+        // sairiam de sincronia sem ninguém perceber.
+        $nota = $this->nota?->paraTelaAgora();
 
         if (! $nota) {
             return []; // sem payload → o cliente faz um reload de segurança
         }
 
-        // Sem contar os anexos aqui, paraTabela() cai no `?? 0` e o contador do
-        // botão zera na tela de todo mundo a cada evento — inclusive no evento
-        // disparado pelo próprio upload que acabou de acontecer.
-        $nota->loadCount(['comentarios', 'anexos']);
-
-        return ['nota' => $nota->paraTabela(now()->toDateString())];
+        return ['nota' => $nota];
     }
 }

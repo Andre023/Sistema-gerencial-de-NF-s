@@ -202,6 +202,42 @@ class Nota extends Model
     }
 
     /**
+     * A nota recarregada do banco, pronta para a tela.
+     *
+     * É a MESMA linha que o evento de tempo real transmite, e mora aqui para
+     * existir uma cópia só: a lista de relações estava escrita no
+     * NotaAtualizada, e uma segunda cópia no controller sairia de sincronia no
+     * dia em que alguém acrescentasse uma relação — com o sintoma mudo de a tela
+     * receber a nota sem o dado novo, dependendo de por onde ela chegou.
+     *
+     * `fresh` e não `$this` porque a ação acabou de gravar: sem recarregar, o
+     * que volta é o estado de antes da alteração.
+     *
+     * Formatada relativa a HOJE, que é quando a ação está acontecendo.
+     */
+    public function paraTelaAgora(): ?array
+    {
+        $nota = $this->fresh([
+            'fornecedor:id,nome,prioridade',
+            'user:id,name,avatar_tipo,avatar_valor',
+            'liberadaPor:id,name,avatar_tipo,avatar_valor',
+            'visualizadaPor:id,name,avatar_tipo,avatar_valor',
+            'canceladaPor:id,name,avatar_tipo,avatar_valor',
+            'cards',
+        ]);
+
+        if (! $nota) {
+            return null;
+        }
+
+        // Sem contar os anexos aqui, paraTabela() cai no `?? 0` e o contador do
+        // botão zera na tela — inclusive no evento do próprio upload.
+        $nota->loadCount(['comentarios', 'anexos']);
+
+        return $nota->paraTabela(now()->toDateString());
+    }
+
+    /**
      * Formato consumido pela tela (listagem e evento de tempo real). Requer as
      * relações fornecedor/user/liberadaPor/cards e comentarios_count carregados.
      */

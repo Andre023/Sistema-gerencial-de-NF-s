@@ -58,6 +58,32 @@ export default function AuthenticatedLayout({
         }
     }, [flash]);
 
+    /*
+     * O mesmo toast, para quem não passou pelo Inertia.
+     *
+     * As ações da fila que aplicam só a linha alterada vão por axios, e ali não
+     * existe `flash` — ele nasce da sessão, numa resposta que estas não pedem.
+     * Sem isto, o "Card resolvido." simplesmente não apareceria quando a tela
+     * usasse o caminho rápido.
+     *
+     * Um evento do documento, e não uma prop descendo pelo layout: quem avisa é
+     * a página de notas, três níveis abaixo, e enfiar um callback por essa
+     * altura toda só para carregar um recado seria pior do que o problema.
+     */
+    useEffect(() => {
+        const aviso = (e: Event) => {
+            const msg = (e as CustomEvent<FlashMessage>).detail;
+            if (!msg?.sucesso && !msg?.erro) return;
+
+            setFlashMsg(msg);
+            window.setTimeout(() => setFlashMsg(null), 4000);
+        };
+
+        document.addEventListener('nfs:aviso', aviso);
+
+        return () => document.removeEventListener('nfs:aviso', aviso);
+    }, []);
+
     // Trocou de tela pelo menu do celular: fecha o menu, senão ele fica aberto
     // por cima da página que acabou de abrir.
     useEffect(() => router.on('navigate', () => setShowingNavDropdown(false)), []);

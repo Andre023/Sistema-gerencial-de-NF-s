@@ -3,9 +3,11 @@
 namespace App\Http\Controllers;
 
 use App\Events\NotaAtualizada;
+use App\Http\Controllers\Concerns\RespondeAcaoDeNota;
 use App\Models\Card;
 use App\Models\Nota;
 use App\Services\Notificador;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
@@ -19,9 +21,15 @@ use Illuminate\Validation\Rule;
  */
 class CardController extends Controller
 {
+    /*
+     * A tela pede a nota alterada em vez da fila inteira quando pode aplicar
+     * só aquela linha. Ver o trait para os números que motivaram isso.
+     */
+    use RespondeAcaoDeNota;
+
     // ─── ABRIR ────────────────────────────────────────────────────────────────
 
-    public function store(Request $request, Nota $nota): RedirectResponse
+    public function store(Request $request, Nota $nota): RedirectResponse|JsonResponse
     {
         // Em geral só o pré-lote abre card. Três exceções:
         //
@@ -48,7 +56,7 @@ class CardController extends Controller
         abort_unless($podeAbrir, 403);
 
         if ($nota->liberada_em) {
-            return back()->withErrors(['card' => 'A nota já foi liberada — não é possível abrir divergência.']);
+            return $this->acaoRecusada($request, ['card' => 'A nota já foi liberada — não é possível abrir divergência.']);
         }
 
         $dados = $request->validate([
@@ -58,7 +66,7 @@ class CardController extends Controller
 
         // "Reconferir" é pedido de nova conferência do CEASA — não existe fora dele
         if (in_array($dados['tipo'], Card::TIPOS_SO_CEASA, true) && ! $nota->ceasa) {
-            return back()->withErrors(['tipo' => 'O card de reconferência é exclusivo de notas de CEASA.']);
+            return $this->acaoRecusada($request, ['tipo' => 'O card de reconferência é exclusivo de notas de CEASA.']);
         }
 
         // Um card ativo por tipo: se cadastro já está aberto, não abre outro igual
@@ -68,7 +76,7 @@ class CardController extends Controller
             ->exists();
 
         if ($jaExiste) {
-            return back()->withErrors(['tipo' => 'Já existe um card de ' . $dados['tipo'] . ' em aberto nesta nota.']);
+            return $this->acaoRecusada($request, ['tipo' => 'Já existe um card de ' . $dados['tipo'] . ' em aberto nesta nota.']);
         }
 
         $nota->cards()->create([
@@ -82,12 +90,12 @@ class CardController extends Controller
         event(new NotaAtualizada($nota));
         Notificador::cardAberto($nota, $request->user());
 
-        return back()->with('sucesso', 'Divergência registrada.');
+        return $this->acaoConcluida($request, $nota, 'Divergência registrada.');
     }
 
     // ─── CORRIGIR (compras arruma no ERP → card resolvido, some da fila) ───────
 
-    public function corrigir(Request $request, Nota $nota, Card $card): RedirectResponse
+    public function corrigir(Request $request, Nota $nota, Card $card): RedirectResponse|JsonResponse
     {
         $this->garanteVinculo($nota, $card);
 
@@ -99,7 +107,7 @@ class CardController extends Controller
         }
 
         if ($card->status !== Card::STATUS_ABERTO) {
-            return back()->withErrors(['card' => 'Este card não está aberto.']);
+            return $this->acaoRecusada($request, ['card' => 'Este card não está aberto.']);
         }
 
         /*
@@ -175,21 +183,21 @@ class CardController extends Controller
             Notificador::cardAberto($nota->fresh('cards'), $request->user());
         }
 
-        return back()->with('sucesso', $trocou
+        return $this->acaoConcluida($request, $nota, $trocou
             ? 'Cadastro corrigido e trocado por ' . Card::rotulo($substituto) . '.'
             : 'Card corrigido.');
     }
 
     // ─── RESOLVER (pré-lote fecha direto — principalmente cards de regra) ──────
 
-    public function resolver(Request $request, Nota $nota, Card $card): RedirectResponse
+    public function resolver(Request $request, Nota $nota, Card $card): RedirectResponse|JsonResponse
     {
         Gate::authorize('gerir-cards');
 
         $this->garanteVinculo($nota, $card);
 
         if ($card->status === Card::STATUS_RESOLVIDO) {
-            return back()->withErrors(['card' => 'Este card já foi resolvido.']);
+            return $this->acaoRecusada($request, ['card' => 'Este card já foi resolvido.']);
         }
 
         $card->update([
@@ -202,19 +210,19 @@ class CardController extends Controller
         event(new NotaAtualizada($nota));
         Notificador::cardResolvido($nota, $request->user());
 
-        return back()->with('sucesso', 'Card resolvido.');
+        return $this->acaoConcluida($request, $nota, 'Card resolvido.');
     }
 
     // ─── REABRIR (na conferência final o pré-lote achou que ainda está errado) ─
 
-    public function reabrir(Request $request, Nota $nota, Card $card): RedirectResponse
+    public function reabrir(Request $request, Nota $nota, Card $card): RedirectResponse|JsonResponse
     {
         Gate::authorize('gerir-cards');
 
         $this->garanteVinculo($nota, $card);
 
         if ($card->status !== Card::STATUS_RESOLVIDO) {
-            return back()->withErrors(['card' => 'Só é possível reabrir um card já resolvido.']);
+            return $this->acaoRecusada($request, ['card' => 'Só é possível reabrir um card já resolvido.']);
         }
 
         $card->update([
@@ -230,12 +238,12 @@ class CardController extends Controller
         event(new NotaAtualizada($nota));
         Notificador::cardReaberto($nota, $request->user());
 
-        return back()->with('sucesso', 'Card reaberto.');
+        return $this->acaoConcluida($request, $nota, 'Card reaberto.');
     }
 
     // ─── EXCLUIR (aberto por engano) ──────────────────────────────────────────
 
-    public function destroy(Request $request, Nota $nota, Card $card): RedirectResponse
+    public function destroy(Request $request, Nota $nota, Card $card): RedirectResponse|JsonResponse
     {
         Gate::authorize('gerir-cards');
 
@@ -248,7 +256,7 @@ class CardController extends Controller
         // Card aberto por engano: se era o único de compras, o aviso deles some
         Notificador::cardResolvido($nota, $request->user());
 
-        return back()->with('sucesso', 'Card removido.');
+        return $this->acaoConcluida($request, $nota, 'Card removido.');
     }
 
     // ─── HELPERS ──────────────────────────────────────────────────────────────
