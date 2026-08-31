@@ -63,9 +63,17 @@ class HandleInertiaRequests extends Middleware
                     'gerenciarConfiguracoes'  => $user->podeGerenciarConfiguracoes(),
                 ] : null,
             ],
-            // O sino: estado inicial da lista. Depois disso quem mantém ao vivo
-            // é o evento NotificacoesAtualizadas no canal privado do usuário.
-            'notificacoes' => $user ? Notificador::paraUsuario($user) : null,
+            /*
+             * O sino: estado inicial da lista. Depois disso quem mantém ao vivo
+             * é o evento NotificacoesAtualizadas no canal privado do usuário.
+             *
+             * Dentro de uma closure, e isso não é estilo: o Inertia só avalia
+             * closure quando a prop entra na resposta. Como CHAMADA DIRETA ela
+             * rodava em toda requisição — inclusive nas ações da fila, que pedem
+             * reload parcial e descartam o resultado. Eram 6,6 ms e 4 consultas
+             * jogadas fora a cada card confirmado, medidos em produção.
+             */
+            'notificacoes' => $user ? fn() => Notificador::paraUsuario($user) : null,
 
             // Chat: quem está com mensagem por ler, da mais recente para a mais
             // antiga. É o que põe o rosto de quem falou no topo da barra
@@ -75,7 +83,9 @@ class HandleInertiaRequests extends Middleware
             // Traz SÓ quem tem pendência (quase sempre ninguém), e não as 26
             // contas: a lista inteira continua sendo buscada sob demanda, quando
             // alguém expande a barra.
-            'conversasPendentes' => $user ? Conversas::pendentesDe($user) : [],
+            //
+            // Closure pelo mesmo motivo do sino, acima.
+            'conversasPendentes' => $user ? fn() => Conversas::pendentesDe($user) : [],
 
             /*
              * Mensagens de uma ação (ex.: "Nota movida.") — o layout mostra como

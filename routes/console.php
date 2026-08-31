@@ -51,3 +51,14 @@ Schedule::command('devolucoes:limpar-anexos')->dailyAt('03:30');
 // disco, então quando esta chega quase não há arquivo para apagar junto —
 // sobra só o DELETE das linhas.
 Schedule::command('chat:limpar-mensagens')->dailyAt('03:40');
+
+// A caixa de entrada do sino: aviso já lido ou encerrado sai depois de
+// Notificacao::DIAS_DE_VIDA (60 dias). O que continua PENDENTE nunca sai, por
+// mais velho que seja — se ninguém agiu, aquele aviso ainda é a cobrança.
+//
+// A tabela era a maior do banco (40 mil linhas, 10,4 MB) e nada a limpava. Não
+// há perda de histórico: quem guarda o que aconteceu com a nota é `ocorrencias`.
+//
+// Por último de propósito: é a faxina mais pesada na primeira noite (dezenas de
+// milhares de linhas de uma vez), e às 03:50 as outras três já terminaram.
+Schedule::command('notificacoes:limpar')->dailyAt('03:50');

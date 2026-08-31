@@ -133,4 +133,41 @@ class PesoDaTelaDeNotasTest extends TestCase
         $this->assertArrayHasKey('liberadas', $props);
         $this->assertArrayNotHasKey('fornecedores', $props);
     }
+
+    /**
+     * O sino e o chat vêm na abertura da tela.
+     *
+     * São props compartilhadas: se sumissem, o sino abriria zerado e o rosto de
+     * quem falou não apareceria na barra até a primeira mensagem nova chegar.
+     */
+    public function test_o_sino_e_o_chat_vem_no_carregamento_normal(): void
+    {
+        $this->actingAs($this->preLote)
+            ->get(route('notas.index'))
+            ->assertOk()
+            ->assertInertia(fn($page) => $page
+                ->has('notificacoes')
+                ->has('conversasPendentes'));
+    }
+
+    /**
+     * E ficam de fora das ações — que é o ponto de serem closure.
+     *
+     * Como chamada direta no middleware elas rodavam em TODA requisição, mesmo
+     * nas ações que descartam o resultado: 6,6 ms e 4 consultas do sino, mais
+     * 1,7 ms e 2 do chat, por card confirmado (medido em produção).
+     *
+     * O Inertia só avalia closure quando a prop entra na resposta, então este
+     * teste falha no instante em que alguém devolver a chamada direta.
+     */
+    public function test_sino_e_chat_ficam_de_fora_das_acoes(): void
+    {
+        $props = $this->actingAs($this->preLote)
+            ->get(route('notas.index'), $this->parcial('recebimento,preLote,liberadas'))
+            ->assertOk()
+            ->json('props');
+
+        $this->assertArrayNotHasKey('notificacoes', $props);
+        $this->assertArrayNotHasKey('conversasPendentes', $props);
+    }
 }

@@ -61,6 +61,20 @@ class Notificacao extends Model
     /** Quantas o sino mostra na lista (o contador conta todas as pendentes) */
     public const LIMITE_LISTA = 15;
 
+    /**
+     * Depois de quantos dias um aviso JÁ RESOLVIDO é apagado.
+     *
+     * Só vale para o que não pesa mais no sino — lido ou encerrado. O aviso
+     * ainda pendente nunca sai, por mais velho que seja: se ninguém agiu, ele
+     * continua sendo a cobrança.
+     *
+     * Dois meses porque este não é o livro de registro da nota — quem guarda o
+     * histórico é `ocorrencias`, e ele não some. Aqui é só a caixa de entrada.
+     *
+     * Ver App\Console\Commands\LimparNotificacoesAntigas.
+     */
+    public const DIAS_DE_VIDA = 60;
+
     // ─── Relações ───────────────────────────────────────────────────────────────
 
     public function user(): BelongsTo
