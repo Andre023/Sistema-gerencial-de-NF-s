@@ -76,7 +76,13 @@ class AnexoController extends Controller
         $nota->limparVisualizacao(); // agiu na nota → solta o 🙋‍♂️
         event(new NotaAtualizada($nota));
 
-        return response()->json(['anexo' => $anexo->fresh('enviadoPor')->paraTela()], 201);
+        return response()->json([
+            'anexo' => $anexo->fresh('enviadoPor')->paraTela(),
+            // A nota vai junto para a fila atualizar só esta linha: o que
+            // mudou nela foi o contador do botão. Antes a tela recarregava
+            // as listas inteiras (~166 KB) por causa de um número.
+            'nota'        => $nota->paraTelaAgora(),
+        ], 201);
     }
 
     // ─── LISTAR ───────────────────────────────────────────────────────────────
@@ -132,7 +138,13 @@ class AnexoController extends Controller
 
         event(new NotaAtualizada($nota));
 
-        return response()->json(['ok' => true]);
+        return response()->json([
+            'ok' => true,
+            // A nota vai junto para a fila atualizar só esta linha: o que
+            // mudou nela foi o contador do botão. Antes a tela recarregava
+            // as listas inteiras (~166 KB) por causa de um número.
+            'nota'        => $nota->paraTelaAgora(),
+        ]);
     }
 
     // ─── HELPERS ──────────────────────────────────────────────────────────────

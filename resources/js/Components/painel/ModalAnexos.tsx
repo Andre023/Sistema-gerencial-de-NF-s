@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { format, parseISO } from 'date-fns';
 import { Palette } from '@/lib/tema';
-import { Anexo } from '@/types';
+import { Anexo, Nota } from '@/types';
 import { otimizarParaEnvio, formatarTamanho } from '@/lib/imagem';
 import Modal from './Modal';
 import Icone from './Icone';
@@ -56,7 +56,12 @@ export default function ModalAnexos({ aberto, onFechar, baseUrl, titulo, onMudou
     baseUrl: string | null;
     titulo: string;
     /** Chamado quando a lista muda, para a fila atualizar o contador. */
-    onMudou?: () => void;
+    /**
+     * Mudou algo aqui dentro. Recebe a nota já atualizada, para a fila
+     * corrigir só aquela linha em vez de recarregar as listas inteiras —
+     * o que mudou nela foi o contador do botão.
+     */
+    onMudou?: (nota?: Nota) => void;
     /** Recebimento e pré-lote enviam; os demais só veem. */
     podeAnexar: boolean;
     p: Palette;
@@ -131,7 +136,7 @@ export default function ModalAnexos({ aberto, onFechar, baseUrl, titulo, onMudou
 
                 const { data } = await window.axios.post(baseUrl, form);
                 setAnexos(atual => [...atual, data.anexo]);
-                onMudou?.();
+                onMudou?.(data.nota);
             } catch (e: any) {
                 const msg = e?.response?.data?.errors?.arquivo?.[0]
                     ?? e?.response?.data?.erro
@@ -228,9 +233,9 @@ export default function ModalAnexos({ aberto, onFechar, baseUrl, titulo, onMudou
         if (!baseUrl) return;
         setErro(null);
         try {
-            await window.axios.delete(`${baseUrl}/${anexo.id}`);
+            const { data } = await window.axios.delete(`${baseUrl}/${anexo.id}`);
             setAnexos(atual => atual.filter(a => a.id !== anexo.id));
-            onMudou?.();
+            onMudou?.(data.nota);
         } catch {
             setErro('Não foi possível remover o anexo.');
         }

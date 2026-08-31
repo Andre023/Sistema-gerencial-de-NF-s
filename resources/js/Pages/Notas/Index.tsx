@@ -309,8 +309,6 @@ function ModalCards({ nota, onFechar, can, tiposCompras, tiposQualquerPapel, tip
     };
     const liberar = () => {
         if (!confirm(`Liberar a nota ${nota.numero_nota}?`)) return;
-        // Liberar ainda é Inertia (NotaController); o modal fecha e a fila
-        // recarrega como sempre — a conversão dele vem depois da medição.
         agir({ metodo: 'post', url: route('notas.liberar', nota.id) }, () => onFechar());
     };
 
@@ -451,8 +449,14 @@ function ModalCards({ nota, onFechar, can, tiposCompras, tiposQualquerPapel, tip
 /** Tipos que ainda não têm card ativo nesta nota. */
 // ─── Modal: editar nota JÁ LIBERADA (observação + lembrete CEASA) ──────────────
 
-function ModalEditarLiberada({ nota, can, onFechar, p }: {
-    nota: Nota | null; can: Permissoes; onFechar: () => void; p: Palette;
+function ModalEditarLiberada({ nota, can, onFechar, executar, p }: {
+    nota: Nota | null; can: Permissoes; onFechar: () => void;
+    /** Ver AcaoRapida: aplica só a linha alterada quando a tela pode. */
+    executar: (a: AcaoRapida, cb?: {
+        onSuccess?: () => void; onError?: (m: string) => void;
+        onFinish?: () => void; onCancel?: () => void;
+    }) => void;
+    p: Palette;
 }) {
     const [obs, setObs] = useState('');
     const [ceasa, setCeasa] = useState(0);
@@ -476,7 +480,7 @@ function ModalEditarLiberada({ nota, can, onFechar, p }: {
         const dados: Record<string, string | number | null> = {};
         if (can.editarObservacao) dados.observacao = obs.trim() || null;
         if (podeCeasa) dados.ceasa = ceasa;
-        router.patch(route('notas.editar-liberada', nota.id), dados as any, acaoNaFila({
+        executar({ metodo: 'patch', url: route('notas.editar-liberada', nota.id), dados }, {
             onSuccess: () => onFechar(),
             /*
              * Falhou: a janela FICA ABERTA, com o texto onde estava.
@@ -486,11 +490,16 @@ function ModalEditarLiberada({ nota, can, onFechar, p }: {
              * tinha salvado. Enquanto a janela está aberta o texto continua na
              * mão da pessoa, que pode tentar de novo sem redigitar.
              */
-            onError: e => setErro(Object.values(e)[0] ?? 'Não foi possível salvar.'),
-            // Cancelada no meio (outra navegação atropelou): idem, nada foi gravado.
+            onError: setErro,
+            /*
+             * Interrompida no meio. Só acontece no caminho do Inertia, que é
+             * uma visita e pode ser atropelada por outra — foi exatamente esse
+             * o bug que fazia a observação sumir. No caminho curto o pedido é
+             * do axios e ninguém o interrompe.
+             */
             onCancel: () => setErro('O salvamento foi interrompido — tente de novo.'),
             onFinish: () => setSalvando(false),
-        }));
+        });
     };
 
     const CEASAS = [{ v: 0, l: 'Nenhum' }, { v: 3, l: 'CEASA' }, { v: 1, l: 'CEASA 1' }, { v: 2, l: 'CEASA 2' }];
@@ -1348,13 +1357,20 @@ export default function Index({ recebimento, preLote, liberadas, canceladas, dev
      */
     const executarAcao = async (
         acao: AcaoRapida,
-        cb: { onSuccess?: () => void; onError?: (m: string) => void; onFinish?: () => void } = {},
+        cb: {
+            onSuccess?: () => void;
+            onError?: (m: string) => void;
+            onFinish?: () => void;
+            /** Só o caminho do Inertia pode ser interrompido por outra visita. */
+            onCancel?: () => void;
+        } = {},
     ): Promise<void> => {
         if (!visaoSimplesRef.current) {
             const { metodo, url, dados } = acao;
             router[metodo](url, (dados ?? {}) as any, acaoNaFila({
                 onSuccess: cb.onSuccess,
                 onError: e => cb.onError?.(Object.values(e)[0] ?? 'Não foi possível concluir.'),
+                onCancel: cb.onCancel,
                 onFinish: cb.onFinish,
             }));
             return;
@@ -1368,9 +1384,18 @@ export default function Index({ recebimento, preLote, liberadas, canceladas, dev
             });
 
             // A nota volta no MESMO formato que o evento do Reverb entrega, então
-            // a patch() a trata sem saber por onde ela chegou.
+            // a patch() a trata sem saber por onde ela chegou. `removida` é o
+            // outro formato que ela já conhece: a nota saiu de cena.
             if (data?.nota) patch({ nota: data.nota });
+            if (data?.removida) patch({ removida: data.removida });
+
             if (data?.sucesso) avisar({ sucesso: data.sucesso });
+            /*
+             * Deu certo E tem recado: é a reserva (🙋‍♂️) de outra pessoa. Não é
+             * erro — a ação fez o previsto —, mas o recado é justamente o ponto,
+             * então ele vira toast sem passar pelo caminho de falha.
+             */
+            if (data?.erro) avisar({ erro: data.erro });
 
             cb.onSuccess?.();
         } catch (e: any) {
@@ -1494,13 +1519,13 @@ export default function Index({ recebimento, preLote, liberadas, canceladas, dev
 
     const liberarRapido = (n: Nota) => {
         if (!confirm(`Liberar a nota ${n.numero_nota} (${n.fornecedor.nome})?`)) return;
-        router.post(route('notas.liberar', n.id), {}, acaoNaFila());
+        executarAcao({ metodo: 'post', url: route('notas.liberar', n.id) });
     };
 
     // 🙋‍♂️ "estou olhando esta nota". O servidor decide: reserva, solta (se já é
-    // minha) ou avisa quem está nela (volta em flash.erro, que vira toast).
+    // minha) ou avisa quem está nela — o recado volta junto com a linha nova.
     const visualizar = (n: Nota) => {
-        router.post(route('notas.visualizar', n.id), {}, acaoNaFila({ preserveState: true }));
+        executarAcao({ metodo: 'post', url: route('notas.visualizar', n.id) });
     };
 
     // Estorna a liberação: tira das liberadas e volta a nota para o recebimento
@@ -1508,17 +1533,17 @@ export default function Index({ recebimento, preLote, liberadas, canceladas, dev
     const cancelar = (n: Nota) => {
         const motivo = prompt(`Cancelar a nota ${n.numero_nota} (${n.fornecedor.nome})?\n\nMotivo (opcional):`);
         if (motivo === null) return; // desistiu
-        router.post(route('notas.cancelar', n.id), { motivo: motivo || undefined } as any, acaoNaFila());
+        executarAcao({ metodo: 'post', url: route('notas.cancelar', n.id), dados: { motivo: motivo || undefined } });
     };
 
     const descancelar = (n: Nota) => {
         if (!confirm(`Desfazer o cancelamento da nota ${n.numero_nota}? Ela volta para a fila.`)) return;
-        router.post(route('notas.descancelar', n.id), {}, acaoNaFila());
+        executarAcao({ metodo: 'post', url: route('notas.descancelar', n.id) });
     };
 
     const devolver = (n: Nota) => {
         if (!confirm(`Devolver a nota ${n.numero_nota} ao recebimento? Ela sai das liberadas e volta para a fila para reajuste.`)) return;
-        router.post(route('notas.devolver', n.id), {}, acaoNaFila());
+        executarAcao({ metodo: 'post', url: route('notas.devolver', n.id) });
     };
 
     const excluir = (n: Nota) => {
@@ -1528,7 +1553,7 @@ export default function Index({ recebimento, preLote, liberadas, canceladas, dev
             : `Excluir a nota ${n.numero_nota}? Esta ação pode ser revertida pelo administrador.`;
 
         if (!confirm(aviso)) return;
-        router.delete(route('notas.destroy', n.id), acaoNaFila());
+        executarAcao({ metodo: 'delete', url: route('notas.destroy', n.id) });
     };
 
     const sla = opcoes.sla ?? { atencao: 1, alerta: 3, critico: 7 };
@@ -1657,7 +1682,9 @@ export default function Index({ recebimento, preLote, liberadas, canceladas, dev
                 onFechar={() => setComentariosNota(null)}
                 baseUrl={comentariosNota ? `/notas/${comentariosNota.id}/comentarios` : null}
                 titulo={comentariosNota ? `Nota ${comentariosNota.numero_nota} — ${comentariosNota.fornecedor.nome}` : ''}
-                onMudou={() => router.reload({ only: [...PROPS_DA_FILA] })}
+                /* Veio a nota: corrige só a linha. Sem ela (resposta antiga
+                   em cache, erro estranho), cai na recarga de sempre. */
+                onMudou={n => n ? patch({ nota: n }) : router.reload({ only: [...PROPS_DA_FILA] })}
                 recarregarToken={echoTick}
                 podeComentar={can.interagir}
                 p={p} />
@@ -1667,12 +1694,14 @@ export default function Index({ recebimento, preLote, liberadas, canceladas, dev
                 onFechar={() => setAnexosNota(null)}
                 baseUrl={anexosNota ? `/notas/${anexosNota.id}/anexos` : null}
                 titulo={anexosNota ? `Nota ${anexosNota.numero_nota} — ${anexosNota.fornecedor.nome}` : ''}
-                onMudou={() => router.reload({ only: [...PROPS_DA_FILA] })}
+                /* Veio a nota: corrige só a linha. Sem ela (resposta antiga
+                   em cache, erro estranho), cai na recarga de sempre. */
+                onMudou={n => n ? patch({ nota: n }) : router.reload({ only: [...PROPS_DA_FILA] })}
                 podeAnexar={can.anexarNota}
                 p={p} />
 
             <ModalEditarLiberada nota={editarLiberadaNota} can={can}
-                onFechar={() => setEditarLiberadaNota(null)} p={p} />
+                onFechar={() => setEditarLiberadaNota(null)} executar={executarAcao} p={p} />
 
             <ModalOcorrencias
                 aberto={!!ocorrenciasNota}

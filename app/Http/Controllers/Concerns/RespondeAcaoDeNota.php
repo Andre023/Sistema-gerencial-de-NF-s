@@ -51,6 +51,47 @@ trait RespondeAcaoDeNota
     }
 
     /**
+     * A nota saiu de cena (excluída).
+     *
+     * Devolve o id em vez da nota porque não há mais nota para desenhar — é o
+     * mesmo formato que o evento de tempo real usa para dizer "tire esta linha",
+     * então a `patch()` da tela trata os dois sem saber a origem.
+     */
+    protected function acaoRemoveu(
+        Request $request,
+        int $notaId,
+        string $sucesso,
+    ): RedirectResponse|JsonResponse {
+        if (! $request->expectsJson()) {
+            return back()->with('sucesso', $sucesso);
+        }
+
+        return response()->json(['removida' => $notaId, 'sucesso' => $sucesso]);
+    }
+
+    /**
+     * Deu certo, mas há um recado — e o recado é o ponto.
+     *
+     * O caso é a reserva (🙋‍♂️): clicar numa nota que outra pessoa já está
+     * olhando não falha, apenas não toma a reserva dela e avisa quem está lá.
+     * Por isso 200 e não 422: recusar seria dizer que a ação quebrou, quando o
+     * que aconteceu foi exatamente o previsto.
+     *
+     * A nota vai junto para a linha refletir de quem é a reserva.
+     */
+    protected function acaoAvisou(
+        Request $request,
+        Nota $nota,
+        string $aviso,
+    ): RedirectResponse|JsonResponse {
+        if (! $request->expectsJson()) {
+            return back()->with('erro', $aviso);
+        }
+
+        return response()->json(['nota' => $nota->paraTelaAgora(), 'erro' => $aviso]);
+    }
+
+    /**
      * Ação recusada por uma regra do negócio (não por validação de campo).
      *
      * 422 e não 400: é o mesmo código que o Laravel usa para validação, então o

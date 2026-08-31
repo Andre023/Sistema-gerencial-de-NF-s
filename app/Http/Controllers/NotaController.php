@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Events\NotaAtualizada;
+use App\Http\Controllers\Concerns\RespondeAcaoDeNota;
 use App\Jobs\LimparAnexosDaNota;
 use App\Models\Card;
 use App\Models\Devolucao;
@@ -12,6 +13,7 @@ use App\Models\Ocorrencia;
 use App\Services\Notificador;
 use App\Services\Ocorrencias;
 use Carbon\Carbon;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
@@ -22,6 +24,12 @@ use Inertia\Response;
 
 class NotaController extends Controller
 {
+    /*
+     * A tela pede a nota alterada em vez da fila inteira quando pode aplicar
+     * só aquela linha. Ver o trait para os números que motivaram isso.
+     */
+    use RespondeAcaoDeNota;
+
     // ─── INDEX ────────────────────────────────────────────────────────────────
 
     public function index(Request $request): Response
@@ -421,18 +429,18 @@ class NotaController extends Controller
 
     // ─── LIBERAR (o ✅ — ato explícito do pré-lote) ────────────────────────────
 
-    public function liberar(Request $request, Nota $nota): RedirectResponse
+    public function liberar(Request $request, Nota $nota): RedirectResponse|JsonResponse
     {
         Gate::authorize('liberar-nota');
 
         $nota->load('cards');
 
         if ($nota->liberada_em) {
-            return back()->withErrors(['nota' => 'Esta nota já foi liberada.']);
+            return $this->acaoRecusada($request, ['nota' => 'Esta nota já foi liberada.']);
         }
 
         if (! $nota->podeSerLiberada()) {
-            return back()->withErrors(['nota' => 'A nota ainda tem divergência em aberto — resolva os cards antes de liberar.']);
+            return $this->acaoRecusada($request, ['nota' => 'A nota ainda tem divergência em aberto — resolva os cards antes de liberar.']);
         }
 
         Ocorrencias::intencao(Ocorrencia::NOTA_LIBERADA);
@@ -454,7 +462,7 @@ class NotaController extends Controller
         event(new NotaAtualizada($nota));
         Notificador::notaLiberada($nota, $request->user());
 
-        return back()->with('sucesso', 'Nota liberada.');
+        return $this->acaoConcluida($request, $nota, 'Nota liberada.');
     }
 
     // ─── CANCELAR (o fornecedor cancelou a NF) ────────────────────────────────
@@ -463,12 +471,12 @@ class NotaController extends Controller
     // histórico (cards, comentários, quem cancelou e por quê) fica inteiro para
     // as estatísticas — ver docs/NOTAS_CANCELADAS.md.
 
-    public function cancelar(Request $request, Nota $nota): RedirectResponse
+    public function cancelar(Request $request, Nota $nota): RedirectResponse|JsonResponse
     {
         Gate::authorize('cancelar-nota');
 
         if ($nota->cancelada_em) {
-            return back()->withErrors(['nota' => 'Esta nota já está cancelada.']);
+            return $this->acaoRecusada($request, ['nota' => 'Esta nota já está cancelada.']);
         }
 
         $dados = $request->validate([
@@ -494,16 +502,16 @@ class NotaController extends Controller
         event(new NotaAtualizada($nota));
         Notificador::notaCancelada($nota); // saiu da fila: nada nela pede ação
 
-        return back()->with('sucesso', 'Nota cancelada.');
+        return $this->acaoConcluida($request, $nota, 'Nota cancelada.');
     }
 
     /** Cancelou por engano: volta para a fila exatamente como estava. */
-    public function descancelar(Request $request, Nota $nota): RedirectResponse
+    public function descancelar(Request $request, Nota $nota): RedirectResponse|JsonResponse
     {
         Gate::authorize('cancelar-nota');
 
         if (! $nota->cancelada_em) {
-            return back()->withErrors(['nota' => 'Esta nota não está cancelada.']);
+            return $this->acaoRecusada($request, ['nota' => 'Esta nota não está cancelada.']);
         }
 
         Ocorrencias::intencao(Ocorrencia::NOTA_DESCANCELADA);
@@ -515,7 +523,7 @@ class NotaController extends Controller
 
         event(new NotaAtualizada($nota));
 
-        return back()->with('sucesso', 'Cancelamento desfeito — a nota voltou para a fila.');
+        return $this->acaoConcluida($request, $nota, 'Cancelamento desfeito — a nota voltou para a fila.');
     }
 
     // ─── EDITAR CAMPOS LEVES (autoriza por CAMPO, não pela nota) ──────────────
@@ -528,7 +536,7 @@ class NotaController extends Controller
     //     o recebimento já edita pelo formulário normal).
     // O frontend só envia o que o papel pode; aqui é a trava de verdade.
 
-    public function editarLiberada(Request $request, Nota $nota): RedirectResponse
+    public function editarLiberada(Request $request, Nota $nota): RedirectResponse|JsonResponse
     {
         $dados = $request->validate([
             'observacao' => 'sometimes|nullable|string|max:500',
@@ -546,7 +554,7 @@ class NotaController extends Controller
             Gate::authorize('editar-ceasa-liberada');
 
             if (! $nota->liberada_em) {
-                return back()->withErrors(['nota' => 'Use o formulário de edição enquanto a nota está na fila.']);
+                return $this->acaoRecusada($request, ['nota' => 'Use o formulário de edição enquanto a nota está na fila.']);
             }
 
             $mudancas['ceasa'] = (int) $dados['ceasa'];
@@ -557,7 +565,7 @@ class NotaController extends Controller
             event(new NotaAtualizada($nota));
         }
 
-        return back()->with('sucesso', 'Nota atualizada.');
+        return $this->acaoConcluida($request, $nota, 'Nota atualizada.');
     }
 
     // ─── DEVOLVER (estorno da liberação → volta para o recebimento) ────────────
@@ -566,12 +574,12 @@ class NotaController extends Controller
     // recebimento podem trazê-la de volta à fila para reajustar. Os cards ficam
     // como estão (resolvidos) — quem reabre uma divergência é o pré-lote.
 
-    public function devolver(Request $request, Nota $nota): RedirectResponse
+    public function devolver(Request $request, Nota $nota): RedirectResponse|JsonResponse
     {
         Gate::authorize('devolver-nota');
 
         if (! $nota->liberada_em) {
-            return back()->withErrors(['nota' => 'Esta nota não está liberada.']);
+            return $this->acaoRecusada($request, ['nota' => 'Esta nota não está liberada.']);
         }
 
         Ocorrencias::intencao(Ocorrencia::NOTA_DEVOLVIDA);
@@ -584,7 +592,7 @@ class NotaController extends Controller
 
         event(new NotaAtualizada($nota));
 
-        return back()->with('sucesso', 'Nota devolvida ao recebimento para reajuste.');
+        return $this->acaoConcluida($request, $nota, 'Nota devolvida ao recebimento para reajuste.');
     }
 
     // ─── VISUALIZAR (o 🙋‍♂️: "estou olhando esta nota") ───────────────────────
@@ -594,7 +602,7 @@ class NotaController extends Controller
     // clicar de novo (sendo o dono) solta. Quem clica numa nota já reservada
     // por outra pessoa só recebe o aviso de quem está nela.
 
-    public function visualizar(Request $request, Nota $nota): RedirectResponse
+    public function visualizar(Request $request, Nota $nota): RedirectResponse|JsonResponse
     {
         Gate::authorize('interagir'); // reservar é ação — visitante é só leitura
         $eu = $request->user();
@@ -607,19 +615,20 @@ class NotaController extends Controller
                 ->update(['visualizando_por' => $eu->id, 'visualizando_em' => now()]);
 
             if (! $reservou) {
-                return back()->with('erro', $this->quemOlha($nota->fresh()) . ' está olhando esta nota.');
+                return $this->acaoAvisou($request, $nota, $this->quemOlha($nota->fresh()) . ' está olhando esta nota.');
             }
         } elseif ($nota->visualizando_por === $eu->id) {
             // É minha reserva → solta
             $nota->update(['visualizando_por' => null, 'visualizando_em' => null]);
         } else {
             // De outra pessoa → só avisa, não mexe na reserva dela
-            return back()->with('erro', $this->quemOlha($nota) . ' está olhando esta nota.');
+            return $this->acaoAvisou($request, $nota, $this->quemOlha($nota) . ' está olhando esta nota.');
         }
 
         event(new NotaAtualizada($nota));
 
-        return back();
+        // Sem recado: a reserva foi tomada ou solta, e a linha nova basta.
+        return $this->acaoConcluida($request, $nota, '');
     }
 
     /** Primeiro nome de quem está com a reserva da nota (para as mensagens). */
@@ -632,7 +641,7 @@ class NotaController extends Controller
 
     // ─── DESTROY (soft delete) ────────────────────────────────────────────────
 
-    public function destroy(Request $request, Nota $nota): RedirectResponse
+    public function destroy(Request $request, Nota $nota): RedirectResponse|JsonResponse
     {
         Gate::authorize('gerenciar-notas');
 
@@ -651,7 +660,7 @@ class NotaController extends Controller
 
         event(new NotaAtualizada(removidaId: $nota->id));
 
-        return back()->with('sucesso', 'Nota removida.');
+        return $this->acaoRemoveu($request, $nota->id, 'Nota removida.');
     }
 
     // ─── HELPERS ──────────────────────────────────────────────────────────────

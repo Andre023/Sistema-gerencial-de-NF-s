@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { format, parseISO } from 'date-fns';
+import { Nota } from '@/types';
 import { Palette } from '@/lib/tema';
 import Modal from './Modal';
 import Icone from './Icone';
@@ -33,7 +34,12 @@ export default function ModalComentarios({ aberto, onFechar, baseUrl, titulo, on
     baseUrl: string | null;
     titulo: string;
     /** Chamado quando a thread muda, para a lista atualizar o contador. */
-    onMudou?: () => void;
+    /**
+     * Mudou algo aqui dentro. Recebe a nota já atualizada, para a fila
+     * corrigir só aquela linha em vez de recarregar as listas inteiras —
+     * o que mudou nela foi o contador do botão.
+     */
+    onMudou?: (nota?: Nota) => void;
     /** Muda de valor quando chega evento do Echo — refaz a busca (comentário de outro usuário). */
     recarregarToken?: number;
     /** Quando false (visitante), a thread é só leitura — sem campo de postar. */
@@ -85,7 +91,7 @@ export default function ModalComentarios({ aberto, onFechar, baseUrl, titulo, on
             const { data } = await window.axios.post(baseUrl, { texto: texto.trim() });
             setComentarios(data.comentarios);
             setTexto('');
-            onMudou?.();
+            onMudou?.(data.nota);
         } catch (err: any) {
             setErro(err?.response?.data?.message ?? 'Não foi possível enviar o comentário.');
         } finally {
@@ -98,7 +104,7 @@ export default function ModalComentarios({ aberto, onFechar, baseUrl, titulo, on
         try {
             const { data } = await window.axios.delete(`${baseUrl}/${id}`);
             setComentarios(data.comentarios);
-            onMudou?.();
+            onMudou?.(data.nota);
         } catch {
             setErro('Não foi possível excluir o comentário.');
         }

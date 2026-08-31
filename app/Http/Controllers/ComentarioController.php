@@ -49,6 +49,10 @@ class ComentarioController extends Controller
 
         return response()->json([
             'comentarios' => $this->thread($nota->fresh(), $request->user()),
+            // A nota vai junto para a fila atualizar só esta linha: o que
+            // mudou nela foi o contador do botão. Antes a tela recarregava
+            // as listas inteiras (~166 KB) por causa de um número.
+            'nota'        => $nota->paraTelaAgora(),
         ], 201);
     }
 
@@ -73,6 +77,10 @@ class ComentarioController extends Controller
 
         return response()->json([
             'comentarios' => $this->thread($nota->fresh(), $request->user()),
+            // A nota vai junto para a fila atualizar só esta linha: o que
+            // mudou nela foi o contador do botão. Antes a tela recarregava
+            // as listas inteiras (~166 KB) por causa de um número.
+            'nota'        => $nota->paraTelaAgora(),
         ]);
     }
 
