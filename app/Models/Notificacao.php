@@ -62,6 +62,25 @@ class Notificacao extends Model
     public const LIMITE_LISTA = 15;
 
     /**
+     * Por quantos dias um aviso fica no sino.
+     *
+     * O sino é o "olha o que acabou de acontecer", não o arquivo do que está
+     * pendente. Sem prazo, ele virava as duas coisas ao mesmo tempo e perdia as
+     * duas: havia 1.205 avisos pendentes acumulados entre 27 contas, e um sino
+     * que sempre marca número alto não avisa mais nada — vira paisagem.
+     *
+     * A nota parada NÃO se perde por isso: ela continua na fila, e lá o
+     * envelhecimento tem cor própria (atenção, alerta, crítico aos 7 dias). A
+     * fila é quem cobra o que está velho; o sino cobra o que é novo.
+     *
+     * Conta do `updated_at`, e não da criação: existe UMA notificação viva por
+     * nota, e ela é REESCRITA quando chega outra divergência na mesma nota. Se
+     * contasse da criação, a novidade de hoje herdaria a idade da primeira
+     * divergência e nasceria fora do sino.
+     */
+    public const DIAS_NO_SINO = 3;
+
+    /**
      * Depois de quantos dias um aviso JÁ RESOLVIDO é apagado.
      *
      * Só vale para o que não pesa mais no sino — lido ou encerrado. O aviso
@@ -99,6 +118,19 @@ class Notificacao extends Model
     public function scopeViva(Builder $q): Builder
     {
         return $q->whereNull('encerrada_em');
+    }
+
+    /**
+     * Dentro da janela do sino (ver DIAS_NO_SINO).
+     *
+     * Só afeta o que a pessoa VÊ: a linha continua no banco, ainda pendente, e
+     * a nota continua na fila cobrando por conta própria. Nada é resolvido nem
+     * apagado aqui — o aviso só para de ocupar espaço numa lista que tem 15
+     * lugares e cabia mostrar o que é recente.
+     */
+    public function scopeNoSino(Builder $q): Builder
+    {
+        return $q->where('updated_at', '>=', now()->subDays(self::DIAS_NO_SINO));
     }
 
     // ─── Tela ───────────────────────────────────────────────────────────────────

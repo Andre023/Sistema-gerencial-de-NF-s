@@ -155,12 +155,21 @@ class Notificador
         $itens = Notificacao::with(['nota:id,numero_nota,fornecedor_id,loja', 'nota.fornecedor:id,nome'])
             ->where('user_id', $user->id)
             ->viva()
+            ->noSino()
             ->orderByDesc('updated_at')
             ->limit(Notificacao::LIMITE_LISTA)
             ->get();
 
         return [
-            'pendentes' => Notificacao::where('user_id', $user->id)->pendentes()->count(),
+            /*
+             * O contador respeita a MESMA janela da lista.
+             *
+             * Antes ele contava todas as pendentes de sempre, e a lista mostrava
+             * as 15 mais recentes: o sino marcava 87 e abria com 15 itens, sem
+             * dizer onde estavam os outros 72. Um número que não leva a lugar
+             * nenhum é pior do que número nenhum.
+             */
+            'pendentes' => Notificacao::where('user_id', $user->id)->pendentes()->noSino()->count(),
             'itens'     => $itens->map(fn($n) => $n->paraTela())->values()->all(),
             'ativas'    => (bool) $user->notificacoes_ativas,
         ];
