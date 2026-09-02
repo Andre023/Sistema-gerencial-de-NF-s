@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\CampanhaAtendimento;
 use App\Models\CampanhaFornecedor;
 use App\Models\CampanhaTexto;
 use App\Models\Configuracao;
@@ -10,6 +11,7 @@ use App\Services\DocumentoWord;
 use App\Support\CartaCampanha;
 use App\Support\PlanilhaDeCompras;
 use Illuminate\Http\RedirectResponse;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response as HttpResponse;
 use Illuminate\Support\Facades\DB;
@@ -258,5 +260,104 @@ class CampanhaController extends Controller
         $sem = iconv('UTF-8', 'ASCII//TRANSLIT//IGNORE', $texto);
 
         return preg_replace('/[^\x20-\x7E]/', '', $sem ?: 'campanha.docx') ?: 'campanha.docx';
+    }
+
+    // ─── ATENDIDOS ────────────────────────────────────────────────────────────
+    //
+    // A lista do que já foi feito: quem recebeu a campanha e quanto do combinado
+    // já entrou. Até aqui a aba só montava a carta e a entregava — o resto vivia
+    // na cabeça do comprador.
+    //
+    // A lista é de CADA UM. O comprador acompanha os fornecedores que ele mesmo
+    // atendeu; ninguém tromba no trabalho do outro e a lista fica curta.
+
+    /** Os meus atendimentos, do mais novo para o mais antigo. */
+    public function atendidos(Request $request): JsonResponse
+    {
+        return response()->json([
+            'atendidos' => CampanhaAtendimento::where('user_id', $request->user()->id)
+                ->orderByDesc('created_at')->orderByDesc('id')
+                ->get()->map(fn(CampanhaAtendimento $a) => $a->paraTela()),
+        ]);
+    }
+
+    /**
+     * Inclui um fornecedor na lista.
+     *
+     * O faturamento e a meta são COPIADOS para a linha, e não lidos depois da
+     * campanha_fornecedores: a planilha troca aquela tabela a cada envio, e sem a
+     * cópia a meta combinada hoje seria recalculada amanhã por outro faturamento.
+     * O que foi combinado é um fato daquele dia.
+     */
+    public function incluirAtendido(Request $request): JsonResponse
+    {
+        $dados = $request->validate([
+            'fornecedor'   => ['required', 'string', 'max:255'],
+            // Os dois chegam prontos da tela, que já mostra e deixa ajustar. O
+            // servidor calcula a meta só quando ela não vem.
+            'faturamento'  => ['nullable', 'numeric', 'min:0', 'max:999999999999'],
+            'investimento' => ['nullable', 'numeric', 'min:0', 'max:999999999999'],
+            'pago'         => ['nullable', 'numeric', 'min:0', 'max:999999999999'],
+        ]);
+
+        $nome  = trim(preg_replace('/\s+/', ' ', $dados['fornecedor']) ?? $dados['fornecedor']);
+        $chave = CampanhaFornecedor::chaveDe($nome);
+
+        if ($nome === '') {
+            return response()->json(['erro' => 'Informe o fornecedor.'], 422);
+        }
+
+        // Já está na lista desta pessoa: incluir de novo criaria duas linhas do
+        // mesmo acordo, e o "quanto falta" passaria a ser lido em dobro.
+        $jaTem = CampanhaAtendimento::where('user_id', $request->user()->id)
+            ->where('chave', $chave)->exists();
+
+        if ($jaTem) {
+            return response()->json(['erro' => 'Este fornecedor já está na sua lista.'], 422);
+        }
+
+        $faturamento = $dados['faturamento'] ?? null;
+
+        // Sem meta informada, aplica o percentual sugerido sobre o faturamento —
+        // é o "2% automático" que a tela promete.
+        $investimento = $dados['investimento']
+            ?? ($faturamento === null ? 0 : $faturamento * (CartaCampanha::PERCENTUAL_SUGERIDO / 100));
+
+        $atendido = CampanhaAtendimento::create([
+            'user_id'      => $request->user()->id,
+            'fornecedor'   => $nome,
+            'chave'        => $chave,
+            'faturamento'  => $faturamento,
+            'investimento' => $investimento,
+            'pago'         => $dados['pago'] ?? 0,
+        ]);
+
+        return response()->json(['atendido' => $atendido->paraTela()], 201);
+    }
+
+    /** Atualiza o que já foi pago (ou ajusta a meta combinada). */
+    public function atualizarAtendido(Request $request, CampanhaAtendimento $atendido): JsonResponse
+    {
+        // A lista é de cada um: mexer na de outra pessoa não é caso de erro de
+        // formulário, é endereço que não existe para quem pediu.
+        abort_if($atendido->user_id !== $request->user()->id, 404);
+
+        $dados = $request->validate([
+            'pago'         => ['sometimes', 'numeric', 'min:0', 'max:999999999999'],
+            'investimento' => ['sometimes', 'numeric', 'min:0', 'max:999999999999'],
+        ]);
+
+        $atendido->update($dados);
+
+        return response()->json(['atendido' => $atendido->fresh()->paraTela()]);
+    }
+
+    public function removerAtendido(Request $request, CampanhaAtendimento $atendido): JsonResponse
+    {
+        abort_if($atendido->user_id !== $request->user()->id, 404);
+
+        $atendido->delete();
+
+        return response()->json(['ok' => true]);
     }
 }

@@ -14,7 +14,7 @@ import Icone from '@/Components/painel/Icone';
  * espaço com o sino, e "quem pode o quê" é configuração como as outras.
  */
 
-type Secao = 'usuarios' | 'campanha';
+type Secao = 'usuarios' | 'campanha' | 'fornecedores';
 
 interface ItemSecao {
     id: Secao;
@@ -25,6 +25,7 @@ interface ItemSecao {
 }
 
 const ICONE_USUARIOS = 'M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z';
+const ICONE_FORNECEDORES = 'M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4';
 const ICONE_CAMPANHA = 'M11 5.882V19.24a1.76 1.76 0 01-3.417.592l-2.147-6.15M18 13a3 3 0 100-6M5.436 13.683A4.001 4.001 0 017 6h1.832c4.1 0 7.625-1.234 9.168-3v14c-1.543-1.766-5.067-3-9.168-3H7a3.988 3.988 0 01-1.564-.317z';
 
 export default function Secoes({ atual, children }: { atual: Secao; children: ReactNode }) {
@@ -45,6 +46,13 @@ export default function Secoes({ atual, children }: { atual: Secao; children: Re
             descricao: 'Liga a aba e define o texto padrão',
             href: route('configuracoes.campanha'),
             icone: ICONE_CAMPANHA,
+        },
+        {
+            id: 'fornecedores',
+            titulo: 'Fornecedores',
+            descricao: 'Corrige nomes das duas listas',
+            href: route('configuracoes.fornecedores'),
+            icone: ICONE_FORNECEDORES,
         },
     ];
 

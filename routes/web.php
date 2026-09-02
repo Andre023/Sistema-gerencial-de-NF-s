@@ -168,6 +168,15 @@ Route::middleware(['auth', 'verified'])->group(function () {
     // investimento, e leva o Word pronto. O Gate 'usar-campanha' junta as duas
     // condições — ser de compras E a campanha estar ligada pelo admin.
     Route::middleware('can:usar-campanha')->prefix('campanha')->name('campanha.')->group(function () {
+
+        // A lista de atendidos: quem ja recebeu a campanha e quanto do
+        // combinado ja entrou. JSON porque a lista vive dentro da propria
+        // tela, sem navegacao — e de cada comprador, entao o filtro por dono
+        // fica no controller.
+        Route::get('/atendidos',              [CampanhaController::class, 'atendidos'])->name('atendidos');
+        Route::post('/atendidos',             [CampanhaController::class, 'incluirAtendido'])->name('atendidos.incluir');
+        Route::patch('/atendidos/{atendido}', [CampanhaController::class, 'atualizarAtendido'])->name('atendidos.atualizar');
+        Route::delete('/atendidos/{atendido}',[CampanhaController::class, 'removerAtendido'])->name('atendidos.remover');
         Route::get('/',            [CampanhaController::class, 'index'])->name('index');
         Route::post('/baixar',     [CampanhaController::class, 'baixar'])->name('baixar');
 
@@ -200,6 +209,14 @@ Route::middleware(['auth', 'verified'])->group(function () {
 
         Route::get('/campanha',   [ConfiguracaoController::class, 'campanha'])->name('campanha');
         Route::patch('/campanha', [ConfiguracaoController::class, 'atualizarCampanha'])->name('campanha.atualizar');
+
+        // Fornecedores: as duas listas (notas e campanha), com busca no
+        // servidor. São ~2.800 nomes — mandar todos para a tela repetiria o
+        // erro que custava 136 KB por ação na fila.
+        Route::get('/fornecedores', [ConfiguracaoController::class, 'fornecedores'])->name('fornecedores');
+        Route::get('/fornecedores/buscar', [ConfiguracaoController::class, 'buscarFornecedores'])->name('fornecedores.buscar');
+        Route::patch('/fornecedores/{fornecedor}', [ConfiguracaoController::class, 'renomearFornecedor'])->name('fornecedores.renomear');
+        Route::patch('/fornecedores-campanha/{campanhaFornecedor}', [ConfiguracaoController::class, 'renomearFornecedorCampanha'])->name('fornecedores.campanha.renomear');
     });
 });
 

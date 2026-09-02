@@ -4,6 +4,7 @@ import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 import { useTheme } from '@/Contexts/ThemeContext';
 import { DARK, LIGHT, Palette } from '@/lib/tema';
 import { MARCADORES, cartaEmTexto, dinheiro, montarCarta } from '@/lib/campanha';
+import Atendidos from '@/Components/campanha/Atendidos';
 import Icone from '@/Components/painel/Icone';
 
 /**
@@ -613,6 +614,22 @@ export default function Index({
                             )}
                         </section>
                     </div>
+                </div>
+
+                {/* Abaixo das duas colunas, e em largura inteira: a lista tem
+                    seis colunas de numero e ficaria espremida ao lado da carta.
+                    O botao de incluir aproveita o fornecedor ja preenchido em
+                    cima — quem acabou de gerar a carta so confirma. */}
+                <div className="mt-5">
+                    <Atendidos
+                        candidato={{
+                            fornecedor,
+                            faturamento,
+                            investimento,
+                        }}
+                        percentualSugerido={percentualSugerido}
+                        p={p}
+                    />
                 </div>
             </div>
         </AuthenticatedLayout>
