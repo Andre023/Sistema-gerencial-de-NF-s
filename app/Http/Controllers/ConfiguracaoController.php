@@ -205,4 +205,51 @@ class ConfiguracaoController extends Controller
             'notas'       => null,
         ]]);
     }
+
+    /**
+     * Apaga um fornecedor das NOTAS — só se ninguém depender dele.
+     *
+     * O vínculo `notas.fornecedor_id` é `restrictOnDelete`: o banco recusaria de
+     * qualquer forma, com um erro de integridade que a tela não sabe explicar.
+     * Conferir antes troca isso por uma frase que diz o que aconteceu e por quê.
+     *
+     * E a trava é a certa: apagar um fornecedor com nota deixaria o histórico
+     * apontando para o vazio. O que se limpa aqui é o cadastro duplicado que
+     * nunca chegou a ser usado — que é justamente o lixo que sobra de importação
+     * e de nome digitado errado.
+     */
+    public function excluirFornecedor(Fornecedor $fornecedor): JsonResponse
+    {
+        $notas = $fornecedor->notas()->count();
+
+        if ($notas > 0) {
+            return response()->json([
+                'erro' => sprintf(
+                    'Este fornecedor tem %d nota%s e não pode ser apagado — o histórico ficaria '
+                    . 'apontando para o vazio. Se ele é duplicado, corrija o nome do outro.',
+                    $notas,
+                    $notas === 1 ? '' : 's',
+                ),
+            ], 422);
+        }
+
+        $fornecedor->delete();
+
+        return response()->json(['ok' => true]);
+    }
+
+    /**
+     * Apaga um fornecedor da CAMPANHA.
+     *
+     * Aqui não há o que travar: nada aponta para esta tabela, e a lista de
+     * atendidos guarda cópia própria do nome e dos valores justamente para não
+     * depender dela. Some da busca e da sugestão de faturamento, e volta no
+     * próximo envio de planilha se ainda estiver lá.
+     */
+    public function excluirFornecedorCampanha(CampanhaFornecedor $campanhaFornecedor): JsonResponse
+    {
+        $campanhaFornecedor->delete();
+
+        return response()->json(['ok' => true]);
+    }
 }

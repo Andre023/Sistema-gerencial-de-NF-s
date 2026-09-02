@@ -543,8 +543,11 @@ export default function Index({
                         </section>
                     </div>
 
-                    {/* ── Coluna da direita: a carta ── */}
-                    <div className="lg:sticky lg:top-20 space-y-3">
+                    {/* ── Coluna da direita: a carta e a lista de atendidos ──
+                        Sem `sticky` desde que a lista entrou aqui: grudada, a
+                        coluna inteira ficaria presa no alto e o fim dela — que
+                        agora tem conteudo — sairia do alcance da rolagem. */}
+                    <div className="space-y-5">
                         <section className="rounded-xl overflow-hidden" style={cartao}>
                             <div className="px-4 py-3 flex items-center justify-between gap-3"
                                 style={{ borderBottom: `1px solid ${p.BORDER}` }}>
@@ -613,23 +616,17 @@ export default function Index({
                                 <p className="px-4 pb-3 text-xs" style={{ color: p.RED }}>{erro}</p>
                             )}
                         </section>
-                    </div>
-                </div>
 
-                {/* Abaixo das duas colunas, e em largura inteira: a lista tem
-                    seis colunas de numero e ficaria espremida ao lado da carta.
-                    O botao de incluir aproveita o fornecedor ja preenchido em
-                    cima — quem acabou de gerar a carta so confirma. */}
-                <div className="mt-5">
-                    <Atendidos
-                        candidato={{
-                            fornecedor,
-                            faturamento,
-                            investimento,
-                        }}
-                        percentualSugerido={percentualSugerido}
-                        p={p}
-                    />
+                        {/* Logo abaixo da carta, ocupando o vao que sobrava
+                            nesta coluna. O botao de incluir aproveita o
+                            fornecedor ja preenchido a esquerda — quem acabou de
+                            gerar a carta so confirma. */}
+                        <Atendidos
+                            candidato={{ fornecedor, faturamento, investimento }}
+                            percentualSugerido={percentualSugerido}
+                            p={p}
+                        />
+                    </div>
                 </div>
             </div>
         </AuthenticatedLayout>

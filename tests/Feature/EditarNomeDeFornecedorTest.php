@@ -142,6 +142,66 @@ class EditarNomeDeFornecedorTest extends TestCase
             ->assertJsonPath('fornecedores.0.nome', 'SO NA CAMPANHA');
     }
 
+    // ─── Apagar ───────────────────────────────────────────────────────────────
+
+    /** O lixo que se limpa aqui: o cadastro duplicado que nunca foi usado. */
+    public function test_apaga_fornecedor_sem_nota(): void
+    {
+        $forn = Fornecedor::create(['nome' => 'DUPLICADO QUE NINGUEM USOU']);
+
+        $this->actingAs($this->admin)
+            ->deleteJson(route('configuracoes.fornecedores.excluir', $forn))
+            ->assertOk();
+
+        $this->assertDatabaseMissing('fornecedores', ['id' => $forn->id]);
+    }
+
+    /**
+     * Com nota, não apaga — e a recusa explica.
+     *
+     * O banco recusaria de qualquer forma (`restrictOnDelete`), mas com um erro
+     * de integridade que a tela não sabe traduzir. Conferir antes troca isso por
+     * uma frase que diz o que aconteceu e o que fazer.
+     */
+    public function test_nao_apaga_fornecedor_com_nota(): void
+    {
+        $forn = Fornecedor::create(['nome' => 'EM USO']);
+        Nota::create(['numero_nota' => '7', 'fornecedor_id' => $forn->id,
+            'user_id' => $this->admin->id, 'loja' => 1, 'origem' => 'recebimento']);
+
+        $r = $this->actingAs($this->admin)
+            ->deleteJson(route('configuracoes.fornecedores.excluir', $forn))
+            ->assertStatus(422);
+
+        $this->assertStringContainsString('1 nota', $r->json('erro'));
+        $this->assertDatabaseHas('fornecedores', ['id' => $forn->id]);
+    }
+
+    /** Na campanha não há o que travar: nada aponta para aquela tabela. */
+    public function test_apaga_fornecedor_da_campanha(): void
+    {
+        $f = CampanhaFornecedor::create([
+            'nome' => 'X', 'chave' => 'X', 'faturamento' => 1,
+        ]);
+
+        $this->actingAs($this->admin)
+            ->deleteJson(route('configuracoes.fornecedores.campanha.excluir', $f))
+            ->assertOk();
+
+        $this->assertSame(0, CampanhaFornecedor::count());
+    }
+
+    public function test_so_admin_apaga(): void
+    {
+        $forn = Fornecedor::create(['nome' => 'X']);
+
+        $this->actingAs(User::factory()->create(['role' => User::ROLE_PRE_LOTE]))
+            ->deleteJson(route('configuracoes.fornecedores.excluir', $forn))
+            ->assertForbidden();
+
+        $this->assertDatabaseHas('fornecedores', ['id' => $forn->id]);
+    }
+
     /** Configuração é do admin — os outros papéis nem alcançam a rota. */
     public function test_so_admin_edita(): void
     {

@@ -31,8 +31,8 @@ const dinheiro = (v: number) =>
  * aqui é quase sempre uma letra — abrir e fechar janela para trocar um "SS" por
  * "S" custaria mais que o conserto.
  */
-function Linha({ item, lista, onSalvo, p }: {
-    item: Item; lista: Lista; onSalvo: (i: Item) => void; p: Palette;
+function Linha({ item, lista, onSalvo, onExcluido, p }: {
+    item: Item; lista: Lista; onSalvo: (i: Item) => void; onExcluido: (id: number) => void; p: Palette;
 }) {
     const [editando, setEditando] = useState(false);
     const [nome, setNome] = useState(item.nome);
@@ -67,6 +67,32 @@ function Linha({ item, lista, onSalvo, p }: {
             )[0];
 
             setErro(e?.response?.data?.erro ?? porCampo?.[0] ?? 'Não foi possível salvar.');
+        } finally {
+            setSalvando(false);
+        }
+    };
+
+    /**
+     * Apagar.
+     *
+     * O aviso cita o nome inteiro de propósito: numa lista de nomes parecidos —
+     * que é exatamente o caso de quem veio limpar duplicado — "tem certeza?"
+     * não diz qual dos dois vai embora.
+     */
+    const excluir = async () => {
+        if (!confirm(`Apagar "${item.nome}" da lista?`)) return;
+
+        setSalvando(true);
+        setErro(null);
+        try {
+            const url = lista === 'campanha'
+                ? route('configuracoes.fornecedores.campanha.excluir', item.id)
+                : route('configuracoes.fornecedores.excluir', item.id);
+
+            await window.axios.delete(url);
+            onExcluido(item.id);
+        } catch (e: any) {
+            setErro(e?.response?.data?.erro ?? 'Não foi possível apagar.');
         } finally {
             setSalvando(false);
         }
@@ -121,6 +147,19 @@ function Linha({ item, lista, onSalvo, p }: {
                         onMouseEnter={e => (e.currentTarget.style.background = p.HOVER_ROW)}
                         onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}>
                         <Icone path="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"
+                            className="w-4 h-4" />
+                    </button>
+                )}
+
+                {/* Apagar fica escondido enquanto se edita: ali a pessoa está
+                    consertando o nome, e o botão de destruir ao lado do de
+                    salvar é convite a errar. */}
+                {!editando && (
+                    <button type="button" onClick={excluir} disabled={salvando} title="Apagar o fornecedor"
+                        className="shrink-0 p-1.5 rounded-lg transition disabled:opacity-40" style={{ color: p.RED }}
+                        onMouseEnter={e => (e.currentTarget.style.background = p.RED + '1a')}
+                        onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}>
+                        <Icone path="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
                             className="w-4 h-4" />
                     </button>
                 )}
@@ -236,7 +275,8 @@ export default function Fornecedores({ totalNotas, totalCampanha }: Props) {
                         ) : (
                             itens.map(item => (
                                 <Linha key={item.id} item={item} lista={lista} p={p}
-                                    onSalvo={novo => setItens(l => l.map(x => x.id === novo.id ? novo : x))} />
+                                    onSalvo={novo => setItens(l => l.map(x => x.id === novo.id ? novo : x))}
+                                    onExcluido={id => setItens(l => l.filter(x => x.id !== id))} />
                             ))
                         )}
                     </div>

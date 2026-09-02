@@ -217,6 +217,8 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::get('/fornecedores/buscar', [ConfiguracaoController::class, 'buscarFornecedores'])->name('fornecedores.buscar');
         Route::patch('/fornecedores/{fornecedor}', [ConfiguracaoController::class, 'renomearFornecedor'])->name('fornecedores.renomear');
         Route::patch('/fornecedores-campanha/{campanhaFornecedor}', [ConfiguracaoController::class, 'renomearFornecedorCampanha'])->name('fornecedores.campanha.renomear');
+        Route::delete('/fornecedores/{fornecedor}', [ConfiguracaoController::class, 'excluirFornecedor'])->name('fornecedores.excluir');
+        Route::delete('/fornecedores-campanha/{campanhaFornecedor}', [ConfiguracaoController::class, 'excluirFornecedorCampanha'])->name('fornecedores.campanha.excluir');
     });
 });
 
