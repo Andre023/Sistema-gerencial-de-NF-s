@@ -26,6 +26,12 @@ class EstatisticaController extends Controller
 
     public function index(Request $request): Response
     {
+        /*
+         * Por qual ponta contar o periodo. Ver base() para o porque de existir
+         * como filtro em vez de uma escolha fixa.
+         */
+        $contarPor = $request->input('contarPor') === 'liberadas' ? 'liberadas' : 'lancadas';
+
         $periodo = (int) $request->input('periodo', 30);
         $periodo = max(1, min($periodo, 365));
 
@@ -57,14 +63,19 @@ class EstatisticaController extends Controller
         $chave = 'stats:' . md5(json_encode([
             $de->toDateTimeString(), $ate->toDateTimeString(),
             $lojas, $origem, $ceasa,
+            // O recorte entra na chave: sem ele, trocar de "lancadas" para
+            // "liberadas" devolveria o resultado guardado da outra contagem —
+            // o filtro pareceria nao funcionar.
+            $contarPor,
         ]));
 
-        $dados = $this->cacheado($chave, function () use ($de, $ate, $deAnt, $ateAnt, $lojas, $origem, $ceasa) {
-            return $this->calcular($de, $ate, $deAnt, $ateAnt, $lojas, $origem, $ceasa);
+        $dados = $this->cacheado($chave, function () use ($de, $ate, $deAnt, $ateAnt, $lojas, $origem, $ceasa, $contarPor) {
+            return $this->calcular($de, $ate, $deAnt, $ateAnt, $lojas, $origem, $ceasa, $contarPor);
         });
 
         return Inertia::render('Estatisticas/Index', [
             'periodo' => $periodo,
+            'contarPor' => $contarPor,
             'intervalo' => [
                 'de'      => $de->toDateString(),
                 'ate'     => $ate->toDateString(),
@@ -117,13 +128,22 @@ class EstatisticaController extends Controller
 
     // ─── Cálculo ──────────────────────────────────────────────────────────────
 
-    private function calcular($de, $ate, $deAnt, $ateAnt, array $lojas, ?string $origem, ?string $ceasa): array
+    private function calcular($de, $ate, $deAnt, $ateAnt, array $lojas, ?string $origem, ?string $ceasa, string $contarPor): array
     {
-        $base = $this->base($de, $ate, $lojas, $origem, $ceasa);
+        $base = $this->base($de, $ate, $lojas, $origem, $ceasa, $contarPor);
+
+        // A mesma coluna que recortou o periodo alimenta as series por data.
+        $colunaPeriodo = $contarPor === 'liberadas' ? 'liberada_em' : 'created_at';
 
         // ── KPIs do período e do período anterior (para o comparativo) ────────
-        $kpis    = $this->kpis($this->base($de, $ate, $lojas, $origem, $ceasa));
-        $kpisAnt = $this->kpis($this->base($deAnt, $ateAnt, $lojas, $origem, $ceasa));
+        $kpis    = $this->kpis(
+            $this->base($de, $ate, $lojas, $origem, $ceasa, $contarPor),
+            $this->baseLancadas($de, $ate, $lojas, $origem, $ceasa),
+        );
+        $kpisAnt = $this->kpis(
+            $this->base($deAnt, $ateAnt, $lojas, $origem, $ceasa, $contarPor),
+            $this->baseLancadas($deAnt, $ateAnt, $lojas, $origem, $ceasa),
+        );
 
         $kpis['variacao'] = [
             'total'         => $this->variacao($kpis['total'], $kpisAnt['total']),
@@ -133,9 +153,11 @@ class EstatisticaController extends Controller
 
         // ── Evolução diária ───────────────────────────────────────────────────
         $evolucaoDiaria = (clone $base)
-            ->selectRaw('DATE(created_at) as dia, COUNT(*) as total,
+            // Agrupa pela MESMA coluna que recortou o periodo: misturar as duas
+            // poria dois eixos de tempo no mesmo grafico.
+            ->selectRaw("DATE({$colunaPeriodo}) as dia, COUNT(*) as total,
                           SUM(CASE WHEN liberada_em IS NOT NULL THEN 1 ELSE 0 END) as atendidas,
-                          SUM(CASE WHEN liberada_em IS NULL THEN 1 ELSE 0 END) as pendentes')
+                          SUM(CASE WHEN liberada_em IS NULL THEN 1 ELSE 0 END) as pendentes")
             ->groupBy('dia')->orderBy('dia')->get()
             ->map(fn($r) => [
                 'dia' => $r->dia, 'total' => (int) $r->total,
@@ -164,12 +186,12 @@ class EstatisticaController extends Controller
             ->map(fn($r) => ['loja' => (int) $r->loja, 'total' => (int) $r->total, 'atendidas' => (int) $r->atendidas]);
 
         $porDiaSemana = (clone $base)
-            ->selectRaw("{$this->diaSemana('created_at')} as dia_num, COUNT(*) as total")
+            ->selectRaw("{$this->diaSemana($colunaPeriodo)} as dia_num, COUNT(*) as total")
             ->groupBy('dia_num')->orderBy('dia_num')->get()
             ->map(fn($r) => ['dia' => ['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'][$r->dia_num - 1], 'total' => (int) $r->total]);
 
         $porHora = (clone $base)
-            ->selectRaw("{$this->hora('created_at')} as hora, COUNT(*) as total")
+            ->selectRaw("{$this->hora($colunaPeriodo)} as hora, COUNT(*) as total")
             ->groupBy('hora')->orderBy('hora')->get()
             ->map(fn($r) => ['hora' => str_pad($r->hora, 2, '0', STR_PAD_LEFT) . 'h', 'total' => (int) $r->total]);
 
@@ -232,18 +254,18 @@ class EstatisticaController extends Controller
             'rankingUsuarios' => $rankingUsuarios,
             'pendentesMaisAntigas' => $pendentesMaisAntigas,
             // ── Blocos novos ──
-            'etapas'       => $this->etapas($de, $ate, $lojas, $origem, $ceasa),
-            'retrabalho'   => $this->retrabalho($de, $ate, $lojas, $origem, $ceasa),
-            'porOrigem'    => $this->porOrigem($de, $ate, $lojas, $ceasa),
-            'porCeasa'     => $this->porCeasa($de, $ate, $lojas, $origem),
-            'cancelamento' => $this->cancelamento($de, $ate, $lojas, $origem, $ceasa),
+            'etapas'       => $this->etapas($de, $ate, $lojas, $origem, $ceasa, $contarPor),
+            'retrabalho'   => $this->retrabalho($de, $ate, $lojas, $origem, $ceasa, $contarPor),
+            'porOrigem'    => $this->porOrigem($de, $ate, $lojas, $ceasa, $contarPor),
+            'porCeasa'     => $this->porCeasa($de, $ate, $lojas, $origem, $contarPor),
+            'cancelamento' => $this->cancelamento($de, $ate, $lojas, $origem, $ceasa, $contarPor),
         ];
     }
 
     // ─── Blocos ───────────────────────────────────────────────────────────────
 
     /** Onde o tempo é gasto: análise do pré-lote, correção de compras, reconferência. */
-    private function etapas($de, $ate, array $lojas, ?string $origem, ?string $ceasa): array
+    private function etapas($de, $ate, array $lojas, ?string $origem, ?string $ceasa, string $contarPor): array
     {
         // 1. Lançamento → primeiro card (o pré-lote analisou e achou divergência)
         $ateAnalise = $this->cardsBase($de, $ate, $lojas, $origem, $ceasa)
@@ -257,7 +279,7 @@ class EstatisticaController extends Controller
             ->value('m');
 
         // 3. Última correção → liberação (a reconferência final do pré-lote)
-        $reconferencia = $this->base($de, $ate, $lojas, $origem, $ceasa)
+        $reconferencia = $this->base($de, $ate, $lojas, $origem, $ceasa, $contarPor)
             ->whereNotNull('liberada_em')
             ->whereHas('cards', fn($q) => $q->whereNotNull('corrigido_em'))
             ->join('cards', 'cards.nota_id', '=', 'notas.id')
@@ -265,7 +287,7 @@ class EstatisticaController extends Controller
             ->value('m');
 
         // 4. Lançamento → liberação, para notas SEM divergência (o caminho limpo)
-        $semCard = $this->base($de, $ate, $lojas, $origem, $ceasa)
+        $semCard = $this->base($de, $ate, $lojas, $origem, $ceasa, $contarPor)
             ->whereNotNull('liberada_em')->whereDoesntHave('cards')
             ->selectRaw("{$this->avgMinutos('notas.created_at', 'liberada_em')} as m")
             ->value('m');
@@ -281,7 +303,7 @@ class EstatisticaController extends Controller
     }
 
     /** Retrabalho: cards reabertos = "disse que corrigiu, mas continuava errado". */
-    private function retrabalho($de, $ate, array $lojas, ?string $origem, ?string $ceasa): array
+    private function retrabalho($de, $ate, array $lojas, ?string $origem, ?string $ceasa, string $contarPor): array
     {
         $porTipo = $this->cardsBase($de, $ate, $lojas, $origem, $ceasa)
             ->where('cards.reaberturas', '>', 0)
@@ -312,10 +334,10 @@ class EstatisticaController extends Controller
     }
 
     /** Caminhão na porta × antecipada: são operações diferentes. */
-    private function porOrigem($de, $ate, array $lojas, ?string $ceasa): array
+    private function porOrigem($de, $ate, array $lojas, ?string $ceasa, string $contarPor): array
     {
-        return collect(Nota::ORIGENS)->map(function ($o) use ($de, $ate, $lojas, $ceasa) {
-            $q = $this->base($de, $ate, $lojas, $o, $ceasa);
+        return collect(Nota::ORIGENS)->map(function ($o) use ($de, $ate, $lojas, $ceasa, $contarPor) {
+            $q = $this->base($de, $ate, $lojas, $o, $ceasa, $contarPor);
             $total = (clone $q)->count();
             $liberadas = (clone $q)->whereNotNull('liberada_em')->count();
             $tempo = (clone $q)->whereNotNull('liberada_em')
@@ -332,10 +354,10 @@ class EstatisticaController extends Controller
     }
 
     /** CEASA tem dinâmica própria (peso/preço variam) e distorce a média geral. */
-    private function porCeasa($de, $ate, array $lojas, ?string $origem): array
+    private function porCeasa($de, $ate, array $lojas, ?string $origem, string $contarPor): array
     {
-        return collect(['sem' => 'Fora do CEASA', 'so' => 'CEASA'])->map(function ($rotulo, $filtro) use ($de, $ate, $lojas, $origem) {
-            $q = $this->base($de, $ate, $lojas, $origem, $filtro);
+        return collect(['sem' => 'Fora do CEASA', 'so' => 'CEASA'])->map(function ($rotulo, $filtro) use ($de, $ate, $lojas, $origem, $contarPor) {
+            $q = $this->base($de, $ate, $lojas, $origem, $filtro, $contarPor);
             $total = (clone $q)->count();
             $liberadas = (clone $q)->whereNotNull('liberada_em')->count();
             $comCard = (clone $q)->whereHas('cards')->count();
@@ -354,7 +376,7 @@ class EstatisticaController extends Controller
     }
 
     /** Cancelamento (docs/NOTAS_CANCELADAS.md). Só aqui as canceladas entram. */
-    private function cancelamento($de, $ate, array $lojas, ?string $origem, ?string $ceasa): array
+    private function cancelamento($de, $ate, array $lojas, ?string $origem, ?string $ceasa, string $contarPor): array
     {
         $canceladas = Nota::whereNotNull('cancelada_em')
             ->whereBetween('cancelada_em', [$de, $ate])
@@ -364,7 +386,8 @@ class EstatisticaController extends Controller
             ->when($ceasa === 'sem', fn($q) => $q->where('ceasa', 0));
 
         $total = (clone $canceladas)->count();
-        $liberadasNoPeriodo = $this->base($de, $ate, $lojas, $origem, $ceasa)->whereNotNull('liberada_em')->count();
+        $liberadasNoPeriodo = $this->base($de, $ate, $lojas, $origem, $ceasa, $contarPor)
+            ->whereNotNull('liberada_em')->count();
 
         // Cancelamento tardio: já tinha divergência resolvida quando foi cancelada
         $tardias = (clone $canceladas)->whereHas('cards')->count();
@@ -399,10 +422,30 @@ class EstatisticaController extends Controller
     // ─── Helpers ──────────────────────────────────────────────────────────────
 
     /** Notas ATIVAS do período com os filtros aplicados. */
-    private function base($de, $ate, array $lojas, ?string $origem, ?string $ceasa)
+    /**
+     * O recorte da tela, e por qual PONTA ele conta.
+     *
+     * Uma nota antecipada no pré-lote entra num dia e sai noutro, então as duas
+     * perguntas dão números diferentes sem nada estar errado — num dia real,
+     * 186 lançadas contra 256 liberadas. A tela contava só pela entrada, e por
+     * isso discordava da planilha de "Liberadas neste dia".
+     *
+     *   lancadas  (padrão) — o que ENTROU no período. Responde "quanto chegou" e
+     *                        deixa ver quanto disso ainda está na fila.
+     *   liberadas          — o que SAIU no período, venha de quando vier. É a
+     *                        mesma conta da planilha de liberadas.
+     *
+     * Ficou como filtro, ao lado de loja e fila, porque as duas perguntas são
+     * legítimas e nenhuma serve para tudo: quem mede vazão quer a saída, quem
+     * mede acúmulo quer a entrada.
+     */
+    private function base($de, $ate, array $lojas, ?string $origem, ?string $ceasa, string $contarPor = 'lancadas')
     {
+        // 'liberadas' conta pela SAIDA; o padrao conta pela ENTRADA.
+        $coluna = $contarPor === 'liberadas' ? 'notas.liberada_em' : 'notas.created_at';
+
         return Nota::ativas()
-            ->whereBetween('notas.created_at', [$de, $ate])
+            ->whereBetween($coluna, [$de, $ate])
             ->when($lojas, fn($q) => $q->whereIn('loja', $lojas))
             ->when($origem, fn($q) => $q->where('origem', $origem))
             ->when($ceasa === 'so', fn($q) => $q->where('ceasa', '>', 0))
@@ -425,24 +468,64 @@ class EstatisticaController extends Controller
             ->when($ceasa === 'sem', fn($q) => $q->where('notas.ceasa', 0));
     }
 
-    private function kpis($base): array
+    /**
+     * O recorte de ENTRADA: o que foi lançado no período.
+     *
+     * Só dois números precisam dele — "ainda na fila" e "taxa de liberação" —, e
+     * os dois seriam mentira sobre a base de saída: ali toda nota já saiu, entao
+     * a fila daria zero e a taxa daria 100%.
+     */
+    private function baseLancadas($de, $ate, array $lojas, ?string $origem, ?string $ceasa)
     {
+        return Nota::ativas()
+            ->whereBetween('notas.created_at', [$de, $ate])
+            ->when($lojas, fn($q) => $q->whereIn('loja', $lojas))
+            ->when($origem, fn($q) => $q->where('origem', $origem))
+            ->when($ceasa === 'so', fn($q) => $q->where('ceasa', '>', 0))
+            ->when($ceasa === 'sem', fn($q) => $q->where('ceasa', 0));
+    }
+
+    private function kpis($base, $lancadas): array
+    {
+        // O numero principal: quantas linhas o recorte escolhido tem.
         $total = (clone $base)->count();
         $liberadas = (clone $base)->whereNotNull('liberada_em')->count();
 
-        $resolvidasNoDia = (clone $base)->whereNotNull('liberada_em')
+        // Dessas, quantas entraram e sairam no mesmo dia — o giro.
+        $noMesmoDia = (clone $base)->whereNotNull('liberada_em')
             ->whereRaw('DATE(notas.created_at) = DATE(liberada_em)')->count();
 
         $tempo = (clone $base)->whereNotNull('liberada_em')
             ->selectRaw("{$this->avgMinutos('notas.created_at', 'liberada_em')} as m")->value('m');
 
+        /*
+         * Os dois de ENTRADA. Vem da outra base de proposito: sobre as liberadas
+         * do periodo, "na fila" daria sempre zero e a taxa sempre 100% — nao por
+         * estarem certos, mas por a pergunta nao existir ali.
+         */
+        $lancadasTotal = (clone $lancadas)->count();
+        $lancadasQueSairam = (clone $lancadas)->whereNotNull('liberada_em')->count();
+
         return [
+            // O que o recorte escolhido contou: lancadas OU liberadas.
             'total' => $total,
             'atendidas' => $liberadas,
-            'pendentes' => $total - $liberadas,
-            'resolvidasNoDia' => $resolvidasNoDia,
-            'taxaResolucao' => $total > 0 ? round(($liberadas / $total) * 100, 1) : 0,
+            'resolvidasNoDia' => $noMesmoDia,
             'tempoMedioHoras' => $tempo ? round($tempo / 60, 1) : null,
+
+            /*
+             * Estes dois vem SEMPRE da entrada, em qualquer recorte.
+             *
+             * No recorte "liberadas" toda nota ja saiu: a fila daria zero e a
+             * taxa daria 100% — nao por estarem certos, mas por a pergunta nao
+             * existir ali. Vindo da entrada, os dois querem dizer a mesma coisa
+             * nos dois modos.
+             */
+            'lancadas' => $lancadasTotal,
+            'pendentes' => $lancadasTotal - $lancadasQueSairam,
+            'taxaResolucao' => $lancadasTotal > 0
+                ? round(($lancadasQueSairam / $lancadasTotal) * 100, 1)
+                : 0,
         ];
     }
 

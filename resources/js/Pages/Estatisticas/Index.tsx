@@ -12,8 +12,11 @@ import {
 // ─── Tipos ────────────────────────────────────────────────────────────────────
 
 interface Kpis {
+    /** Quantas o recorte escolhido contou. */
     total: number;
     atendidas: number;
+    /** Quantas ENTRARAM no periodo — vem sempre da entrada, em qualquer recorte. */
+    lancadas: number;
     pendentes: number;
     resolvidasNoDia: number;
     taxaResolucao: number;
@@ -78,6 +81,8 @@ interface Props {
     porCeasa: PorCeasa[];
     cancelamento: Cancelamento;
     filtros: { loja: number[]; origem: string | null; ceasa: string | null };
+    /** Por qual ponta o periodo conta: 'lancadas' (entrada) ou 'liberadas' (saida). */
+    contarPor: 'lancadas' | 'liberadas';
     opcoes: { lojas: number[]; origens: string[] };
     intervalo: { de: string; ate: string; dias: number; livre: boolean; umDiaSo: boolean };
 }
@@ -89,8 +94,7 @@ const PERIODOS = [7, 15, 30, 60, 90];
 export default function Index({
     periodo, kpis, evolucaoDiaria, porMotivo, porLoja, porDiaSemana, porHora,
     topFornecedores, fornecedoresPorMotivo, reincidentes, rankingUsuarios, pendentesMaisAntigas,
-    etapas, retrabalho, porOrigem, porCeasa, cancelamento, filtros, opcoes, intervalo,
-}: Props) {
+    etapas, retrabalho, porOrigem, porCeasa, cancelamento, filtros, opcoes, intervalo, contarPor }: Props) {
 
     const { isDark } = useTheme();
     const p = isDark ? DARK : LIGHT;
@@ -121,6 +125,7 @@ export default function Index({
             loja: filtros.loja.length ? filtros.loja : undefined,
             origem: filtros.origem ?? undefined,
             ceasa: filtros.ceasa ?? undefined,
+            contarPor: contarPor === 'liberadas' ? 'liberadas' : undefined,
             ...extras,
         } as any, { preserveState: false });
 
@@ -154,8 +159,14 @@ export default function Index({
         irPara({ loja: novo.length ? novo : undefined });
     };
     const filtrarOrigem = (o: string | null) => irPara({ origem: o ?? undefined });
+    /** Atalho: o recorte escolhido conta pela saida. */
+    const soLiberadas = contarPor === 'liberadas';
+
     const filtrarCeasa = (c: string | null) => irPara({ ceasa: c ?? undefined });
-    const temFiltro = filtros.loja.length > 0 || !!filtros.origem || !!filtros.ceasa;
+    const trocarContagem = (v: 'lancadas' | 'liberadas') =>
+        irPara({ contarPor: v === 'liberadas' ? 'liberadas' : undefined });
+    const temFiltro = filtros.loja.length > 0 || !!filtros.origem || !!filtros.ceasa
+        || contarPor === 'liberadas';
 
     /** "↑ 12%" — sinal e cor conforme a variação, e se subir é bom ou ruim. */
     const varTexto = (v: number | null) => v === null ? undefined : `${Math.abs(v)}% vs. anterior`;
@@ -283,6 +294,32 @@ export default function Index({
                         })}
                     </div>
 
+                    {/* Por qual ponta contar. Uma nota antecipada entra num dia e
+                        sai noutro, entao as duas perguntas dao numeros diferentes
+                        sem nada estar errado — e "Liberadas" e a mesma conta da
+                        planilha de "Liberadas neste dia". */}
+                    <div className="flex items-center gap-1.5">
+                        <span className="text-xs font-medium" style={{ color: p.MUTED }}>Contar:</span>
+                        {([{ v: 'lancadas' as const, l: 'Lançadas e liberadas' },
+                           { v: 'liberadas' as const, l: 'Só liberadas' }]).map(o => {
+                            const ativo = contarPor === o.v;
+                            return (
+                                <button key={o.v} onClick={() => trocarContagem(o.v)}
+                                    title={o.v === 'lancadas'
+                                        ? 'As notas que ENTRARAM no período, e quanto delas já saiu'
+                                        : 'As notas que SAÍRAM no período, tenham entrado quando tiverem'}
+                                    className="text-xs font-medium px-2 py-1 rounded-lg transition"
+                                    style={{
+                                        background: ativo ? p.GREEN + '22' : 'transparent',
+                                        color: ativo ? p.GREEN : p.MUTED,
+                                        border: `1px solid ${ativo ? p.GREEN : p.BORDER}`,
+                                    }}>
+                                    {o.l}
+                                </button>
+                            );
+                        })}
+                    </div>
+
                     <div className="flex items-center gap-1.5">
                         <span className="text-xs font-medium" style={{ color: p.MUTED }}>Fila:</span>
                         {[{ v: null, l: 'Ambas' }, { v: 'recebimento', l: 'Caminhão' }, { v: 'pre_lote', l: 'Pré-lote' }].map(o => {
@@ -320,7 +357,7 @@ export default function Index({
                     </div>
 
                     {temFiltro && (
-                        <button onClick={() => irPara({ loja: undefined, origem: undefined, ceasa: undefined })}
+                        <button onClick={() => irPara({ loja: undefined, origem: undefined, ceasa: undefined, contarPor: undefined })}
                             className="text-xs ml-auto" style={{ color: p.MUTED }}>
                             ✕ limpar filtros
                         </button>
@@ -329,16 +366,23 @@ export default function Index({
 
                 {/* ── KPIs ──────────────────────────────────────────────────── */}
                 <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
-                    <KpiCard label="Total de notas" valor={kpis.total}
+                    {/* O rotulo muda com o recorte: o mesmo numero com o mesmo
+                        nome nas duas contagens foi o que fez a tela parecer
+                        discordar da planilha. */}
+                    <KpiCard label={soLiberadas ? 'Liberadas no período' : 'Lançadas no período'}
+                        valor={kpis.total}
+                        sub={soLiberadas ? 'mesma conta da planilha' : 'entraram na fila'}
                         trend={varTexto(kpis.variacao.total)}
                         trendUp={(kpis.variacao.total ?? 0) >= 0} p={p} />
-                    <KpiCard label="Liberadas" valor={kpis.atendidas}
-                        sub={`${kpis.taxaResolucao}% do total`} p={p} />
+                    <KpiCard label={soLiberadas ? 'Lançadas no período' : 'Liberadas'}
+                        valor={soLiberadas ? kpis.lancadas : kpis.atendidas}
+                        sub={soLiberadas ? 'entraram na fila' : `${kpis.taxaResolucao}% do total`} p={p} />
                     <KpiCard label="Na fila" valor={kpis.pendentes}
-                        sub="canceladas não contam" p={p} />
-                    <KpiCard label="Liberadas no dia" valor={kpis.resolvidasNoDia}
-                        sub="lançamento = liberação" p={p} />
+                        sub="das lançadas no período" p={p} />
+                    <KpiCard label="Giro no mesmo dia" valor={kpis.resolvidasNoDia}
+                        sub="entrou e saiu no dia" p={p} />
                     <KpiCard label="Taxa de liberação" valor={`${kpis.taxaResolucao}%`}
+                        sub="das lançadas no período"
                         trend={varTexto(kpis.variacao.taxaResolucao)}
                         trendUp={(kpis.variacao.taxaResolucao ?? 0) >= 0} p={p} />
                     <KpiCard label="Tempo médio" valor={fmtHoras(kpis.tempoMedioHoras)}
