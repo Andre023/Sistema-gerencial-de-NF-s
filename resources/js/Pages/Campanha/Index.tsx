@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Head, router } from '@inertiajs/react';
+import { Head, router, usePage } from '@inertiajs/react';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 import { useTheme } from '@/Contexts/ThemeContext';
 import { DARK, LIGHT, Palette } from '@/lib/tema';
@@ -146,6 +146,7 @@ function CampoFornecedor({ valor, onValor, onEscolher, onSair, fornecedores, p }
 export default function Index({
     texto: textoSalvo, padrao, temPerfil, fornecedores, base, limiteDeCaracteres, percentualSugerido,
 }: Props) {
+    const { auth } = usePage().props;
     const { isDark } = useTheme();
     const p = isDark ? DARK : LIGHT;
 
@@ -624,6 +625,8 @@ export default function Index({
                         <Atendidos
                             candidato={{ fornecedor, faturamento, investimento }}
                             percentualSugerido={percentualSugerido}
+                            meuId={auth.user.id}
+                            souAdmin={auth.user.role === 'admin'}
                             p={p}
                         />
                     </div>

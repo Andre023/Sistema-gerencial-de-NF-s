@@ -1,7 +1,14 @@
-import { useCallback, useEffect, useState } from 'react';
+import { Fragment, useCallback, useEffect, useState } from 'react';
 import { Palette } from '@/lib/tema';
 import { dinheiro } from '@/lib/campanha';
 import Icone from '@/Components/painel/Icone';
+
+export interface Parcela {
+    id: number;
+    valor: number;
+    /** YYYY-MM-DD, como o <input type="date"> espera. */
+    data: string;
+}
 
 export interface Atendido {
     id: number;
@@ -16,6 +23,7 @@ export interface Atendido {
     /** null quando a meta é zero: ali não existe percentual a mostrar. */
     percentualPago: number | null;
     falta: number;
+    parcelas: Parcela[];
     em: string;
 }
 
@@ -43,44 +51,112 @@ const chaveDe = (nome: string) =>
         .trim()
         .toUpperCase();
 
+const diaBr = (iso: string) => {
+    const [a, m, d] = iso.split('-');
+    return `${d}/${m}/${a}`;
+};
+
 /**
- * Campo de dinheiro em centavos, igual ao da tela de cima.
+ * As parcelas de um atendimento: a lista e o campo de lançar mais uma.
  *
- * Guarda dígitos ("1000000") e mostra formatado. É o jeito que não briga com
- * quem digita: cada tecla entra pela direita e não existe estado meio digitado
- * para o programa interpretar errado.
+ * Fica dentro da linha, aberta por clique, e não numa janela: quem está
+ * conferindo pagamento quer ver a linha do fornecedor ao lado dos valores, e um
+ * modal esconderia justamente a meta que ele está tentando alcançar.
  */
-function CampoPago({ valor, onSalvar, p }: {
-    valor: number; onSalvar: (v: number) => void; p: Palette;
+function Parcelas({ atendido, podeMexer, onMudou, p }: {
+    atendido: Atendido; podeMexer: boolean; onMudou: (a: Atendido) => void; p: Palette;
 }) {
-    const [digitos, setDigitos] = useState(String(Math.round(valor * 100)));
-    const [editando, setEditando] = useState(false);
+    const [digitos, setDigitos] = useState('');
+    const [data, setData] = useState(() => new Date().toISOString().slice(0, 10));
+    const [erro, setErro] = useState<string | null>(null);
+    const [salvando, setSalvando] = useState(false);
 
-    useEffect(() => { setDigitos(String(Math.round(valor * 100))); }, [valor]);
+    const valor = digitos === '' ? 0 : Number(digitos) / 100;
 
-    const atual = digitos === '' ? 0 : Number(digitos) / 100;
+    const incluir = async () => {
+        if (valor <= 0) { setErro('Informe o valor da parcela.'); return; }
 
-    const confirmar = () => {
-        setEditando(false);
-        if (atual !== valor) onSalvar(atual);
+        setSalvando(true);
+        setErro(null);
+        try {
+            const { data: r } = await window.axios.post(
+                route('campanha.parcelas.incluir', atendido.id), { valor, data },
+            );
+            onMudou(r.atendido);
+            setDigitos('');
+        } catch (e: any) {
+            const porCampo = Object.values(
+                (e?.response?.data?.errors ?? {}) as Record<string, string[]>,
+            )[0];
+
+            setErro(e?.response?.data?.erro ?? porCampo?.[0] ?? 'Não foi possível lançar.');
+        } finally {
+            setSalvando(false);
+        }
+    };
+
+    const remover = async (parcela: Parcela) => {
+        if (!confirm(`Tirar a parcela de ${dinheiro(parcela.valor)} de ${diaBr(parcela.data)}?`)) return;
+
+        try {
+            const { data: r } = await window.axios.delete(
+                route('campanha.parcelas.remover', [atendido.id, parcela.id]),
+            );
+            onMudou(r.atendido);
+        } catch {
+            setErro('Não foi possível remover a parcela.');
+        }
     };
 
     return (
-        <input
-            inputMode="numeric"
-            value={editando || atual > 0 ? dinheiro(atual) : ''}
-            placeholder="R$ 0,00"
-            onFocus={() => setEditando(true)}
-            onBlur={confirmar}
-            onKeyDown={e => {
-                if (e.key === 'Enter') { (e.target as HTMLInputElement).blur(); return; }
-                if (e.key === 'Backspace') { e.preventDefault(); setDigitos(d => d.slice(0, -1)); return; }
-                if (/^[0-9]$/.test(e.key)) { e.preventDefault(); setDigitos(d => (d + e.key).replace(/^0+/, '')); }
-            }}
-            onChange={() => { /* controlado pelo onKeyDown */ }}
-            className="w-32 rounded-lg text-sm px-2.5 py-1.5 outline-none text-right"
-            style={{ background: p.INPUT_BG, color: p.TEXT, border: `1px solid ${p.INPUT_BORDER}` }}
-        />
+        <div className="px-3 py-3" style={{ background: p.HOVER_ROW }}>
+            {atendido.parcelas.length === 0 ? (
+                <p className="text-xs mb-2" style={{ color: p.MUTED }}>Nenhuma parcela lançada.</p>
+            ) : (
+                <ul className="mb-2 space-y-1">
+                    {atendido.parcelas.map(parcela => (
+                        <li key={parcela.id} className="flex items-center gap-2 text-xs">
+                            <span style={{ color: p.MUTED }}>{diaBr(parcela.data)}</span>
+                            <strong style={{ color: p.TEXT }}>{dinheiro(parcela.valor)}</strong>
+                            {podeMexer && (
+                                <button type="button" onClick={() => remover(parcela)}
+                                    title="Tirar esta parcela" className="px-1" style={{ color: p.RED }}>
+                                    ✕
+                                </button>
+                            )}
+                        </li>
+                    ))}
+                </ul>
+            )}
+
+            {podeMexer && (
+                <div className="flex flex-wrap items-center gap-1.5">
+                    <input
+                        inputMode="numeric"
+                        value={valor > 0 ? dinheiro(valor) : ''}
+                        placeholder="R$ 0,00"
+                        onKeyDown={e => {
+                            if (e.key === 'Enter') { incluir(); return; }
+                            if (e.key === 'Backspace') { e.preventDefault(); setDigitos(d => d.slice(0, -1)); return; }
+                            if (/^[0-9]$/.test(e.key)) { e.preventDefault(); setDigitos(d => (d + e.key).replace(/^0+/, '')); }
+                        }}
+                        onChange={() => { /* controlado pelo onKeyDown */ }}
+                        className="w-28 rounded-lg text-xs px-2 py-1.5 outline-none text-right"
+                        style={{ background: p.INPUT_BG, color: p.TEXT, border: `1px solid ${p.INPUT_BORDER}` }}
+                    />
+                    <input type="date" value={data} onChange={e => setData(e.target.value)}
+                        className="rounded-lg text-xs px-2 py-1.5 outline-none"
+                        style={{ background: p.INPUT_BG, color: p.TEXT, border: `1px solid ${p.INPUT_BORDER}` }} />
+                    <button type="button" onClick={incluir} disabled={salvando}
+                        className="text-xs font-medium px-2.5 py-1.5 rounded-lg transition disabled:opacity-50"
+                        style={{ background: p.ACCENT, color: '#fff' }}>
+                        {salvando ? '...' : 'Lançar'}
+                    </button>
+                </div>
+            )}
+
+            {erro && <p className="text-xs mt-1.5" style={{ color: p.RED }}>{erro}</p>}
+        </div>
     );
 }
 
@@ -92,10 +168,13 @@ function CampoPago({ valor, onSalvar, p }: {
  * a mesma informação que alimenta o aviso ao escolher um que já está com
  * alguém. MEXER em cada linha continua sendo do dono dela (ou do admin).
  */
-export default function Atendidos({ candidato, percentualSugerido, p }: {
+export default function Atendidos({ candidato, percentualSugerido, meuId, souAdmin, p }: {
     /** O fornecedor que está preenchido lá em cima, pronto para incluir. */
     candidato: Candidato;
     percentualSugerido: number;
+    /** Ver é de todos; mexer é do dono da linha — e do admin. */
+    meuId: number;
+    souAdmin: boolean;
     p: Palette;
 }) {
     const [lista, setLista] = useState<Atendido[]>([]);
@@ -104,11 +183,16 @@ export default function Atendidos({ candidato, percentualSugerido, p }: {
     const [incluindo, setIncluindo] = useState(false);
     /** null = todos. Filtra por comprador sem ir ao servidor: a lista ja veio. */
     const [filtro, setFiltro] = useState<number | null>(null);
+    /** Qual linha esta com as parcelas abertas. */
+    const [aberta, setAberta] = useState<number | null>(null);
 
     const carregar = useCallback(async () => {
         try {
             const { data } = await window.axios.get(route('campanha.atendidos'));
             setLista(data.atendidos);
+            // Vem junto com a lista de proposito: pedir os dois separado faria a
+            // lista piscar sem filtro antes de se corrigir.
+            setFiltro(data.filtroSalvo ?? null);
         } catch {
             setErro('Não foi possível carregar a lista.');
         } finally {
@@ -131,15 +215,6 @@ export default function Atendidos({ candidato, percentualSugerido, p }: {
         }
     };
 
-    const salvarPago = async (a: Atendido, pago: number) => {
-        try {
-            const { data } = await window.axios.patch(route('campanha.atendidos.atualizar', a.id), { pago });
-            setLista(l => l.map(x => x.id === a.id ? data.atendido : x));
-        } catch {
-            setErro('Não foi possível salvar o valor pago.');
-        }
-    };
-
     const remover = async (a: Atendido) => {
         if (!confirm(`Tirar ${a.fornecedor} da lista?`)) return;
         try {
@@ -159,6 +234,18 @@ export default function Atendidos({ candidato, percentualSugerido, p }: {
     const compradores = Array.from(
         new Map(lista.map(a => [a.user_id, a.comprador])).entries(),
     ).sort((a, b) => a[1].localeCompare(b[1]));
+
+    /**
+     * Troca o filtro e guarda na conta.
+     *
+     * A tela muda na hora e o salvamento vai atras sem travar nada: errar o
+     * salvamento de uma preferencia nao pode segurar o clique de quem so queria
+     * olhar outra coluna.
+     */
+    const trocarFiltro = (id: number | null) => {
+        setFiltro(id);
+        window.axios.patch(route('campanha.atendidos.filtro'), { comprador: id }).catch(() => {});
+    };
 
     const listaFiltrada = filtro === null ? lista : lista.filter(a => a.user_id === filtro);
 
@@ -214,7 +301,7 @@ export default function Atendidos({ candidato, percentualSugerido, p }: {
                             const ativo = filtro === id;
 
                             return (
-                                <button key={String(id)} type="button" onClick={() => setFiltro(id)}
+                                <button key={String(id)} type="button" onClick={() => trocarFiltro(id)}
                                     className="text-xs px-2.5 py-1 rounded-lg transition"
                                     style={{
                                         background: ativo ? p.ACCENT + '1a' : 'transparent',
@@ -257,36 +344,72 @@ export default function Atendidos({ candidato, percentualSugerido, p }: {
                                         : a.percentualPago > 0 ? p.AMBER
                                         : p.RED;
 
+                                    const podeMexer = souAdmin || a.user_id === meuId;
+                                    const abertaAqui = aberta === a.id;
+
                                     return (
-                                        <tr key={a.id} style={{ borderBottom: `1px solid ${p.BORDER}` }}>
-                                            <td className="px-3 py-2 text-sm whitespace-nowrap" style={{ color: p.MUTED }}>
-                                                {a.comprador.split(' ')[0]}
-                                            </td>
-                                            <td className="px-3 py-2 text-sm" style={{ color: p.TEXT }}>{a.fornecedor}</td>
-                                            <td className="px-3 py-2 text-sm text-right whitespace-nowrap" style={{ color: p.MUTED }}>
-                                                {a.faturamento === null ? '—' : dinheiro(a.faturamento)}
-                                            </td>
-                                            <td className="px-3 py-2 text-sm text-right whitespace-nowrap" style={{ color: p.TEXT }}>
-                                                {dinheiro(a.investimento)}
-                                            </td>
-                                            <td className="px-3 py-2 text-right">
-                                                <CampoPago valor={a.pago} onSalvar={v => salvarPago(a, v)} p={p} />
-                                            </td>
-                                            <td className="px-3 py-2 text-sm text-right font-semibold whitespace-nowrap" style={{ color: cor }}>
-                                                {a.percentualPago === null ? '—' : pct(a.percentualPago)}
-                                            </td>
-                                            <td className="px-3 py-2 text-sm text-right whitespace-nowrap" style={{ color: a.falta > 0 ? p.TEXT : p.GREEN }}>
-                                                {a.falta > 0 ? dinheiro(a.falta) : 'quitado'}
-                                            </td>
-                                            <td className="px-3 py-2 text-right">
-                                                <button type="button" onClick={() => remover(a)} title="Tirar da lista"
-                                                    className="p-1.5 rounded-lg transition" style={{ color: p.MUTED }}
-                                                    onMouseEnter={e => (e.currentTarget.style.background = p.HOVER_ROW)}
-                                                    onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}>
-                                                    <Icone path="M6 18L18 6M6 6l12 12" className="w-4 h-4" />
-                                                </button>
-                                            </td>
-                                        </tr>
+                                        <Fragment key={a.id}>
+                                            <tr style={{ borderBottom: `1px solid ${p.BORDER}` }}>
+                                                <td className="px-3 py-2 text-sm whitespace-nowrap" style={{ color: p.MUTED }}>
+                                                    {a.comprador.split(' ')[0]}
+                                                </td>
+                                                <td className="px-3 py-2 text-sm" style={{ color: p.TEXT }}>{a.fornecedor}</td>
+                                                <td className="px-3 py-2 text-sm text-right whitespace-nowrap" style={{ color: p.MUTED }}>
+                                                    {a.faturamento === null ? '—' : dinheiro(a.faturamento)}
+                                                </td>
+                                                <td className="px-3 py-2 text-sm text-right whitespace-nowrap" style={{ color: p.TEXT }}>
+                                                    {dinheiro(a.investimento)}
+                                                </td>
+
+                                                {/* O pago é a SOMA das parcelas, e por isso não se digita
+                                                    mais aqui: o número e o detalhe seriam duas verdades
+                                                    concorrendo. O clique abre as parcelas, que é onde ele
+                                                    passa a ser construído. */}
+                                                <td className="px-3 py-2 text-right whitespace-nowrap">
+                                                    <button type="button" onClick={() => setAberta(abertaAqui ? null : a.id)}
+                                                        title={abertaAqui ? 'Fechar as parcelas' : 'Ver e lançar parcelas'}
+                                                        className="inline-flex items-center gap-1 text-sm px-2 py-1 rounded-lg transition"
+                                                        style={{ color: p.TEXT }}
+                                                        onMouseEnter={e => (e.currentTarget.style.background = p.HOVER_ROW)}
+                                                        onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}>
+                                                        {dinheiro(a.pago)}
+                                                        <span className="text-xs" style={{ color: p.MUTED }}>
+                                                            ({a.parcelas.length}) {abertaAqui ? '▴' : '▾'}
+                                                        </span>
+                                                    </button>
+                                                </td>
+
+                                                <td className="px-3 py-2 text-sm text-right font-semibold whitespace-nowrap" style={{ color: cor }}>
+                                                    {a.percentualPago === null ? '—' : pct(a.percentualPago)}
+                                                </td>
+                                                <td className="px-3 py-2 text-sm text-right whitespace-nowrap" style={{ color: a.falta > 0 ? p.TEXT : p.GREEN }}>
+                                                    {a.falta > 0 ? dinheiro(a.falta) : 'quitado'}
+                                                </td>
+                                                <td className="px-3 py-2 text-right">
+                                                    {podeMexer && (
+                                                        <button type="button" onClick={() => remover(a)} title="Tirar da lista"
+                                                            className="p-1.5 rounded-lg transition" style={{ color: p.MUTED }}
+                                                            onMouseEnter={e => (e.currentTarget.style.background = p.HOVER_ROW)}
+                                                            onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}>
+                                                            <Icone path="M6 18L18 6M6 6l12 12" className="w-4 h-4" />
+                                                        </button>
+                                                    )}
+                                                </td>
+                                            </tr>
+
+                                            {abertaAqui && (
+                                                <tr style={{ borderBottom: `1px solid ${p.BORDER}` }}>
+                                                    <td colSpan={8} className="p-0">
+                                                        <Parcelas
+                                                            atendido={a}
+                                                            podeMexer={podeMexer}
+                                                            onMudou={novo => setLista(l => l.map(x => x.id === novo.id ? novo : x))}
+                                                            p={p}
+                                                        />
+                                                    </td>
+                                                </tr>
+                                            )}
+                                        </Fragment>
                                     );
                                 })}
                             </tbody>

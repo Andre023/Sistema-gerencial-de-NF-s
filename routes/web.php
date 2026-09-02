@@ -178,6 +178,12 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::post('/atendidos',             [CampanhaController::class, 'incluirAtendido'])->name('atendidos.incluir');
         Route::patch('/atendidos/{atendido}', [CampanhaController::class, 'atualizarAtendido'])->name('atendidos.atualizar');
         Route::delete('/atendidos/{atendido}',[CampanhaController::class, 'removerAtendido'])->name('atendidos.remover');
+
+        // As parcelas de um atendimento, e o filtro por comprador que a tela
+        // guarda na conta (e nao no navegador).
+        Route::post('/atendidos/{atendido}/parcelas', [CampanhaController::class, 'incluirParcela'])->name('parcelas.incluir');
+        Route::delete('/atendidos/{atendido}/parcelas/{parcela}', [CampanhaController::class, 'removerParcela'])->name('parcelas.remover');
+        Route::patch('/atendidos-filtro', [CampanhaController::class, 'salvarFiltroAtendidos'])->name('atendidos.filtro');
         Route::get('/',            [CampanhaController::class, 'index'])->name('index');
         Route::post('/baixar',     [CampanhaController::class, 'baixar'])->name('baixar');
 

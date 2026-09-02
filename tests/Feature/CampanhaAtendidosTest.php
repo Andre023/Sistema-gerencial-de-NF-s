@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Models\CampanhaAtendimento;
+use App\Models\CampanhaParcela;
 use App\Models\Configuracao;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -57,8 +58,8 @@ class CampanhaAtendidosTest extends TestCase
         ]);
 
         $this->actingAs($this->comprador)
-            ->patchJson(route('campanha.atendidos.atualizar', $a), ['pago' => 10000])
-            ->assertOk();
+            ->postJson(route('campanha.parcelas.incluir', $a), ['valor' => 10000, 'data' => '2026-09-10'])
+            ->assertCreated();
 
         $this->assertEquals(40, $a->fresh()->percentualPago());
         $this->assertEquals(15000, $a->fresh()->falta());
@@ -77,8 +78,8 @@ class CampanhaAtendidosTest extends TestCase
         ]);
 
         $this->actingAs($this->comprador)
-            ->patchJson(route('campanha.atendidos.atualizar', $a), ['pago' => 1500])
-            ->assertOk();
+            ->postJson(route('campanha.parcelas.incluir', $a), ['valor' => 1500, 'data' => '2026-09-10'])
+            ->assertCreated();
 
         $this->assertEquals(0, $a->fresh()->falta());
         $this->assertEquals(150, $a->fresh()->percentualPago());
@@ -173,7 +174,7 @@ class CampanhaAtendidosTest extends TestCase
         ]);
 
         $this->actingAs($this->comprador)
-            ->patchJson(route('campanha.atendidos.atualizar', $dele), ['pago' => 999])
+            ->postJson(route('campanha.parcelas.incluir', $dele), ['valor' => 999, 'data' => '2026-09-10'])
             ->assertNotFound();
 
         $this->assertSame('0.00', $dele->fresh()->pago);
@@ -195,8 +196,8 @@ class CampanhaAtendidosTest extends TestCase
         ]);
 
         $this->actingAs($admin)
-            ->patchJson(route('campanha.atendidos.atualizar', $dele), ['pago' => 50])
-            ->assertOk();
+            ->postJson(route('campanha.parcelas.incluir', $dele), ['valor' => 50, 'data' => '2026-09-10'])
+            ->assertCreated();
 
         $this->assertEquals(50, $dele->fresh()->pago);
     }
@@ -222,6 +223,121 @@ class CampanhaAtendidosTest extends TestCase
             ->assertJsonPath('erro', 'Clayton já incluiu este fornecedor na lista dele.');
 
         $this->assertSame(1, CampanhaAtendimento::count());
+    }
+
+    // ─── Parcelas ─────────────────────────────────────────
+
+    /**
+     * O `pago` e a SOMA das parcelas, e nao um numero digitado.
+     *
+     * Deixar os dois editaveis criaria a pergunta "qual esta certo?" toda vez
+     * que divergissem — e eles divergiriam no primeiro dia.
+     */
+    public function test_pago_e_a_soma_das_parcelas(): void
+    {
+        $a = CampanhaAtendimento::create([
+            'user_id' => $this->comprador->id, 'fornecedor' => 'X', 'chave' => 'X',
+            'faturamento' => null, 'investimento' => 25000, 'pago' => 0,
+        ]);
+
+        foreach ([[4000, '2026-09-10'], [3000, '2026-10-10'], [3000, '2026-11-10']] as [$v, $d]) {
+            $this->actingAs($this->comprador)
+                ->postJson(route('campanha.parcelas.incluir', $a), ['valor' => $v, 'data' => $d])
+                ->assertCreated();
+        }
+
+        $this->assertEquals(10000, $a->fresh()->pago);
+        $this->assertCount(3, $a->fresh()->parcelas);
+    }
+
+    /** Tirar uma parcela refaz o total — senao ele diria o que era antes. */
+    public function test_remover_parcela_refaz_o_total(): void
+    {
+        $a = CampanhaAtendimento::create([
+            'user_id' => $this->comprador->id, 'fornecedor' => 'X', 'chave' => 'X',
+            'faturamento' => null, 'investimento' => 1000, 'pago' => 0,
+        ]);
+
+        $this->actingAs($this->comprador)
+            ->postJson(route('campanha.parcelas.incluir', $a), ['valor' => 600, 'data' => '2026-09-10']);
+        $this->actingAs($this->comprador)
+            ->postJson(route('campanha.parcelas.incluir', $a), ['valor' => 400, 'data' => '2026-10-10']);
+
+        $this->assertEquals(1000, $a->fresh()->pago);
+
+        $primeira = $a->fresh()->parcelas->first();
+
+        $this->actingAs($this->comprador)
+            ->deleteJson(route('campanha.parcelas.remover', [$a, $primeira]))
+            ->assertOk();
+
+        $this->assertEquals(400, $a->fresh()->pago);
+    }
+
+    /** Parcela zero nao entra: nao e pagamento. */
+    public function test_parcela_precisa_ser_maior_que_zero(): void
+    {
+        $a = CampanhaAtendimento::create([
+            'user_id' => $this->comprador->id, 'fornecedor' => 'X', 'chave' => 'X',
+            'faturamento' => null, 'investimento' => 1000, 'pago' => 0,
+        ]);
+
+        $this->actingAs($this->comprador)
+            ->postJson(route('campanha.parcelas.incluir', $a), ['valor' => 0, 'data' => '2026-09-10'])
+            ->assertStatus(422);
+
+        $this->assertEquals(0, $a->fresh()->pago);
+    }
+
+    /** Tirar o fornecedor da lista leva o historico de pagamento junto. */
+    public function test_remover_atendido_leva_as_parcelas(): void
+    {
+        $a = CampanhaAtendimento::create([
+            'user_id' => $this->comprador->id, 'fornecedor' => 'X', 'chave' => 'X',
+            'faturamento' => null, 'investimento' => 1000, 'pago' => 0,
+        ]);
+
+        $this->actingAs($this->comprador)
+            ->postJson(route('campanha.parcelas.incluir', $a), ['valor' => 100, 'data' => '2026-09-10']);
+
+        $this->assertSame(1, CampanhaParcela::count());
+
+        $this->actingAs($this->comprador)
+            ->deleteJson(route('campanha.atendidos.remover', $a))->assertOk();
+
+        $this->assertSame(0, CampanhaParcela::count());
+    }
+
+    // ─── Filtro salvo ────────────────────────────────────
+
+    /** O filtro fica na CONTA: reabre no mesmo lugar, ate de outra maquina. */
+    public function test_filtro_por_comprador_fica_salvo_na_conta(): void
+    {
+        $clayton = User::factory()->create(['role' => User::ROLE_COMPRAS]);
+
+        $this->actingAs($this->comprador)
+            ->patchJson(route('campanha.atendidos.filtro'), ['comprador' => $clayton->id])
+            ->assertOk();
+
+        $this->assertSame($clayton->id, $this->comprador->fresh()->campanha_filtro_comprador);
+
+        // E volta junto com a lista, para a tela nao piscar sem filtro
+        $this->actingAs($this->comprador)
+            ->getJson(route('campanha.atendidos'))
+            ->assertOk()
+            ->assertJsonPath('filtroSalvo', $clayton->id);
+    }
+
+    /** "Todos" e null, e tem de poder voltar para ele. */
+    public function test_filtro_volta_para_todos(): void
+    {
+        $this->comprador->update(['campanha_filtro_comprador' => $this->comprador->id]);
+
+        $this->actingAs($this->comprador)
+            ->patchJson(route('campanha.atendidos.filtro'), ['comprador' => null])
+            ->assertOk();
+
+        $this->assertNull($this->comprador->fresh()->campanha_filtro_comprador);
     }
 
     /** A exportacao sai como .xlsx que o Excel abre de verdade. */

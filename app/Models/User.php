@@ -46,7 +46,8 @@ class User extends Authenticatable
         // Avatar: o tipo ('emoji'|'monograma') e o valor (emoji com tom, ou cor).
         'avatar_tipo',
         'avatar_valor',
-    ];
+    
+        'campanha_filtro_comprador',];
 
     /**
      * The attributes that should be hidden for serialization.

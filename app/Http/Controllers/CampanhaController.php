@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\CampanhaAtendimento;
+use App\Models\CampanhaParcela;
 use App\Models\CampanhaFornecedor;
 use App\Models\CampanhaTexto;
 use App\Models\Configuracao;
@@ -282,9 +283,13 @@ class CampanhaController extends Controller
     public function atendidos(): JsonResponse
     {
         return response()->json([
-            'atendidos' => CampanhaAtendimento::with('user:id,name')
+            'atendidos' => CampanhaAtendimento::with(['user:id,name', 'parcelas'])
                 ->orderByDesc('created_at')->orderByDesc('id')
                 ->get()->map(fn(CampanhaAtendimento $a) => $a->paraTela()),
+            // O filtro volta junto com a lista: sao a mesma tela, e pedir os dois
+            // em requisicoes separadas faria a lista piscar sem filtro antes de
+            // se corrigir.
+            'filtroSalvo' => request()->user()->campanha_filtro_comprador,
         ]);
     }
 
@@ -297,7 +302,7 @@ class CampanhaController extends Controller
      */
     public function exportarAtendidos(): HttpResponse
     {
-        $linhas = CampanhaAtendimento::with('user:id,name')
+        $linhas = CampanhaAtendimento::with(['user:id,name', 'parcelas'])
             ->orderBy('fornecedor')
             ->get()
             ->map(function (CampanhaAtendimento $a) {
@@ -313,13 +318,19 @@ class CampanhaController extends Controller
                     // afirmaria que falta tudo de uma meta que nao existe.
                     $pct === null ? '' : round($pct, 2),
                     $a->falta(),
+                    // Quantas entradas e quando foi a ultima: e o que diz se o
+                    // fornecedor esta pagando ou parou no meio, que o total
+                    // sozinho nao conta.
+                    $a->parcelas->count(),
+                    optional($a->parcelas->last()?->data)->format('d/m/Y') ?? '',
                     optional($a->created_at)->format('d/m/Y'),
                 ];
             })
             ->all();
 
         $planilha = PlanilhaExcel::montar(
-            ['Comprador', 'Fornecedor', 'Faturamento', 'Meta', 'Pago', '% pago', 'Falta', 'Incluido em'],
+            ['Comprador', 'Fornecedor', 'Faturamento', 'Meta', 'Pago', '% pago', 'Falta',
+             'Parcelas', 'Ultima parcela', 'Incluido em'],
             $linhas,
             'Atendidos',
         );
@@ -402,7 +413,7 @@ class CampanhaController extends Controller
             'pago'         => $dados['pago'] ?? 0,
         ]);
 
-        return response()->json(['atendido' => $atendido->paraTela()], 201);
+        return response()->json(['atendido' => $this->comParcelas($atendido)], 201);
     }
 
     /** Atualiza o que já foi pago (ou ajusta a meta combinada). */
@@ -410,14 +421,20 @@ class CampanhaController extends Controller
     {
         $this->soDonoOuAdmin($request, $atendido);
 
+        /*
+         * `pago` NAO entra aqui.
+         *
+         * Ele e a soma das parcelas desde que elas passaram a existir. Deixar os
+         * dois editaveis criaria a pergunta "qual esta certo?" toda vez que
+         * divergissem — e eles divergiriam no primeiro dia.
+         */
         $dados = $request->validate([
-            'pago'         => ['sometimes', 'numeric', 'min:0', 'max:999999999999'],
             'investimento' => ['sometimes', 'numeric', 'min:0', 'max:999999999999'],
         ]);
 
         $atendido->update($dados);
 
-        return response()->json(['atendido' => $atendido->fresh()->paraTela()]);
+        return response()->json(['atendido' => $this->comParcelas($atendido)]);
     }
 
     public function removerAtendido(Request $request, CampanhaAtendimento $atendido): JsonResponse
@@ -441,5 +458,70 @@ class CampanhaController extends Controller
         $eu = $request->user();
 
         abort_if($atendido->user_id !== $eu->id && ! $eu->isAdmin(), 404);
+    }
+
+    // ─── PARCELAS ─────────────────────────────────────────────────────────────
+
+    /**
+     * Lança uma entrada de dinheiro do fornecedor.
+     *
+     * Fornecedor grande paga parcelado, e um total sozinho não dizia se foi uma
+     * vez ou quatro, nem quando — que é o que se precisa saber para cobrar o
+     * resto.
+     */
+    public function incluirParcela(Request $request, CampanhaAtendimento $atendido): JsonResponse
+    {
+        $this->soDonoOuAdmin($request, $atendido);
+
+        $dados = $request->validate([
+            'valor' => ['required', 'numeric', 'gt:0', 'max:999999999999'],
+            // `date_format` e não `date`: queremos exatamente o dia, e `date`
+            // aceitaria texto solto que o Carbon adivinha.
+            'data'  => ['required', 'date_format:Y-m-d'],
+        ], [
+            'valor.gt' => 'A parcela precisa ser maior que zero.',
+        ]);
+
+        $atendido->parcelas()->create($dados);
+        $atendido->recalcularPago();
+
+        return response()->json(['atendido' => $this->comParcelas($atendido)], 201);
+    }
+
+    public function removerParcela(Request $request, CampanhaAtendimento $atendido, CampanhaParcela $parcela): JsonResponse
+    {
+        $this->soDonoOuAdmin($request, $atendido);
+
+        // Parcela de outro atendimento: endereço que não existe para este.
+        abort_if($parcela->campanha_atendimento_id !== $atendido->id, 404);
+
+        $parcela->delete();
+        $atendido->recalcularPago();
+
+        return response()->json(['atendido' => $this->comParcelas($atendido)]);
+    }
+
+    /**
+     * Guarda o filtro por comprador da tela de atendidos.
+     *
+     * Na conta e não no navegador: quem acompanha os próprios fornecedores
+     * reabre a aba no mesmo lugar, inclusive de outra máquina.
+     */
+    public function salvarFiltroAtendidos(Request $request): JsonResponse
+    {
+        $dados = $request->validate([
+            // null = "Todos".
+            'comprador' => ['nullable', 'integer', 'exists:users,id'],
+        ]);
+
+        $request->user()->update(['campanha_filtro_comprador' => $dados['comprador'] ?? null]);
+
+        return response()->json(['ok' => true]);
+    }
+
+    /** A linha recarregada com as parcelas — o formato que a tela espera. */
+    private function comParcelas(CampanhaAtendimento $atendido): array
+    {
+        return $atendido->fresh(['user:id,name', 'parcelas'])->paraTela();
     }
 }
