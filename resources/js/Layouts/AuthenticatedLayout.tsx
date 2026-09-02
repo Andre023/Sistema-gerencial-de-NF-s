@@ -9,7 +9,7 @@ import ChatProvider from '@/Components/chat/ChatProvider';
 import AtalhosDaFila from '@/Components/painel/AtalhosDaFila';
 import Avatar from '@/Components/painel/Avatar';
 import { Link, usePage, router } from '@inertiajs/react';
-import { PropsWithChildren, ReactNode, useState, useEffect } from 'react';
+import { PropsWithChildren, ReactNode, useState, useEffect, useRef, useCallback } from 'react';
 import { User, Permissoes } from '@/types';
 import { useTheme } from '@/Contexts/ThemeContext';
 
@@ -50,13 +50,48 @@ export default function AuthenticatedLayout({
     const [showingNavDropdown, setShowingNavDropdown] = useState(false);
     const [flashMsg, setFlashMsg] = useState<FlashMessage | null>(null);
 
+    /*
+     * O relógio do toast, guardado FORA do efeito.
+     *
+     * Antes ele era uma variável dentro do efeito do `flash`, apagada na
+     * limpeza — e era esse o bug do card verde que não saía da tela.
+     *
+     * O `flash` é `Inertia::always()`, então volta em TODA resposta, e volta
+     * vazio quando a resposta não traz recado. Quando isso acontecia com um
+     * toast na tela, o React rodava a limpeza (matando o relógio) e em seguida
+     * o corpo do efeito, que não fazia nada por não haver mensagem. Resultado:
+     * ninguém mais mandava o toast embora, e ele ficava lá até a pessoa
+     * recarregar a página.
+     *
+     * Bastava qualquer navegação nos 4 segundos seguintes ao aviso — inclusive
+     * a atualização automática disparada por outra pessoa mexendo numa nota.
+     * Por isso aparecia "sozinho", sem ninguém conseguir reproduzir.
+     */
+    const relogioDoToast = useRef<number | null>(null);
+
+    /** Mostra o aviso e reinicia a contagem, venha ele de onde vier. */
+    const mostrarAviso = useCallback((msg: FlashMessage) => {
+        if (!msg?.sucesso && !msg?.erro) return;
+
+        setFlashMsg(msg);
+
+        // Reinicia: um aviso novo merece os 4 segundos inteiros, e não o resto
+        // do tempo do anterior.
+        if (relogioDoToast.current !== null) clearTimeout(relogioDoToast.current);
+        relogioDoToast.current = window.setTimeout(() => {
+            setFlashMsg(null);
+            relogioDoToast.current = null;
+        }, 4000);
+    }, []);
+
+    // Só o desmonte cancela o relógio. A troca de `flash` não mexe nele.
+    useEffect(() => () => {
+        if (relogioDoToast.current !== null) clearTimeout(relogioDoToast.current);
+    }, []);
+
     useEffect(() => {
-        if (flash?.sucesso || flash?.erro) {
-            setFlashMsg(flash);
-            const t = setTimeout(() => setFlashMsg(null), 4000);
-            return () => clearTimeout(t);
-        }
-    }, [flash]);
+        mostrarAviso(flash ?? {});
+    }, [flash, mostrarAviso]);
 
     /*
      * O mesmo toast, para quem não passou pelo Inertia.
@@ -71,18 +106,12 @@ export default function AuthenticatedLayout({
      * altura toda só para carregar um recado seria pior do que o problema.
      */
     useEffect(() => {
-        const aviso = (e: Event) => {
-            const msg = (e as CustomEvent<FlashMessage>).detail;
-            if (!msg?.sucesso && !msg?.erro) return;
-
-            setFlashMsg(msg);
-            window.setTimeout(() => setFlashMsg(null), 4000);
-        };
+        const aviso = (e: Event) => mostrarAviso((e as CustomEvent<FlashMessage>).detail);
 
         document.addEventListener('nfs:aviso', aviso);
 
         return () => document.removeEventListener('nfs:aviso', aviso);
-    }, []);
+    }, [mostrarAviso]);
 
     // Trocou de tela pelo menu do celular: fecha o menu, senão ele fica aberto
     // por cima da página que acabou de abrir.
