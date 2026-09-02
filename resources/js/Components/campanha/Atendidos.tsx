@@ -5,6 +5,9 @@ import Icone from '@/Components/painel/Icone';
 
 export interface Atendido {
     id: number;
+    /** De quem e a linha — a lista e de todos e filtra por comprador. */
+    user_id: number;
+    comprador: string;
     fornecedor: string;
     faturamento: number | null;
     /** A meta combinada — o percentual sugerido aplicado ao faturamento. */
@@ -24,6 +27,21 @@ export interface Candidato {
 }
 
 const pct = (v: number) => `${v.toLocaleString('pt-BR', { maximumFractionDigits: 1 })}%`;
+
+/**
+ * A forma comparável de um nome, para o AVISO da tela.
+ *
+ * Espelha o CampanhaFornecedor::chaveDe do servidor, mas de propósito só serve
+ * de dica: quem decide de verdade é o servidor, que recusa a inclusão com a
+ * mensagem certa. Se as duas regras divergirem um dia, o pior que acontece é o
+ * aviso não aparecer antes — nunca uma linha duplicada entrar.
+ */
+const chaveDe = (nome: string) =>
+    nome.normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+        .replace(/[^A-Za-z0-9 ]+/g, ' ')
+        .replace(/\s+/g, ' ')
+        .trim()
+        .toUpperCase();
 
 /**
  * Campo de dinheiro em centavos, igual ao da tela de cima.
@@ -69,8 +87,10 @@ function CampoPago({ valor, onSalvar, p }: {
 /**
  * A lista de quem já recebeu a campanha, e quanto do combinado já entrou.
  *
- * É de cada comprador: você acompanha os seus, ninguém tromba no trabalho do
- * outro e a lista fica curta o bastante para ser útil no dia a dia.
+ * Todos veem tudo, e o filtro por comprador fica em cima. Foi de propósito: é
+ * assim que dois compradores param de bater no mesmo fornecedor sem saber — e é
+ * a mesma informação que alimenta o aviso ao escolher um que já está com
+ * alguém. MEXER em cada linha continua sendo do dono dela (ou do admin).
  */
 export default function Atendidos({ candidato, percentualSugerido, p }: {
     /** O fornecedor que está preenchido lá em cima, pronto para incluir. */
@@ -82,6 +102,8 @@ export default function Atendidos({ candidato, percentualSugerido, p }: {
     const [carregando, setCarregando] = useState(true);
     const [erro, setErro] = useState<string | null>(null);
     const [incluindo, setIncluindo] = useState(false);
+    /** null = todos. Filtra por comprador sem ir ao servidor: a lista ja veio. */
+    const [filtro, setFiltro] = useState<number | null>(null);
 
     const carregar = useCallback(async () => {
         try {
@@ -128,6 +150,28 @@ export default function Atendidos({ candidato, percentualSugerido, p }: {
         }
     };
 
+    /*
+     * Os compradores que aparecem na lista, em ordem, sem repetir.
+     *
+     * Sai da propria lista e nao de uma consulta de usuarios: quem nunca
+     * incluiu ninguem nao vira um botao vazio para clicar.
+     */
+    const compradores = Array.from(
+        new Map(lista.map(a => [a.user_id, a.comprador])).entries(),
+    ).sort((a, b) => a[1].localeCompare(b[1]));
+
+    const listaFiltrada = filtro === null ? lista : lista.filter(a => a.user_id === filtro);
+
+    /**
+     * O fornecedor escolhido la em cima ja esta com alguem?
+     *
+     * O aviso aparece ANTES de tentar incluir: descobrir no erro, depois de
+     * preencher faturamento e investimento, e descobrir tarde.
+     */
+    const jaEstaCom = candidato.fornecedor.trim() === ''
+        ? null
+        : lista.find(a => chaveDe(a.fornecedor) === chaveDe(candidato.fornecedor)) ?? null;
+
     const podeIncluir = candidato.fornecedor.trim() !== '' && !incluindo;
 
     return (
@@ -136,7 +180,7 @@ export default function Atendidos({ candidato, percentualSugerido, p }: {
                 <div>
                     <h2 className="text-sm font-semibold" style={{ color: p.TEXT }}>Fornecedores atendidos</h2>
                     <p className="text-xs mt-1" style={{ color: p.MUTED }}>
-                        Os que você já mandou a campanha, e quanto do combinado já entrou.
+                        Quem já recebeu a campanha, e quanto do combinado já entrou.
                         A meta é {percentualSugerido}% do faturamento e fica congelada no dia do acordo.
                     </p>
                 </div>
@@ -149,28 +193,63 @@ export default function Atendidos({ candidato, percentualSugerido, p }: {
                 </button>
             </div>
 
+            {jaEstaCom && (
+                <p className="text-xs rounded-lg px-3 py-2 mt-3"
+                    style={{ background: p.AMBER + '14', color: p.AMBER, border: `1px solid ${p.AMBER}33` }}>
+                    <strong>{jaEstaCom.comprador}</strong> já incluiu <strong>{jaEstaCom.fornecedor}</strong> na
+                    lista. Vale falar com {jaEstaCom.comprador.split(' ')[0]} antes de mandar a carta.
+                </p>
+            )}
+
             {erro && <p className="text-xs mt-2" style={{ color: p.RED }}>{erro}</p>}
+
+            {/* Filtro por comprador. Fica em cima da lista porque a pergunta
+                ("o que o Clayton fez?") vem antes de olhar as linhas. */}
+            {compradores.length > 0 && (
+                <div className="flex flex-wrap gap-1.5 mt-3">
+                    {([[null, `Todos (${lista.length})`] as [number | null, string]])
+                        .concat(compradores.map(([id, nome]) =>
+                            [id, `${nome.split(' ')[0]} (${lista.filter(a => a.user_id === id).length})`]))
+                        .map(([id, rotulo]) => {
+                            const ativo = filtro === id;
+
+                            return (
+                                <button key={String(id)} type="button" onClick={() => setFiltro(id)}
+                                    className="text-xs px-2.5 py-1 rounded-lg transition"
+                                    style={{
+                                        background: ativo ? p.ACCENT + '1a' : 'transparent',
+                                        color: ativo ? p.ACCENT : p.MUTED,
+                                        border: `1px solid ${ativo ? p.ACCENT + '55' : p.BORDER}`,
+                                    }}>
+                                    {rotulo}
+                                </button>
+                            );
+                        })}
+                </div>
+            )}
 
             <div className="mt-3 rounded-lg overflow-hidden" style={{ border: `1px solid ${p.BORDER}` }}>
                 {carregando ? (
                     <p className="px-3 py-6 text-center text-sm" style={{ color: p.MUTED }}>Carregando...</p>
-                ) : lista.length === 0 ? (
+                ) : listaFiltrada.length === 0 ? (
                     <p className="px-3 py-6 text-center text-sm" style={{ color: p.MUTED }}>
-                        Ninguém na lista ainda. Preencha o fornecedor acima e clique em incluir.
+                        {lista.length === 0
+                            ? 'Ninguém na lista ainda. Preencha o fornecedor acima e clique em incluir.'
+                            : 'Este comprador ainda não incluiu ninguém.'}
                     </p>
                 ) : (
                     <div className="rolagem-x overflow-x-auto">
                         <table className="min-w-full">
                             <thead>
                                 <tr style={{ borderBottom: `1px solid ${p.BORDER}` }}>
-                                    {['Fornecedor', 'Faturamento', `Meta (${percentualSugerido}%)`, 'Pago', '% pago', 'Falta', ''].map((t, i) => (
+                                    {['Comprador', 'Fornecedor', 'Faturamento', `Meta (${percentualSugerido}%)`, 'Pago', '% pago', 'Falta', ''].map((t, i) => (
                                         <th key={i} className={`px-3 py-2 text-xs font-medium whitespace-nowrap ${i === 0 ? 'text-left' : 'text-right'}`}
                                             style={{ color: p.MUTED }}>{t}</th>
                                     ))}
                                 </tr>
                             </thead>
                             <tbody>
-                                {lista.map(a => {
+                                {listaFiltrada.map(a => {
                                     /* A cor conta a história de longe: quitado, andando, parado.
                                        Verde só em 100% — 99% ainda é uma conversa em aberto. */
                                     const cor = a.percentualPago === null ? p.MUTED
@@ -180,6 +259,9 @@ export default function Atendidos({ candidato, percentualSugerido, p }: {
 
                                     return (
                                         <tr key={a.id} style={{ borderBottom: `1px solid ${p.BORDER}` }}>
+                                            <td className="px-3 py-2 text-sm whitespace-nowrap" style={{ color: p.MUTED }}>
+                                                {a.comprador.split(' ')[0]}
+                                            </td>
                                             <td className="px-3 py-2 text-sm" style={{ color: p.TEXT }}>{a.fornecedor}</td>
                                             <td className="px-3 py-2 text-sm text-right whitespace-nowrap" style={{ color: p.MUTED }}>
                                                 {a.faturamento === null ? '—' : dinheiro(a.faturamento)}
@@ -212,6 +294,22 @@ export default function Atendidos({ candidato, percentualSugerido, p }: {
                     </div>
                 )}
             </div>
+
+            {/* Exportar leva a lista INTEIRA, e nao a fatia filtrada: quem baixa
+                quer o panorama, e filtrar por nome no proprio Excel e um clique.
+                Mandar so o que esta na tela daria um arquivo que engana quem o
+                recebe por e-mail. */}
+            {lista.length > 0 && (
+                <div className="flex justify-end mt-3">
+                    <a href={route('campanha.atendidos.exportar')}
+                        className="inline-flex items-center gap-1.5 text-sm px-3 py-2 rounded-lg transition"
+                        style={{ color: p.GREEN, border: `1px solid ${p.GREEN}55` }}>
+                        <Icone path="M12 10v6m0 0l-3-3m3 3l3-3M3 17V7a2 2 0 012-2h6l2 2h6a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2z"
+                            className="w-4 h-4" />
+                        Exportar para Excel ({lista.length})
+                    </a>
+                </div>
+            )}
         </section>
     );
 }

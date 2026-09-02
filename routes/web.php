@@ -174,6 +174,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
         // tela, sem navegacao — e de cada comprador, entao o filtro por dono
         // fica no controller.
         Route::get('/atendidos',              [CampanhaController::class, 'atendidos'])->name('atendidos');
+        Route::get('/atendidos/exportar',     [CampanhaController::class, 'exportarAtendidos'])->name('atendidos.exportar');
         Route::post('/atendidos',             [CampanhaController::class, 'incluirAtendido'])->name('atendidos.incluir');
         Route::patch('/atendidos/{atendido}', [CampanhaController::class, 'atualizarAtendido'])->name('atendidos.atualizar');
         Route::delete('/atendidos/{atendido}',[CampanhaController::class, 'removerAtendido'])->name('atendidos.remover');

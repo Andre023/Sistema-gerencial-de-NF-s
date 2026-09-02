@@ -141,8 +141,29 @@ class CampanhaAtendidosTest extends TestCase
         $this->assertSame(1, CampanhaAtendimento::count());
     }
 
-    /** A lista é de cada um: eu não vejo nem mexo na do outro. */
-    public function test_a_lista_e_de_cada_comprador(): void
+    /**
+     * TODOS veem a lista inteira — e e isso que evita dois compradores baterem
+     * no mesmo fornecedor. O filtro por nome mora na tela.
+     */
+    public function test_a_lista_e_de_todos_e_diz_de_quem_e_cada_linha(): void
+    {
+        $outro = User::factory()->create(['role' => User::ROLE_COMPRAS, 'name' => 'Clayton']);
+
+        CampanhaAtendimento::create([
+            'user_id' => $outro->id, 'fornecedor' => 'Dele', 'chave' => 'DELE',
+            'faturamento' => null, 'investimento' => 100, 'pago' => 0,
+        ]);
+
+        $this->actingAs($this->comprador)
+            ->getJson(route('campanha.atendidos'))
+            ->assertOk()
+            ->assertJsonCount(1, 'atendidos')
+            ->assertJsonPath('atendidos.0.comprador', 'Clayton')
+            ->assertJsonPath('atendidos.0.user_id', $outro->id);
+    }
+
+    /** Ver e de todos; MEXER continua sendo do dono. */
+    public function test_nao_mexo_na_linha_de_outro_comprador(): void
     {
         $outro = User::factory()->create(['role' => User::ROLE_COMPRAS]);
 
@@ -152,15 +173,89 @@ class CampanhaAtendidosTest extends TestCase
         ]);
 
         $this->actingAs($this->comprador)
-            ->getJson(route('campanha.atendidos'))
-            ->assertOk()
-            ->assertJsonCount(0, 'atendidos');
-
-        $this->actingAs($this->comprador)
             ->patchJson(route('campanha.atendidos.atualizar', $dele), ['pago' => 999])
             ->assertNotFound();
 
         $this->assertSame('0.00', $dele->fresh()->pago);
+    }
+
+    /**
+     * O admin mexe na linha de qualquer um.
+     *
+     * A lista sobrevive a ferias e a desligamento: sem ele, um acordo ficaria
+     * congelado esperando alguem que nao volta.
+     */
+    public function test_admin_mexe_na_linha_de_qualquer_um(): void
+    {
+        $admin = User::factory()->create(['role' => User::ROLE_ADMIN]);
+
+        $dele = CampanhaAtendimento::create([
+            'user_id' => $this->comprador->id, 'fornecedor' => 'X', 'chave' => 'X',
+            'faturamento' => null, 'investimento' => 100, 'pago' => 0,
+        ]);
+
+        $this->actingAs($admin)
+            ->patchJson(route('campanha.atendidos.atualizar', $dele), ['pago' => 50])
+            ->assertOk();
+
+        $this->assertEquals(50, $dele->fresh()->pago);
+    }
+
+    /**
+     * Fornecedor ja incluido por OUTRO comprador: a recusa diz de quem e.
+     *
+     * "Ja esta na lista" mandaria a pessoa procurar numa lista de dezenas para
+     * descobrir com quem falar.
+     */
+    public function test_duplicado_de_outro_comprador_diz_o_nome_dele(): void
+    {
+        $clayton = User::factory()->create(['role' => User::ROLE_COMPRAS, 'name' => 'Clayton']);
+
+        CampanhaAtendimento::create([
+            'user_id' => $clayton->id, 'fornecedor' => 'Vilma Alimentos', 'chave' => 'VILMA ALIMENTOS',
+            'faturamento' => null, 'investimento' => 100, 'pago' => 0,
+        ]);
+
+        $this->actingAs($this->comprador)
+            ->postJson(route('campanha.atendidos.incluir'), ['fornecedor' => 'vilma  alimentos'])
+            ->assertStatus(422)
+            ->assertJsonPath('erro', 'Clayton já incluiu este fornecedor na lista dele.');
+
+        $this->assertSame(1, CampanhaAtendimento::count());
+    }
+
+    /** A exportacao sai como .xlsx que o Excel abre de verdade. */
+    public function test_exporta_planilha_do_excel(): void
+    {
+        CampanhaAtendimento::create([
+            'user_id' => $this->comprador->id, 'fornecedor' => 'Vilma Alimentos', 'chave' => 'VILMA ALIMENTOS',
+            'faturamento' => 1250000, 'investimento' => 25000, 'pago' => 10000,
+        ]);
+
+        $r = $this->actingAs($this->comprador)
+            ->get(route('campanha.atendidos.exportar'))
+            ->assertOk()
+            ->assertHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+
+        // Grava e abre como ZIP: se o arquivo estiver malformado, o Excel
+        // recusaria abrir e este teste e o unico lugar onde isso aparece antes.
+        $caminho = tempnam(sys_get_temp_dir(), 'xlsxteste');
+        file_put_contents($caminho, $r->getContent());
+
+        $zip = new \ZipArchive();
+        $this->assertTrue($zip->open($caminho) === true, 'o .xlsx tem de ser um ZIP valido');
+
+        $aba = $zip->getFromName('xl/worksheets/sheet1.xml');
+        $zip->close();
+        unlink($caminho);
+
+        $this->assertIsString($aba);
+        $this->assertStringContainsString('Vilma Alimentos', $aba);
+        $this->assertStringContainsString('Comprador', $aba, 'o cabecalho vai junto');
+        // O numero vai como NUMERO, e nao texto: e o que permite somar a coluna
+        $this->assertStringContainsString('<v>25000</v>', $aba);
+        $this->assertStringContainsString('<v>10000</v>', $aba);
+        $this->assertStringContainsString('<v>40</v>', $aba, 'o % pago calculado');
     }
 
     public function test_remover_tira_da_lista(): void

@@ -67,6 +67,10 @@ class CampanhaAtendimento extends Model
     {
         return [
             'id'            => $this->id,
+            // De quem e a linha. A lista e de todos e filtra por comprador, entao
+            // sem isto a tela nao saberia por quem agrupar.
+            'user_id'       => $this->user_id,
+            'comprador'     => $this->user?->name ?? '—',
             'fornecedor'    => $this->fornecedor,
             'faturamento'   => $this->faturamento === null ? null : (float) $this->faturamento,
             'investimento'  => (float) $this->investimento,

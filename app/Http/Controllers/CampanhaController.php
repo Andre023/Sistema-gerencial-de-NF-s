@@ -8,6 +8,7 @@ use App\Models\CampanhaTexto;
 use App\Models\Configuracao;
 use App\Models\Fornecedor;
 use App\Services\DocumentoWord;
+use App\Services\PlanilhaExcel;
 use App\Support\CartaCampanha;
 use App\Support\PlanilhaDeCompras;
 use Illuminate\Http\RedirectResponse;
@@ -271,13 +272,68 @@ class CampanhaController extends Controller
     // A lista é de CADA UM. O comprador acompanha os fornecedores que ele mesmo
     // atendeu; ninguém tromba no trabalho do outro e a lista fica curta.
 
-    /** Os meus atendimentos, do mais novo para o mais antigo. */
-    public function atendidos(Request $request): JsonResponse
+    /**
+     * A lista inteira, do mais novo para o mais antigo.
+     *
+     * De TODOS os compradores, e nao so de quem pediu: a tela filtra por nome ali
+     * mesmo, e e isso que evita dois compradores baterem no mesmo fornecedor sem
+     * saber. Quem MEXE em cada linha continua sendo o dono dela (ou o admin).
+     */
+    public function atendidos(): JsonResponse
     {
         return response()->json([
-            'atendidos' => CampanhaAtendimento::where('user_id', $request->user()->id)
+            'atendidos' => CampanhaAtendimento::with('user:id,name')
                 ->orderByDesc('created_at')->orderByDesc('id')
                 ->get()->map(fn(CampanhaAtendimento $a) => $a->paraTela()),
+        ]);
+    }
+
+    /**
+     * Baixa a lista em Excel.
+     *
+     * Sem filtro de comprador de proposito: quem exporta quer o panorama, e
+     * filtrar por nome no proprio Excel e um clique. Mandar so a fatia da tela
+     * daria um arquivo que engana quem o recebe por e-mail.
+     */
+    public function exportarAtendidos(): HttpResponse
+    {
+        $linhas = CampanhaAtendimento::with('user:id,name')
+            ->orderBy('fornecedor')
+            ->get()
+            ->map(function (CampanhaAtendimento $a) {
+                $pct = $a->percentualPago();
+
+                return [
+                    $a->user?->name ?? '—',
+                    $a->fornecedor,
+                    $a->faturamento === null ? '' : (float) $a->faturamento,
+                    (float) $a->investimento,
+                    (float) $a->pago,
+                    // Sem meta nao ha percentual: '' em vez de 0, senao a planilha
+                    // afirmaria que falta tudo de uma meta que nao existe.
+                    $pct === null ? '' : round($pct, 2),
+                    $a->falta(),
+                    optional($a->created_at)->format('d/m/Y'),
+                ];
+            })
+            ->all();
+
+        $planilha = PlanilhaExcel::montar(
+            ['Comprador', 'Fornecedor', 'Faturamento', 'Meta', 'Pago', '% pago', 'Falta', 'Incluido em'],
+            $linhas,
+            'Atendidos',
+        );
+
+        $nome = 'Campanha - fornecedores atendidos ' . now()->format('d-m-Y') . '.xlsx';
+
+        return response($planilha, 200, [
+            'Content-Type'        => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            'Content-Length'      => (string) strlen($planilha),
+            'Content-Disposition' => HeaderUtils::makeDisposition(
+                HeaderUtils::DISPOSITION_ATTACHMENT,
+                $nome,
+                $this->semAcento($nome),
+            ),
         ]);
     }
 
@@ -307,13 +363,27 @@ class CampanhaController extends Controller
             return response()->json(['erro' => 'Informe o fornecedor.'], 422);
         }
 
-        // Já está na lista desta pessoa: incluir de novo criaria duas linhas do
-        // mesmo acordo, e o "quanto falta" passaria a ser lido em dobro.
-        $jaTem = CampanhaAtendimento::where('user_id', $request->user()->id)
-            ->where('chave', $chave)->exists();
+        /*
+         * Já está na lista de ALGUÉM.
+         *
+         * A checagem é global, e não mais só da própria lista: duas linhas do
+         * mesmo fornecedor fariam a meta e o "quanto falta" serem lidos em dobro
+         * no total — e, pior, dois compradores estariam trabalhando o mesmo
+         * parceiro sem saber.
+         *
+         * A recusa diz DE QUEM é: "já está na lista" mandaria a pessoa procurar
+         * numa lista de dezenas para descobrir com quem falar.
+         */
+        $dono = CampanhaAtendimento::with('user:id,name')->where('chave', $chave)->first();
 
-        if ($jaTem) {
-            return response()->json(['erro' => 'Este fornecedor já está na sua lista.'], 422);
+        if ($dono) {
+            $ehMeu = $dono->user_id === $request->user()->id;
+
+            return response()->json([
+                'erro' => $ehMeu
+                    ? 'Este fornecedor já está na sua lista.'
+                    : sprintf('%s já incluiu este fornecedor na lista dele.', $dono->user?->name ?? 'Outro comprador'),
+            ], 422);
         }
 
         $faturamento = $dados['faturamento'] ?? null;
@@ -338,9 +408,7 @@ class CampanhaController extends Controller
     /** Atualiza o que já foi pago (ou ajusta a meta combinada). */
     public function atualizarAtendido(Request $request, CampanhaAtendimento $atendido): JsonResponse
     {
-        // A lista é de cada um: mexer na de outra pessoa não é caso de erro de
-        // formulário, é endereço que não existe para quem pediu.
-        abort_if($atendido->user_id !== $request->user()->id, 404);
+        $this->soDonoOuAdmin($request, $atendido);
 
         $dados = $request->validate([
             'pago'         => ['sometimes', 'numeric', 'min:0', 'max:999999999999'],
@@ -354,10 +422,24 @@ class CampanhaController extends Controller
 
     public function removerAtendido(Request $request, CampanhaAtendimento $atendido): JsonResponse
     {
-        abort_if($atendido->user_id !== $request->user()->id, 404);
+        $this->soDonoOuAdmin($request, $atendido);
 
         $atendido->delete();
 
         return response()->json(['ok' => true]);
+    }
+
+    /**
+     * Ver é de todos; MEXER é do dono — e do admin.
+     *
+     * O admin entra porque a lista sobrevive a férias e a desligamento: sem ele,
+     * um acordo ficaria congelado esperando alguém que não volta. 404 e não 403
+     * de propósito: para quem não pode, aquela linha não existe.
+     */
+    private function soDonoOuAdmin(Request $request, CampanhaAtendimento $atendido): void
+    {
+        $eu = $request->user();
+
+        abort_if($atendido->user_id !== $eu->id && ! $eu->isAdmin(), 404);
     }
 }
