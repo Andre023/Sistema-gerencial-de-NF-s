@@ -10,6 +10,7 @@ use App\Http\Controllers\DevolucaoController;
 use App\Http\Controllers\DossieController;
 use App\Http\Controllers\EstatisticaController;
 use App\Http\Controllers\FornecedorController;
+use App\Http\Controllers\FornecedorVinculoController;
 use App\Http\Controllers\NotaController;
 use App\Http\Controllers\OcorrenciaController;
 use App\Http\Controllers\NotificacaoController;
@@ -145,6 +146,14 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::post('/fornecedores/importar', [FornecedorController::class, 'importar'])
          ->middleware('can:importar-fornecedores')
          ->name('fornecedores.importar');
+
+    // ── Fornecedores: matriz e filial (todos menos o visitante) ───────────────
+    Route::middleware('can:vincular-fornecedores')->prefix('fornecedores')->name('fornecedores.')->group(function () {
+        Route::get('/',                        [FornecedorVinculoController::class, 'index'])->name('index');
+        Route::get('/buscar',                  [FornecedorVinculoController::class, 'buscar'])->name('buscar');
+        Route::patch('/{filial}/matriz',       [FornecedorVinculoController::class, 'vincular'])->name('vincular');
+        Route::delete('/{filial}/matriz',      [FornecedorVinculoController::class, 'desvincular'])->name('desvincular');
+    });
 
     // ── Estatísticas (só admin) ────────────────────────────────────────────────
     Route::get('/estatisticas', [EstatisticaController::class, 'index'])

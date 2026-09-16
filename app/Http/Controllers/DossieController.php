@@ -33,9 +33,10 @@ class DossieController extends Controller
         $de  = now()->subDays($periodo - 1)->startOfDay();
         $ate = now()->endOfDay();
 
-        // Busca por nome (limitada — são ~2.700 fornecedores)
+        // Busca por nome (limitada — são ~2.700 fornecedores). Só matrizes: as
+        // notas da filial já moram na matriz, e o nome dela acha a matriz.
         $resultados = $busca !== ''
-            ? Fornecedor::where('nome', 'like', "%{$busca}%")
+            ? Fornecedor::matrizes()->comNome($busca)
                 ->orderBy('nome')->limit(20)->get(['id', 'nome', 'cnpj', 'prioridade'])
             : collect();
 
@@ -44,7 +45,7 @@ class DossieController extends Controller
             $id = $resultados->first()->id;
         }
 
-        $fornecedor = $id ? Fornecedor::find($id) : null;
+        $fornecedor = $id ? Fornecedor::find($id)?->efetivo() : null;
 
         return Inertia::render('Dossie/Index', [
             'busca'      => $busca,

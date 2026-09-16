@@ -42,6 +42,13 @@ class Ocorrencia extends Model
     public const NOTA_RECEBIDA    = 'nota_recebida';
     public const NOTA_EXCLUIDA    = 'nota_excluida';
 
+    /**
+     * A nota mudou de fornecedor porque o dela virou filial de outro
+     * (FornecedorVinculoController). Verbo próprio, e não NOTA_EDITADA, porque
+     * ninguém editou esta nota: o contexto traz os nomes, que é o que se lê.
+     */
+    public const FORNECEDOR_UNIFICADO = 'fornecedor_unificado';
+
     public const CARD_ABERTO    = 'card_aberto';
     public const CARD_CORRIGIDO = 'card_corrigido';
     public const CARD_RESOLVIDO = 'card_resolvido';

@@ -24,8 +24,9 @@ class PrioridadeController extends Controller
             ->orderBy('nome')
             ->get(['id', 'nome', 'cnpj', 'prioridade']);
 
+        // Só matrizes: prioridade é da matriz, e o nome da filial acha a matriz.
         $resultados = $busca !== ''
-            ? Fornecedor::where('nome', 'like', "%{$busca}%")
+            ? Fornecedor::matrizes()->comNome($busca)
                 ->orderBy('nome')
                 ->limit(30)
                 ->get(['id', 'nome', 'cnpj', 'prioridade'])

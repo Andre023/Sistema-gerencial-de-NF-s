@@ -178,6 +178,11 @@ export default function AuthenticatedLayout({
                                         Prioridades
                                     </NavLink>
                                 )}
+                                {can.vincularFornecedores && (
+                                    <NavLink href={route('fornecedores.index')} active={route().current('fornecedores.*')}>
+                                        Matriz/Filial
+                                    </NavLink>
+                                )}
                                 {can.usarCampanha && (
                                     <NavLink href={route('campanha.index')} active={route().current('campanha.*')}>
                                         Campanha
@@ -295,6 +300,11 @@ export default function AuthenticatedLayout({
                         {can.gerenciarPrioridades && (
                             <ResponsiveNavLink href={route('prioridades.index')} active={route().current('prioridades.*')}>
                                 Prioridades
+                            </ResponsiveNavLink>
+                        )}
+                        {can.vincularFornecedores && (
+                            <ResponsiveNavLink href={route('fornecedores.index')} active={route().current('fornecedores.*')}>
+                                Matriz/Filial
                             </ResponsiveNavLink>
                         )}
                         {can.usarCampanha && (

@@ -63,6 +63,8 @@ export interface Permissoes {
     usarCampanha: boolean;
     /** Abrir Configurações (Usuários e Campanha) — só admin */
     gerenciarConfiguracoes: boolean;
+    /** Vincular filial à matriz (aba Fornecedores) — todos menos o visitante */
+    vincularFornecedores: boolean;
 }
 
 /**
@@ -87,6 +89,8 @@ export interface Fornecedor {
     cnpj?: string | null;
     /** Fornecedor prioritário: sobe ao topo do pré-lote */
     prioridade?: boolean;
+    /** Nomes das filiais vinculadas — a busca acha a matriz por qualquer um deles */
+    filiais?: string[];
 }
 
 export type TipoCard = 'cadastro' | 'regra' | 'custo' | 'quantidade' | 'sem_pedido' | 'item_n_pedido' | 'importar_nf' | 'reconferir' | 'recusa' | 'devolucao';

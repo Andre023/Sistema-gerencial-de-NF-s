@@ -30,6 +30,7 @@ const FRASE: Record<string, string> = {
     nota_movida:       'mudou a nota de fila',
     nota_recebida:     'marcou como recebida hoje',
     nota_excluida:     'excluiu a nota',
+    fornecedor_unificado: 'juntou o fornecedor à matriz',
     card_aberto:       'abriu divergência',
     card_corrigido:    'corrigiu',
     card_resolvido:    'resolveu',
@@ -114,6 +115,8 @@ export default function ModalOcorrencias({ aberto, onFechar, baseUrl, titulo, re
     const edicoes = (o: Ocorrencia) => {
         const mudou = o.dados?.campos as Record<string, { de: unknown; para: unknown }> | undefined;
         if (!mudou) return null;
+        // Aqui o campo mexido é o id do fornecedor, e o contexto já diz os nomes.
+        if (o.acao === 'fornecedor_unificado') return null;
 
         const vazio = (v: unknown) => v === null || v === undefined || v === '';
 
@@ -160,6 +163,15 @@ export default function ModalOcorrencias({ aberto, onFechar, baseUrl, titulo, re
             return (
                 <p className="text-xs mt-0.5" style={{ color: p.MUTED }}>
                     {FILA[ctx.de] ?? ctx.de} → <strong style={{ color: p.TEXT }}>{FILA[ctx.para] ?? ctx.para}</strong>
+                </p>
+            );
+        }
+
+        if (o.acao === 'fornecedor_unificado' && ctx.de) {
+            return (
+                <p className="text-xs mt-0.5" style={{ color: p.MUTED }}>
+                    <span style={{ textDecoration: 'line-through' }}>{ctx.de}</span>
+                    {' → '}<strong style={{ color: p.TEXT }}>{ctx.para}</strong>
                 </p>
             );
         }

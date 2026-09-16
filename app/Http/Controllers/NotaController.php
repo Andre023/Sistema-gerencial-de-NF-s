@@ -77,7 +77,7 @@ class NotaController extends Controller
             ->when($lojas, fn($q) => $q->whereIn('loja', $lojas))
             ->when($busca, fn($q) => $q->where(function ($q) use ($busca) {
                 $q->where('numero_nota', 'like', "%{$busca}%")
-                    ->orWhereHas('fornecedor', fn($q2) => $q2->where('nome', 'like', "%{$busca}%"));
+                    ->orWhereHas('fornecedor', fn($q2) => $q2->comNome($busca));
             }));
 
         // NA FILA: tudo que ainda não foi liberado nem cancelado, até a data
@@ -183,7 +183,15 @@ class NotaController extends Controller
              * ao abrir — uma vez por sessão de tela, em vez de a cada clique.
              */
             'fornecedores'  => Inertia::optional(
-                fn() => Fornecedor::select('id', 'nome')->orderBy('nome')->get()
+                // Só matrizes; os nomes das filiais vão junto para a busca do
+                // campo achar a matriz por qualquer um deles.
+                fn() => Fornecedor::matrizes()->with('filiais:id,nome,matriz_id')
+                    ->orderBy('nome')->get(['id', 'nome'])
+                    ->map(fn(Fornecedor $f) => [
+                        'id'      => $f->id,
+                        'nome'    => $f->nome,
+                        'filiais' => $f->filiais->pluck('nome')->values(),
+                    ])
             ),
             'dataFiltro'      => $dataFiltro,
             'resumoAlertas'   => $resumoAlertas,
@@ -401,7 +409,7 @@ class NotaController extends Controller
             'observacao'      => 'nullable|string|max:500',
         ]);
 
-        if ($novo) {
+        if ($novo || ! empty($dados['fornecedor_id'])) {
             $dados['fornecedor_id'] = $this->resolverFornecedorId($request);
         }
         unset($dados['fornecedor_nome']); // não é coluna da nota
@@ -674,9 +682,13 @@ class NotaController extends Controller
     {
         if ($request->boolean('fornecedor_novo')) {
             $nome = mb_strtoupper(trim((string) $request->input('fornecedor_nome')));
-            return Fornecedor::firstOrCreate(['nome' => $nome])->id;
+            $fornecedor = Fornecedor::firstOrCreate(['nome' => $nome]);
+        } else {
+            $fornecedor = Fornecedor::findOrFail((int) $request->input('fornecedor_id'));
         }
 
-        return (int) $request->input('fornecedor_id');
+        // Filial nunca recebe nota: o nome digitado ou o id de uma lista velha
+        // caem na matriz (Fornecedor::efetivo).
+        return $fornecedor->efetivo()->id;
     }
 }

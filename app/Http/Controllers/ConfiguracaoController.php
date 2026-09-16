@@ -109,14 +109,16 @@ class ConfiguracaoController extends Controller
                 // Quantas notas dependem dele: é o que diz o tamanho do estrago
                 // de um nome errado, e o que separa o duplicado real do parecido.
                 ->withCount('notas')
+                ->with('matriz:id,nome')
                 ->orderBy('nome')
                 ->limit(self::LIMITE_BUSCA)
-                ->get(['id', 'nome'])
+                ->get(['id', 'nome', 'matriz_id'])
                 ->map(fn($f) => [
                     'id'          => $f->id,
                     'nome'        => $f->nome,
                     'faturamento' => null,
                     'notas'       => $f->notas_count,
+                    'filial_de'   => $f->matriz?->nome,
                 ]);
         }
 

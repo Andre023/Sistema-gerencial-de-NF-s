@@ -12,6 +12,8 @@ interface Item {
     faturamento: number | null;
     /** Só na lista das notas — quantas notas dependem deste nome. */
     notas: number | null;
+    /** Nome da matriz, quando este é filial (aba Fornecedores). */
+    filial_de?: string | null;
 }
 
 type Lista = 'notas' | 'campanha';
@@ -115,7 +117,12 @@ function Linha({ item, lista, onSalvo, onExcluido, p }: {
                         style={{ background: p.INPUT_BG, color: p.TEXT, border: `1px solid ${erro ? p.RED : p.ACCENT}` }}
                     />
                 ) : (
-                    <span className="flex-1 min-w-0 text-sm truncate" style={{ color: p.TEXT }}>{item.nome}</span>
+                    <span className="flex-1 min-w-0 text-sm truncate" style={{ color: p.TEXT }}>
+                        {item.nome}
+                        {item.filial_de && (
+                            <span className="ml-2 text-xs" style={{ color: p.MUTED }}>filial de {item.filial_de}</span>
+                        )}
+                    </span>
                 )}
 
                 {/* O peso do nome: quantas notas dependem dele, ou o faturamento

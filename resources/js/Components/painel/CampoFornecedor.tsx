@@ -12,10 +12,23 @@ export default function CampoFornecedor({ fornecedores, valor, onChange, erro, c
     const [aberto, setAberto] = useState(false);
     const ref = useRef<HTMLDivElement>(null);
 
-    const opcoes = useMemo(() =>
-        fornecedores.filter(f => f.nome.toLowerCase().includes(busca.toLowerCase())).slice(0, 12),
-        [fornecedores, busca]
-    );
+    /*
+     * Casa pelo nome da matriz ou de qualquer filial dela. Quem digita o nome
+     * da filial vê a matriz — e vê também qual filial casou, senão parece que
+     * a lista devolveu o fornecedor errado.
+     */
+    const opcoes = useMemo(() => {
+        const termo = busca.toLowerCase();
+        return fornecedores
+            .map(f => ({
+                f,
+                filial: f.nome.toLowerCase().includes(termo)
+                    ? null
+                    : (f.filiais ?? []).find(n => n.toLowerCase().includes(termo)) ?? null,
+            }))
+            .filter(x => x.filial !== null || x.f.nome.toLowerCase().includes(termo))
+            .slice(0, 12);
+    }, [fornecedores, busca]);
 
     useEffect(() => {
         const fn = (e: MouseEvent) => {
@@ -40,7 +53,7 @@ export default function CampoFornecedor({ fornecedores, valor, onChange, erro, c
             {aberto && opcoes.length > 0 && (
                 <ul className="absolute z-20 mt-1 w-full rounded-xl shadow-lg max-h-52 overflow-y-auto"
                     style={{ background: p.SURFACE, border: `1px solid ${p.BORDER}` }}>
-                    {opcoes.map(f => (
+                    {opcoes.map(({ f, filial }) => (
                         <li key={f.id}>
                             <button type="button" onMouseDown={() => selecionar(f)}
                                 className="w-full text-left px-3.5 py-2 text-sm transition"
@@ -48,6 +61,9 @@ export default function CampoFornecedor({ fornecedores, valor, onChange, erro, c
                                 onMouseEnter={e => (e.currentTarget.style.background = p.HOVER_ROW)}
                                 onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}>
                                 {f.nome}
+                                {filial && (
+                                    <span className="block text-xs" style={{ color: p.MUTED }}>filial: {filial}</span>
+                                )}
                             </button>
                         </li>
                     ))}
