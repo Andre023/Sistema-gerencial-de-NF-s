@@ -1354,6 +1354,11 @@ export default function Index({ recebimento, preLote, liberadas, canceladas, dev
      * Com filtro ativo cai no Inertia de sempre: a tela não tem como saber se a
      * nota alterada ainda pertence à lista filtrada, e aplicar a linha por conta
      * própria a deixaria visível num filtro que ela já não satisfaz.
+     *
+     * Exceção: com o modal de cards aberto, a linha é aplicada mesmo com filtro.
+     * Quem está no modal quer ver o card mudar e seguir (resolver a regra e
+     * liberar a nota em seguida); a nota sair da lista no meio disso fechava o
+     * modal. O filtro volta a valer quando o modal fecha (fecharCards).
      */
     const executarAcao = async (
         acao: AcaoRapida,
@@ -1365,7 +1370,7 @@ export default function Index({ recebimento, preLote, liberadas, canceladas, dev
             onCancel?: () => void;
         } = {},
     ): Promise<void> => {
-        if (!visaoSimplesRef.current) {
+        if (!visaoSimplesRef.current && cardsIdRef.current === null) {
             const { metodo, url, dados } = acao;
             router[metodo](url, (dados ?? {}) as any, acaoNaFila({
                 onSuccess: cb.onSuccess,
@@ -1429,8 +1434,30 @@ export default function Index({ recebimento, preLote, liberadas, canceladas, dev
     }, []);
 
     const todas = [...recebimentoL, ...preLoteL, ...liberadasL];
-    // O modal de cards deriva das listas locais — reflete o realtime na hora
-    const notaCards = cardsId ? todas.find(n => n.id === cardsId) ?? null : null;
+    /*
+     * O modal de cards deriva das listas locais — reflete o realtime na hora.
+     *
+     * Mas guarda a última versão vista: com filtro por tipo ativo, resolver o
+     * card tira a nota da lista filtrada, e um modal que só existisse enquanto
+     * a nota está na lista sumia no meio da ação — e voltava "do nada" quando
+     * o filtro era limpo, porque o id continuava guardado. Enquanto estiver
+     * aberto, o modal mostra a nota; o filtro só se reaplica ao fechar.
+     */
+    const ultimaNotaCards = useRef<Nota | null>(null);
+    const notaCardsNaLista = cardsId ? todas.find(n => n.id === cardsId) ?? null : null;
+    if (notaCardsNaLista) ultimaNotaCards.current = notaCardsNaLista;
+    const notaCards = cardsId ? (notaCardsNaLista ?? ultimaNotaCards.current) : null;
+
+    const cardsIdRef = useRef(cardsId);
+    cardsIdRef.current = cardsId;
+
+    const fecharCards = () => {
+        setCardsId(null);
+        ultimaNotaCards.current = null;
+        // As ações feitas com o modal aberto aplicaram a linha por conta própria;
+        // com filtro ativo, é agora que a lista volta a obedecer ao filtro.
+        if (!visaoSimplesRef.current) reloadDebounced();
+    };
 
     // Contadores: na visão simples derivam das listas locais (refletem os patches);
     // com filtros ativos, vêm do servidor (as listas estão filtradas)
@@ -1670,7 +1697,7 @@ export default function Index({ recebimento, preLote, liberadas, canceladas, dev
                 )}
             </Modal>
 
-            <ModalCards nota={notaCards} onFechar={() => setCardsId(null)} can={can}
+            <ModalCards nota={notaCards} onFechar={fecharCards} can={can}
                 tiposCompras={opcoes.tiposCompras ?? ['cadastro', 'custo', 'quantidade', 'sem_pedido', 'item_n_pedido']}
                 tiposQualquerPapel={opcoes.tiposQualquerPapel ?? []}
                 tiposRecebimento={opcoes.tiposRecebimento ?? []}
