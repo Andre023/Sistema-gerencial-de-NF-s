@@ -215,20 +215,19 @@ class User extends Authenticatable
     }
 
     /**
-     * Abrir card de CADASTRO (item sem cadastro no ERP) — pré-lote e recebimento.
+     * Abrir card de CADASTRO (item sem cadastro no ERP) — todo papel operacional.
      *
-     * Separado de podeGerirCards() porque não é o pacote inteiro: o recebimento
-     * ABRE este card, mas continua sem resolver, reabrir ou excluir card nenhum.
-     * Quem CORRIGE o cadastro segue sendo compras (Card::TIPOS_COMPRAS) — é ela
-     * quem mexe no ERP.
+     * Separado de podeGerirCards() porque não é o pacote inteiro: recebimento e
+     * compras ABREM este card, mas continuam sem resolver, reabrir ou excluir
+     * card nenhum. Quem CORRIGE o cadastro segue sendo compras (Card::TIPOS_COMPRAS).
      *
      * O motivo é de fluxo: o item sem cadastro aparece na hora de digitar a
-     * nota, com o caminhão na porta. Quem está ali vê primeiro, e antes disto
-     * precisava pedir ao pré-lote para abrir o card por ele.
+     * nota (recebimento) ou quando o fornecedor liga avisando (compras). Quem
+     * vê primeiro abre, em vez de pedir ao pré-lote que abra por ele.
      */
     public function podeAbrirCardDeCadastro(): bool
     {
-        return $this->ehUmDe(self::ROLE_PRE_LOTE, self::ROLE_RECEBIMENTO);
+        return $this->ehUmDe(self::ROLE_PRE_LOTE, self::ROLE_RECEBIMENTO, self::ROLE_COMPRAS);
     }
 
     /** Liberar a nota (o ✅) — ato do pré-lote */
@@ -310,6 +309,18 @@ class User extends Authenticatable
     public function podeImportarFornecedores(): bool
     {
         return $this->isAdmin();
+    }
+
+    /**
+     * Vincular filial à matriz (a aba Fornecedores) — todo papel operacional.
+     *
+     * Quem esbarra no fornecedor duplicado é quem lança e quem confere a nota,
+     * e a junção não apaga nada: as notas da filial passam para a matriz com
+     * ocorrência registrada. Não precisa esperar o admin.
+     */
+    public function podeVincularFornecedores(): bool
+    {
+        return ! $this->ehVisitante();
     }
 
     /**

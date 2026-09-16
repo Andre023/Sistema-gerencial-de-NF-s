@@ -37,8 +37,8 @@ class CardController extends Controller
         //   • os tipos de todo mundo (Importar NF, Recusa, Devolução) —
         //     qualquer papel operacional abre, porque não são erro de um
         //     setor só
-        //   • Cadastro — o recebimento abre, porque é ele quem esbarra no item
-        //     sem cadastro na hora de digitar a nota (Card::TIPOS_RECEBIMENTO)
+        //   • Cadastro — recebimento e compras abrem, porque são quem esbarra
+        //     no item sem cadastro antes do pré-lote (Card::TIPOS_RECEBIMENTO)
         //
         // Quem FECHA cada um é outra história, e mora em
         // Card::podeSerCorrigidoPor() — o cadastro continua sendo de compras.

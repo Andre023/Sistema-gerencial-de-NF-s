@@ -21,8 +21,9 @@ use Tests\TestCase;
  * propósito:
  *   • o recebimento abre o cadastro, e só ele — não ganhou os outros cards
  *     de compras (custo, quantidade…) nem passou a gerir cards
- *   • quem CORRIGE o cadastro continua sendo compras: abrir e fechar no mesmo
- *     setor tiraria o sentido de existir o card
+ *   • compras também abre — o fornecedor liga avisando antes de a nota chegar
+ *     ao pré-lote — mas, como o recebimento, só este card, e sem gerir os outros
+ *   • quem CORRIGE o cadastro continua sendo compras
  */
 class CardCadastroRecebimentoTest extends TestCase
 {
@@ -146,16 +147,29 @@ class CardCadastroRecebimentoTest extends TestCase
 
     // ─── O que não mudou para compras ──────────────────────────────────────────
 
-    public function test_compras_continua_sem_abrir_cadastro_em_nota_comum(): void
+    public function test_compras_abre_cadastro_em_nota_comum(): void
     {
         $nota = $this->nota();
 
-        // Compras é quem CORRIGE o cadastro. Abrir para si mesma tiraria o
-        // sentido do card — por isso 'cadastro' ficou fora de
-        // abertosPorQualquerPapel() e ganhou uma lista só do recebimento.
+        // Compras corrige o cadastro no ERP, e por isso ficou de fora no início.
+        // Na prática é ela quem descobre primeiro (o fornecedor liga), e pedir
+        // ao pré-lote que abrisse o card era um repasse de recado a mais.
         $this->actingAs($this->compras)
             ->post(route('notas.cards.store', $nota), ['tipo' => 'cadastro'])
-            ->assertForbidden();
+            ->assertRedirect()
+            ->assertSessionHasNoErrors();
+
+        $this->assertDatabaseHas('cards', [
+            'nota_id'    => $nota->id,
+            'tipo'       => 'cadastro',
+            'aberto_por' => $this->compras->id,
+        ]);
+    }
+
+    public function test_compras_nao_passou_a_gerir_cards(): void
+    {
+        $this->assertTrue($this->compras->podeAbrirCardDeCadastro());
+        $this->assertFalse($this->compras->podeGerirCards());
     }
 
     public function test_compras_ainda_abre_em_nota_de_ceasa(): void
@@ -188,9 +202,9 @@ class CardCadastroRecebimentoTest extends TestCase
     public function test_a_lista_de_qualquer_papel_nao_ganhou_o_cadastro(): void
     {
         /*
-         * Se 'cadastro' entrasse aqui, compras passaria a abri-lo em qualquer
-         * nota — que é justamente o que o teste de cima proíbe. As duas listas
-         * existem separadas por isto.
+         * 'cadastro' é regido por User::podeAbrirCardDeCadastro(), não pela
+         * lista geral. Se entrasse aqui, o visitante e qualquer papel futuro
+         * ganhariam o card sem passar pela permissão.
          */
         $this->assertNotContains('cadastro', Card::abertosPorQualquerPapel());
     }

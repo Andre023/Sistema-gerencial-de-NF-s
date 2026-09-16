@@ -61,6 +61,7 @@ class HandleInertiaRequests extends Middleware
                     'usarDevolucoes'          => $user->podeUsarDevolucoes(),
                     'usarCampanha'            => $user->podeUsarCampanha(),
                     'gerenciarConfiguracoes'  => $user->podeGerenciarConfiguracoes(),
+                    'vincularFornecedores'    => $user->podeVincularFornecedores(),
                 ] : null,
             ],
             /*

@@ -74,6 +74,7 @@ class AppServiceProvider extends ServiceProvider
         Gate::define('gerenciar-usuarios', fn(User $u) => $u->podeGerenciarUsuarios());
         Gate::define('gerenciar-prioridades', fn(User $u) => $u->podeGerenciarPrioridades());
         Gate::define('importar-fornecedores', fn(User $u) => $u->podeImportarFornecedores());
+        Gate::define('vincular-fornecedores', fn(User $u) => $u->podeVincularFornecedores());
         Gate::define('interagir',          fn(User $u) => $u->podeInteragir());
         // Ver o livro de ocorrências é de todo papel operacional — registro que
         // só a chefia enxerga vira vigilância; visto por quem trabalha na nota,
