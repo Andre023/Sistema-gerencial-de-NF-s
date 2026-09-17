@@ -16,12 +16,12 @@
 #
 # Configuração por variável de ambiente (com padrões para esta instalação):
 #     NFS_SSH_HOST=ubuntu@163.176.154.52
-#     NFS_SSH_KEY="/c/sistema gerencial nf/ssh-key-2026-07-20.key"
+#     NFS_SSH_KEY="/c/keys/sistema gerencial nf/ssh-key-2026-09-16.key"
 #
 set -euo pipefail
 
 SSH_HOST="${NFS_SSH_HOST:-ubuntu@163.176.154.52}"
-SSH_KEY="${NFS_SSH_KEY:-/c/sistema gerencial nf/ssh-key-2026-07-20.key}"
+SSH_KEY="${NFS_SSH_KEY:-/c/keys/sistema gerencial nf/ssh-key-2026-09-16.key}"
 DESTINO="/var/www/nfs/public/"
 
 cd "$(dirname "$0")/.."
