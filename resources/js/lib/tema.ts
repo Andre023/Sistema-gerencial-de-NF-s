@@ -108,6 +108,7 @@ export const NOTIFICACAO_LABEL: Record<string, string> = {
     liberada: 'Nota liberada',
     lancada: 'Nota recém lançada — analisar',
     doca: 'Resolver na doca',
+    regra: 'Regra fora do combinado — acertar',
 };
 
 /** Cor da barra lateral do aviso: vermelho pede ação, verde é conclusão. */
@@ -120,6 +121,8 @@ export function notificacaoCor(tipo: string, p: Palette): string {
         case 'lancada':     return p.PURPLE;
         // Laranja: a mercadoria está parada esperando alguém decidir o que fazer
         case 'doca':        return p.ORANGE;
+        // Âmbar, como a divergência: é a mesma cobrança, só que ao pré-lote
+        case 'regra':       return p.AMBER;
         default:            return p.MUTED;
     }
 }

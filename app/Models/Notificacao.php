@@ -48,6 +48,16 @@ class Notificacao extends Model
      * junto, e o pré-lote perderia a cobrança de um card que continua aberto.
      */
     public const TIPO_DOCA = 'doca';
+    /**
+     * Card de regra aberto por compras — o pré-lote precisa acertar e resolver.
+     *
+     * Enquanto só o pré-lote abria a regra, não havia a quem avisar: quem abria
+     * era quem resolvia. Com compras abrindo (User::podeAbrirCardDeRegra), o
+     * card nascia sem ninguém saber. Tipo próprio pelo mesmo motivo do de doca:
+     * convive com os outros avisos na mesma nota, e encerrar um não pode
+     * encerrar o outro.
+     */
+    public const TIPO_REGRA = 'regra';
 
     public const TIPOS = [
         self::TIPO_DIVERGENCIA,
@@ -56,6 +66,7 @@ class Notificacao extends Model
         self::TIPO_LIBERADA,
         self::TIPO_LANCADA,
         self::TIPO_DOCA,
+        self::TIPO_REGRA,
     ];
 
     /** Quantas o sino mostra na lista (o contador conta todas as pendentes) */

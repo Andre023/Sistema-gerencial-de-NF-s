@@ -172,6 +172,13 @@ class Card extends Model
     public const TIPOS_AVISAM_DOCA = self::TIPOS_DOCA;
 
     /**
+     * Cards que avisam só o pré-lote: a regra, que compras abre e o pré-lote
+     * resolve. O recebimento fica de fora porque não resolve regra — cobrá-lo
+     * por isso seria o mesmo que cobrar compras pela recusa.
+     */
+    public const TIPOS_AVISAM_PRE_LOTE = self::TIPOS_COMPRAS_ABRE;
+
+    /**
      * Ao corrigir CADASTRO, o card é obrigatoriamente trocado por um destes.
      *
      * O item que não existia passa a existir — mas existir não é estar no

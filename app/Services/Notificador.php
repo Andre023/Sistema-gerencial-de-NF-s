@@ -15,6 +15,9 @@ use Illuminate\Support\Collection;
  *
  *   recebimento lança    → pré-lote           (nota nova esperando análise)
  *   pré-lote abre card   → compras            (users com papel compras)
+ *   compras abre recusa/
+ *   devolução            → pré-lote e recebimento (quem tem a mercadoria)
+ *   compras abre regra   → pré-lote           (quem resolve a regra)
  *   compras corrige      → quem abriu o card  (cards.aberto_por)
  *   pré-lote reabre      → compras de novo
  *   pré-lote libera      → quem lançou a nota (notas.user_id)
@@ -66,6 +69,7 @@ class Notificador
 
         self::sincronizarCompras($nota, $autor, Notificacao::TIPO_DIVERGENCIA);
         self::sincronizarDoca($nota, $autor);
+        self::sincronizarRegra($nota, $autor);
     }
 
     // ─── SALTO 1b: pré-lote reconferiu e continua errado → compras de novo ─────
@@ -78,6 +82,7 @@ class Notificador
         self::sincronizarCompras($nota, $autor, Notificacao::TIPO_REABERTO);
         // Reabrir um card de doca é pendência nova para quem fecha esses cards
         self::sincronizarDoca($nota, $autor);
+        self::sincronizarRegra($nota, $autor);
     }
 
     // ─── SALTO 2: compras corrigiu → quem abriu o card ─────────────────────────
@@ -90,6 +95,7 @@ class Notificador
         self::sincronizarCompras($nota, $autor, Notificacao::TIPO_DIVERGENCIA, semNovoAviso: true);
         // Idem para a doca: recusa/devolução fechadas somem do sino dos dois setores
         self::sincronizarDoca($nota, $autor, semNovoAviso: true);
+        self::sincronizarRegra($nota, $autor, semNovoAviso: true);
 
         $destinatarios = self::quemAbriu($card);
 
@@ -106,6 +112,7 @@ class Notificador
     {
         self::sincronizarCompras($nota, $autor, Notificacao::TIPO_DIVERGENCIA, semNovoAviso: true);
         self::sincronizarDoca($nota, $autor, semNovoAviso: true);
+        self::sincronizarRegra($nota, $autor, semNovoAviso: true);
     }
 
     // ─── SALTO 3: nota liberada → quem lançou ──────────────────────────────────
@@ -119,6 +126,7 @@ class Notificador
             Notificacao::TIPO_CORRIGIDO,
             Notificacao::TIPO_LANCADA,
             Notificacao::TIPO_DOCA,
+            Notificacao::TIPO_REGRA,
         ]);
 
         $quemLancou = $nota->user_id ? User::find($nota->user_id) : null;
@@ -234,28 +242,80 @@ class Notificador
      */
     private static function sincronizarDoca(Nota $nota, User $autor, bool $semNovoAviso = false): void
     {
+        self::sincronizarPendencia(
+            $nota,
+            $autor,
+            $semNovoAviso,
+            cards: Card::TIPOS_AVISAM_DOCA,
+            aviso: Notificacao::TIPO_DOCA,
+            papeis: [User::ROLE_PRE_LOTE, User::ROLE_RECEBIMENTO],
+        );
+    }
+
+    /**
+     * Recalcula o aviso de REGRA a partir do estado atual da nota.
+     *
+     * Terceiro caso da mesma família: card que compras abre mas não fecha. A
+     * regra é resolvida pelo pré-lote, e só por ele — o recebimento não entra,
+     * porque não resolve regra (ver Card::TIPOS_AVISAM_PRE_LOTE).
+     *
+     * @param bool $semNovoAviso a ação foi de resolução — atualiza ou encerra o
+     *                           que existe, mas não cria aviso nem pisca de novo
+     */
+    private static function sincronizarRegra(Nota $nota, User $autor, bool $semNovoAviso = false): void
+    {
+        self::sincronizarPendencia(
+            $nota,
+            $autor,
+            $semNovoAviso,
+            cards: Card::TIPOS_AVISAM_PRE_LOTE,
+            aviso: Notificacao::TIPO_REGRA,
+            papeis: [User::ROLE_PRE_LOTE],
+        );
+    }
+
+    /**
+     * O motor por trás de sincronizarDoca e sincronizarRegra: recalcula UM tipo
+     * de aviso a partir dos cards abertos de uma família.
+     *
+     * Existe porque a doca e a regra são o mesmo problema com destinatários
+     * diferentes — copiar o bloco uma terceira vez era garantir que a próxima
+     * correção fosse feita num e esquecida no outro.
+     *
+     * @param array<int,string> $cards  tipos de card que alimentam este aviso
+     * @param string            $aviso  Notificacao::TIPO_* que recebe
+     * @param array<int,string> $papeis quem é avisado
+     */
+    private static function sincronizarPendencia(
+        Nota $nota,
+        User $autor,
+        bool $semNovoAviso,
+        array $cards,
+        string $aviso,
+        array $papeis,
+    ): void {
         $nota->load('cards');
 
         $tipos = $nota->cards
             ->filter(fn($c) => $c->status === Card::STATUS_ABERTO)
-            ->filter(fn($c) => in_array($c->tipo, Card::TIPOS_AVISAM_DOCA, true))
+            ->filter(fn($c) => in_array($c->tipo, $cards, true))
             ->pluck('tipo');
 
         if ($tipos->isEmpty()) {
-            self::encerrar($nota, [Notificacao::TIPO_DOCA]);
+            self::encerrar($nota, [$aviso]);
             return;
         }
 
         // Sobrou card, mas um foi embora: o aviso de quem ainda não leu precisa
         // parar de citar o que já foi resolvido.
         if ($semNovoAviso) {
-            self::reduzirTipos($nota, $tipos, [Notificacao::TIPO_DOCA]);
+            self::reduzirTipos($nota, $tipos, [$aviso]);
             return;
         }
 
-        $daDoca = User::whereIn('role', [User::ROLE_PRE_LOTE, User::ROLE_RECEBIMENTO])->get();
+        $destinatarios = User::whereIn('role', $papeis)->get();
 
-        self::entregar($daDoca, $nota, Notificacao::TIPO_DOCA, $tipos, $autor);
+        self::entregar($destinatarios, $nota, $aviso, $tipos, $autor);
     }
 
     /**

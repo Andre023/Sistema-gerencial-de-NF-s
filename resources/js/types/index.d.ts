@@ -226,7 +226,7 @@ export interface OpcoesSistema {
 
 // ─── Sino ────────────────────────────────────────────────────────────────────
 
-export type TipoNotificacao = 'divergencia' | 'corrigido' | 'reaberto' | 'liberada' | 'lancada' | 'doca';
+export type TipoNotificacao = 'divergencia' | 'corrigido' | 'reaberto' | 'liberada' | 'lancada' | 'doca' | 'regra';
 
 export interface Notificacao {
     id: number;
