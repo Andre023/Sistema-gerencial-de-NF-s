@@ -38,6 +38,31 @@ fi
 
 echo "✓ Build pronto ($(du -sh public/build | cut -f1))"
 
+# ─── 1b. O bundle aponta para o Reverb de produção? ───────────────────────────
+#
+# O `vite build` grava DENTRO do bundle o endereço do WebSocket (VITE_REVERB_*).
+# Ele lê o `.env.production` por cima do `.env` — e se o `.env.production` não
+# existir nesta máquina, o que vai para o ar é o `.env` de desenvolvimento, com
+# o Reverb em localhost. Foi o que aconteceu em 17/09/2026: o site subiu, o PHP
+# estava certo, e mesmo assim ninguém aparecia online, o sino não atualizava e
+# o chat não chegava, porque cada navegador tentava abrir o WebSocket na
+# própria máquina. Só apareceu quando a equipe reclamou.
+#
+# Por isso o envio é recusado se o host de produção não estiver no bundle.
+
+HOST_PRODUCAO="${NFS_REVERB_HOST:-hipermon-nfs.duckdns.org}"
+BUNDLE_APP=$(ls public/build/assets/app-*.js 2>/dev/null | head -1)
+
+if [[ -z "${BUNDLE_APP}" ]] || ! grep -q "wsHost:\"${HOST_PRODUCAO}\"" "${BUNDLE_APP}"; then
+    echo "✗ O bundle NÃO aponta para o Reverb de produção (${HOST_PRODUCAO})." >&2
+    echo "  Encontrado: $(grep -o 'wsHost:"[^"]*"' "${BUNDLE_APP:-/dev/null}" | head -1 || echo 'nada')" >&2
+    echo "  Crie .env.production na raiz do projeto com os VITE_REVERB_* de produção" >&2
+    echo "  (ver .env.production.example) e rode de novo. Nada foi enviado." >&2
+    exit 1
+fi
+
+echo "✓ Bundle aponta para ${HOST_PRODUCAO}"
+
 # ─── 2. Envio ─────────────────────────────────────────────────────────────────
 
 OPCOES_SSH=()

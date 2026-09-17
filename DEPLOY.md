@@ -338,6 +338,25 @@ primeiro é dispensável.
 bash scripts/enviar-assets.sh
 ```
 
+Isso exige um `.env.production` na raiz do projeto (está no `.gitignore` — cada
+máquina que faz deploy precisa do seu), com os `VITE_*` de produção:
+
+```ini
+VITE_REVERB_APP_KEY=<REVERB_APP_KEY do .env do servidor>
+VITE_REVERB_HOST=hipermon-nfs.duckdns.org
+VITE_REVERB_PORT=443
+VITE_REVERB_SCHEME=https
+VITE_APP_NAME="Gestão de NFs"
+```
+
+O `vite build` grava esses valores DENTRO do bundle e lê o `.env.production`
+por cima do `.env`. Sem ele, o que vai para o ar é o `.env` de desenvolvimento
+(Reverb em `localhost`): o site abre, o PHP funciona, e mesmo assim ninguém
+aparece online, o sino não atualiza e o chat não chega — cada navegador tenta
+o WebSocket na própria máquina. Aconteceu em 17/09/2026. Desde então o
+`enviar-assets.sh` confere o bundle e se recusa a enviar se o host de produção
+não estiver nele.
+
 **2. No servidor** — o resto:
 
 ```bash
