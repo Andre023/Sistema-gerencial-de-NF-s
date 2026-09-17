@@ -230,6 +230,21 @@ class User extends Authenticatable
         return $this->ehUmDe(self::ROLE_PRE_LOTE, self::ROLE_RECEBIMENTO, self::ROLE_COMPRAS);
     }
 
+    /**
+     * Abrir card de REGRA (a compra saiu fora do combinado) — pré-lote e compras.
+     *
+     * Mesmo recorte estreito do cadastro: compras ABRE, mas não resolve, reabre
+     * nem exclui card nenhum. Quem RESOLVE a regra segue sendo o pré-lote.
+     *
+     * O motivo é de fluxo: quem negocia a regra com o fornecedor é compras, e
+     * é ela quem sabe primeiro que a nota vem fora dela. Abrir na hora poupa o
+     * repasse de recado ao pré-lote — que continua sendo quem fecha.
+     */
+    public function podeAbrirCardDeRegra(): bool
+    {
+        return $this->ehUmDe(self::ROLE_PRE_LOTE, self::ROLE_COMPRAS);
+    }
+
     /** Liberar a nota (o ✅) — ato do pré-lote */
     public function podeLiberarNota(): bool
     {

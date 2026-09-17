@@ -32,6 +32,8 @@ export interface Permissoes {
      * reabrir ou excluir card nenhum. Abre este, e só ele.
      */
     abrirCardCadastro: boolean;
+    /** Abrir card de Regra — pré-lote e compras. Mesmo recorte estreito do de cima. */
+    abrirCardRegra: boolean;
     liberarNota: boolean;
     editarNotas: boolean;
     devolverNota: boolean;
@@ -214,6 +216,8 @@ export interface OpcoesSistema {
     tiposQualquerPapel?: TipoCard[];
     /** Card::abertosPeloRecebimento() — os de qualquer papel mais o Cadastro */
     tiposRecebimento?: TipoCard[];
+    /** Card::abertosPorCompras() — os do recebimento mais a Regra */
+    tiposComprasAbre?: TipoCard[];
     /** Por quais cards o Cadastro é trocado ao ser corrigido (Card::SUBSTITUTOS_DE_CADASTRO) */
     substitutosCadastro?: TipoCard[];
     /** Limiares em dias de cada nível (definidos no backend) */

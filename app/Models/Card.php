@@ -132,6 +132,32 @@ class Card extends Model
     }
 
     /**
+     * Tipos que COMPRAS abre além dos do recebimento.
+     *
+     * "Regra" (a compra saiu fora do combinado — prazo, condição, preço
+     * acertado) é o card que o pré-lote resolve direto quando a regra está
+     * acertada. Só que quem negocia a regra com o fornecedor é compras, e é
+     * ela quem sabe antes de a nota chegar que aquela compra veio fora do
+     * combinado. Sem isto, compras tinha de pedir ao pré-lote que abrisse o
+     * card para ele mesmo resolver depois.
+     *
+     * Fica FORA de abertosPorQualquerPapel() porque a permissão é a de
+     * User::podeAbrirCardDeRegra(), e o controller e a tela consultam essa
+     * função. Quem RESOLVE segue sendo o pré-lote (não está em TIPOS_COMPRAS).
+     */
+    public const TIPOS_COMPRAS_ABRE = ['regra'];
+
+    /**
+     * Tudo que compras pode abrir fora de CEASA — os do recebimento (que já
+     * incluem o Cadastro) mais a Regra. Mesma regra das listas acima: uma
+     * fonte só, do servidor.
+     */
+    public static function abertosPorCompras(): array
+    {
+        return [...self::abertosPeloRecebimento(), ...self::TIPOS_COMPRAS_ABRE];
+    }
+
+    /**
      * Cards que avisam o pré-lote e o recebimento.
      *
      * São os que compras costuma ABRIR (o fornecedor liga avisando) mas não

@@ -186,13 +186,15 @@ function FormNota({ fornecedores, opcoes, inicial, origemDefault, onSubmit, onCa
  */
 const SEM_TROCA = 'nenhum' as const;
 
-function ModalCards({ nota, onFechar, can, tiposCompras, tiposQualquerPapel, tiposRecebimento, substitutosCadastro, executar, isDark, p }: {
+function ModalCards({ nota, onFechar, can, tiposCompras, tiposQualquerPapel, tiposRecebimento, tiposComprasAbre, substitutosCadastro, executar, isDark, p }: {
     nota: Nota | null; onFechar: () => void; can: Permissoes;
     tiposCompras: TipoCard[];
     /** Card::abertosPorQualquerPapel() — quem não é pré-lote só enxerga estes */
     tiposQualquerPapel: TipoCard[];
     /** Card::abertosPeloRecebimento() — os de cima mais o Cadastro */
     tiposRecebimento: TipoCard[];
+    /** Card::abertosPorCompras() — os do recebimento mais a Regra */
+    tiposComprasAbre: TipoCard[];
     /** Card::SUBSTITUTOS_DE_CADASTRO — por quais cards o cadastro pode ser trocado */
     substitutosCadastro: TipoCard[];
     /**
@@ -234,7 +236,8 @@ function ModalCards({ nota, onFechar, can, tiposCompras, tiposQualquerPapel, tip
     const podeLiberar = !liberada && ativos.length === 0;
 
     // Quais tipos este usuário pode ABRIR: pré-lote (e compras em CEASA) abrem
-    // qualquer um; recebimento/compras (fora de CEASA) só o "Importar NF".
+    // qualquer um; recebimento/compras (fora de CEASA) só os de todo mundo e,
+    // cada um, o seu — ver `meusTipos` abaixo.
     // A lista de "qualquer papel abre" vem do backend (Card::abertosPorQualquerPapel).
     // Repetida aqui, ela já ficou para trás uma vez: Recusa e Devolução passaram
     // a ser aceitas pelo controller e seguiram fora do formulário de recebimento
@@ -243,19 +246,25 @@ function ModalCards({ nota, onFechar, can, tiposCompras, tiposQualquerPapel, tip
     const deQualquerPapel = tiposQualquerPapel.length ? tiposQualquerPapel : [...DE_TODOS, ...DE_DOCA];
 
     /*
-     * O recebimento enxerga um a mais: o card de Cadastro.
+     * O recebimento enxerga um a mais: o card de Cadastro. Compras, dois:
+     * Cadastro e Regra.
      *
-     * A lista vem pronta do servidor (Card::abertosPeloRecebimento) em vez de
-     * ser montada aqui com um `[...deQualquerPapel, 'cadastro']` — é a mesma
-     * regra do comentário acima: lista repetida na tela é lista que fica para
-     * trás quando o controller muda.
+     * As listas vêm prontas do servidor (Card::abertosPeloRecebimento e
+     * Card::abertosPorCompras) em vez de serem montadas aqui com um
+     * `[...deQualquerPapel, 'cadastro']` — é a mesma regra do comentário
+     * acima: lista repetida na tela é lista que fica para trás quando o
+     * controller muda.
      *
-     * `can.abrirCardCadastro` e não `meuPapel === 'recebimento'`: o pré-lote
-     * também tem a permissão, mas ele já cai no `abreQualquer` acima.
+     * `can.abrirCardRegra` / `can.abrirCardCadastro` e não `meuPapel === …`:
+     * o pré-lote também tem as permissões, mas ele já cai no `abreQualquer`
+     * acima. A de regra vem primeiro porque é a lista maior — quem a tem,
+     * tem também a de cadastro.
      */
-    const meusTipos = can.abrirCardCadastro && tiposRecebimento.length
-        ? tiposRecebimento
-        : deQualquerPapel;
+    const meusTipos = can.abrirCardRegra && tiposComprasAbre.length
+        ? tiposComprasAbre
+        : can.abrirCardCadastro && tiposRecebimento.length
+            ? tiposRecebimento
+            : deQualquerPapel;
 
     const tiposParaAbrir: TipoCard[] = abreQualquer
         ? opcoesTipos(nota)
@@ -1701,6 +1710,7 @@ export default function Index({ recebimento, preLote, liberadas, canceladas, dev
                 tiposCompras={opcoes.tiposCompras ?? ['cadastro', 'custo', 'quantidade', 'sem_pedido', 'item_n_pedido']}
                 tiposQualquerPapel={opcoes.tiposQualquerPapel ?? []}
                 tiposRecebimento={opcoes.tiposRecebimento ?? []}
+                tiposComprasAbre={opcoes.tiposComprasAbre ?? []}
                 substitutosCadastro={opcoes.substitutosCadastro ?? []}
                 executar={executarAcao} isDark={isDark} p={p} />
 

@@ -216,6 +216,8 @@ class NotaController extends Controller
                 // O recebimento abre esses e mais o de Cadastro. Vem daqui pelo
                 // mesmo motivo da linha acima — uma lista só, do servidor.
                 'tiposRecebimento'   => Card::abertosPeloRecebimento(),
+                // Compras abre os do recebimento e mais o de Regra. Idem.
+                'tiposComprasAbre'   => Card::abertosPorCompras(),
                 // Por quais cards o cadastro pode ser trocado ao ser corrigido.
                 // Vem daqui pelo mesmo motivo da linha acima: se a tela tivesse
                 // a própria cópia, mudar a regra no servidor deixaria os botões

@@ -31,7 +31,7 @@ class CardController extends Controller
 
     public function store(Request $request, Nota $nota): RedirectResponse|JsonResponse
     {
-        // Em geral só o pré-lote abre card. Três exceções:
+        // Em geral só o pré-lote abre card. Quatro exceções:
         //
         //   • nota de CEASA — compras também abre qualquer tipo
         //   • os tipos de todo mundo (Importar NF, Recusa, Devolução) —
@@ -39,19 +39,25 @@ class CardController extends Controller
         //     setor só
         //   • Cadastro — recebimento e compras abrem, porque são quem esbarra
         //     no item sem cadastro antes do pré-lote (Card::TIPOS_RECEBIMENTO)
+        //   • Regra — compras abre, porque é quem negocia a regra com o
+        //     fornecedor e sabe primeiro que a nota vem fora dela
+        //     (Card::TIPOS_COMPRAS_ABRE)
         //
         // Quem FECHA cada um é outra história, e mora em
-        // Card::podeSerCorrigidoPor() — o cadastro continua sendo de compras.
+        // Card::podeSerCorrigidoPor() — o cadastro continua sendo de compras,
+        // e a regra continua sendo resolvida pelo pré-lote.
         $user = $request->user();
         $tipo = $request->input('tipo');
 
         $deTodos    = in_array($tipo, Card::abertosPorQualquerPapel(), true);
         $deCadastro = in_array($tipo, Card::TIPOS_RECEBIMENTO, true);
+        $deRegra    = in_array($tipo, Card::TIPOS_COMPRAS_ABRE, true);
 
         $podeAbrir = $user->podeGerirCards()
             || ($nota->ceasa && $user->podeCorrigirCard())
             || ($deTodos && ($user->podeLancarNota() || $user->podeCorrigirCard()))
-            || ($deCadastro && $user->podeAbrirCardDeCadastro());
+            || ($deCadastro && $user->podeAbrirCardDeCadastro())
+            || ($deRegra && $user->podeAbrirCardDeRegra());
 
         abort_unless($podeAbrir, 403);
 

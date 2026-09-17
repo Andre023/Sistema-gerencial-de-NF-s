@@ -44,6 +44,7 @@ class HandleInertiaRequests extends Middleware
                     'gerirCards'        => $user->podeGerirCards(),
                     'corrigirCard'      => $user->podeCorrigirCard(),
                     'abrirCardCadastro' => $user->podeAbrirCardDeCadastro(),
+                    'abrirCardRegra'    => $user->podeAbrirCardDeRegra(),
                     'liberarNota'       => $user->podeLiberarNota(),
                     'editarNotas'       => $user->podeEditarNotas(),
                     'devolverNota'      => $user->podeDevolverNota(),
