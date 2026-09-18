@@ -104,25 +104,47 @@ export default function AtalhosDaFila({ podeVerDevolucoes }: { podeVerDevolucoes
 
     return (
         <>
-            {!recolhido && atalhos.map(a => (
-                <button key={a.id} onClick={() => ir(a.id)}
-                    title={`Ir para ${a.rotulo}`}
-                    className={`shrink-0 text-xs font-medium px-2 py-1 rounded-md transition ${cor}`}>
-                    {a.rotulo}
-                </button>
-            ))}
+            {/* Os atalhos deslizam abrindo e fechando na horizontal.
 
-            {/* A setinha: aponta para dentro quando os atalhos estão abertos
-                (recolher) e para fora quando estão escondidos (expandir). */}
+                O truque é uma grade de UMA coluna que vai de 0fr a 1fr: o
+                navegador anima a largura sem a gente precisar saber quantos
+                pixels os cinco botões ocupam (muda com devoluções e com a
+                fonte). `min-w-0` + `overflow-hidden` no filho é o que deixa a
+                coluna encolher até zero em vez de parar na largura do conteúdo.
+
+                `inert` enquanto recolhido: os botões continuam no documento
+                (é o que permite animar a volta), mas não recebem foco nem
+                clique — sem isto o Tab passaria por cinco botões invisíveis.
+
+                motion-reduce: quem desligou animação no sistema vê abrir e
+                fechar de uma vez, como antes. */}
+            <div className="grid transition-[grid-template-columns,opacity] duration-300 ease-out motion-reduce:transition-none"
+                style={{ gridTemplateColumns: recolhido ? '0fr' : '1fr', opacity: recolhido ? 0 : 1 }}
+                aria-hidden={recolhido}>
+                <div className="flex items-center gap-0.5 min-w-0 overflow-hidden"
+                    // React 18 só entende `inert` como string vazia; `undefined` tira o atributo.
+                    {...({ inert: recolhido ? '' : undefined } as Record<string, unknown>)}>
+                    {atalhos.map(a => (
+                        <button key={a.id} onClick={() => ir(a.id)}
+                            title={`Ir para ${a.rotulo}`}
+                            className={`shrink-0 text-xs font-medium px-2 py-1 rounded-md transition ${cor}`}>
+                            {a.rotulo}
+                        </button>
+                    ))}
+                </div>
+            </div>
+
+            {/* A setinha gira meia-volta: aponta para dentro quando os atalhos
+                estão abertos (recolher) e para fora quando estão escondidos
+                (expandir). */}
             <button type="button" onClick={alternar}
                 title={recolhido ? 'Mostrar atalhos das planilhas' : 'Recolher atalhos das planilhas'}
                 aria-label={recolhido ? 'Mostrar atalhos das planilhas' : 'Recolher atalhos das planilhas'}
                 aria-expanded={!recolhido}
                 className={`shrink-0 flex items-center justify-center w-6 h-6 rounded-md transition ${cor}`}>
-                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    {recolhido
-                        ? <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 5l7 7-7 7M5 5l7 7-7 7" />
-                        : <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 19l-7-7 7-7m8 14l-7-7 7-7" />}
+                <svg className={`w-3.5 h-3.5 transition-transform duration-300 ease-out motion-reduce:transition-none ${recolhido ? 'rotate-180' : ''}`}
+                    fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 19l-7-7 7-7m8 14l-7-7 7-7" />
                 </svg>
             </button>
         </>
