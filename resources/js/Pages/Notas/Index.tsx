@@ -15,6 +15,7 @@ import ModalAnexos from '@/Components/painel/ModalAnexos';
 import ModalOcorrencias from '@/Components/painel/ModalOcorrencias';
 import QuadroDevolucoes from '@/Components/painel/QuadroDevolucoes';
 import Avatar from '@/Components/painel/Avatar';
+import { SeloConsignado } from '@/Components/painel/SeloConsignado';
 
 interface Props {
     recebimento: Nota[];
@@ -839,6 +840,8 @@ function CartaoFila(props: AcoesProps & { isDark: boolean }) {
                 {nota.fornecedor.prioridade && (
                     <span title="Fornecedor prioritário" style={{ color: p.AMBER }}>★</span>
                 )}
+                {/* Consignado vem do fornecedor, não da nota: aparece sozinho */}
+                {nota.fornecedor.consignado && <SeloConsignado p={p} />}
                 <span className="truncate">{nota.fornecedor.nome}</span>
             </div>
 
@@ -933,7 +936,10 @@ function CartaoLiberada({ nota, can, isDark, p, onCards, onComentar, onEditarObs
                 )}
             </div>
 
-            <p className="text-sm truncate" style={{ color: p.TEXT }}>{nota.fornecedor.nome}</p>
+            <p className="text-sm truncate" style={{ color: p.TEXT }}>
+                {nota.fornecedor.consignado && <SeloConsignado p={p} className="mr-1.5" />}
+                {nota.fornecedor.nome}
+            </p>
 
             <button onClick={() => onCards(nota)} className="flex flex-wrap items-center gap-1 text-left"
                 title="Ver histórico de cards">
@@ -996,7 +1002,10 @@ function CartaoCancelada({ nota, can, p, onComentar, onDescancelar }: {
                 <span className="text-xs" style={{ color: p.MUTED }}>{ORIGEM_LABEL[nota.origem]}</span>
             </div>
 
-            <p className="text-sm truncate" style={{ color: p.TEXT }}>{nota.fornecedor.nome}</p>
+            <p className="text-sm truncate" style={{ color: p.TEXT }}>
+                {nota.fornecedor.consignado && <SeloConsignado p={p} className="mr-1.5" />}
+                {nota.fornecedor.nome}
+            </p>
 
             {nota.motivo_cancelamento && (
                 <p className="text-xs break-words" style={{ color: p.TEXT }}>{nota.motivo_cancelamento}</p>
@@ -1045,6 +1054,7 @@ function LinhaFila({ nota, onCards, onComentar, onAnexos, onDevolucao, onEditar,
                 {nota.fornecedor.prioridade && (
                     <span title="Fornecedor prioritário" className="mr-1" style={{ color: p.AMBER }}>★</span>
                 )}
+                {nota.fornecedor.consignado && <SeloConsignado p={p} className="mr-1.5" />}
                 {nota.fornecedor.nome}
             </td>
             <td className="px-4 py-3">
@@ -2005,7 +2015,10 @@ export default function Index({ recebimento, preLote, liberadas, canceladas, dev
                                                 </span>
                                             )}
                                         </td>
-                                        <td className="px-4 py-3 text-sm max-w-[180px] truncate" style={{ color: p.TEXT }}>{n.fornecedor.nome}</td>
+                                        <td className="px-4 py-3 text-sm max-w-[180px] truncate" style={{ color: p.TEXT }}>
+                                            {n.fornecedor.consignado && <SeloConsignado p={p} className="mr-1.5" />}
+                                            {n.fornecedor.nome}
+                                        </td>
                                         <td className="px-4 py-3">
                                             <button onClick={() => setCardsId(n.id)} className="flex flex-wrap items-center gap-1" title="Ver histórico de cards">
                                                 {n.cards.length === 0
@@ -2139,7 +2152,10 @@ export default function Index({ recebimento, preLote, liberadas, canceladas, dev
                                                 </span>
                                             )}
                                         </td>
-                                        <td className="px-4 py-3 text-sm max-w-[180px] truncate" style={{ color: p.TEXT }}>{n.fornecedor.nome}</td>
+                                        <td className="px-4 py-3 text-sm max-w-[180px] truncate" style={{ color: p.TEXT }}>
+                                            {n.fornecedor.consignado && <SeloConsignado p={p} className="mr-1.5" />}
+                                            {n.fornecedor.nome}
+                                        </td>
                                         <td className="px-4 py-3 text-sm whitespace-nowrap" style={{ color: p.TEXT }}>{lojaNome(n.loja)}</td>
                                         <td className="px-4 py-3 text-sm whitespace-nowrap" style={{ color: p.MUTED }}>
                                             {ORIGEM_LABEL[n.origem]}

@@ -244,7 +244,7 @@ class FornecedorMatrizFilialTest extends TestCase
             ->get(route('fornecedores.index'))
             ->assertOk()
             ->assertInertia(fn($page) => $page
-                ->component('Fornecedores/Vinculos')
+                ->component('Configuracoes/MatrizFilial')
                 ->has('vinculos', 1)
                 ->where('vinculos.0.id', $this->matriz->id)
                 ->where('vinculos.0.filiais.0.nome', 'MOINHO GLOBO ALIMENTOS S/A'));

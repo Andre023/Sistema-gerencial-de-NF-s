@@ -63,10 +63,15 @@ export interface Permissoes {
      * enquanto o admin mantiver a campanha ligada em Configurações.
      */
     usarCampanha: boolean;
-    /** Abrir Configurações (Usuários e Campanha) — só admin */
+    /**
+     * As seções administrativas de Configurações (Usuários, Campanha,
+     * Fornecedores) — só admin. A tela em si abre para todo mundo.
+     */
     gerenciarConfiguracoes: boolean;
-    /** Vincular filial à matriz (aba Fornecedores) — todos menos o visitante */
+    /** Vincular filial à matriz (Configurações › Matriz/Filial) — todos menos o visitante */
     vincularFornecedores: boolean;
+    /** Marcar fornecedor consignado (Configurações › Consignados) — todos menos o visitante */
+    marcarConsignados: boolean;
 }
 
 /**
@@ -91,6 +96,8 @@ export interface Fornecedor {
     cnpj?: string | null;
     /** Fornecedor prioritário: sobe ao topo do pré-lote */
     prioridade?: boolean;
+    /** Consignado: toda nota dele leva o selo antes do nome (marca do fornecedor, não da nota) */
+    consignado?: boolean;
     /** Nomes das filiais vinculadas — a busca acha a matriz por qualquer um deles */
     filiais?: string[];
 }

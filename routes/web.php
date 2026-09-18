@@ -5,6 +5,7 @@ use App\Http\Controllers\CampanhaController;
 use App\Http\Controllers\CardController;
 use App\Http\Controllers\ComentarioController;
 use App\Http\Controllers\ConfiguracaoController;
+use App\Http\Controllers\ConsignadoController;
 use App\Http\Controllers\ConversaController;
 use App\Http\Controllers\DevolucaoController;
 use App\Http\Controllers\DossieController;
@@ -148,7 +149,10 @@ Route::middleware(['auth', 'verified'])->group(function () {
          ->name('fornecedores.importar');
 
     // ── Fornecedores: matriz e filial (todos menos o visitante) ───────────────
-    Route::middleware('can:vincular-fornecedores')->prefix('fornecedores')->name('fornecedores.')->group(function () {
+    //
+    // Mora em Configurações desde que a aba saiu da navbar; os nomes das rotas
+    // ficaram (fornecedores.*) — só o endereço mudou.
+    Route::middleware('can:vincular-fornecedores')->prefix('configuracoes/matriz-filial')->name('fornecedores.')->group(function () {
         Route::get('/',                        [FornecedorVinculoController::class, 'index'])->name('index');
         Route::get('/buscar',                  [FornecedorVinculoController::class, 'buscar'])->name('buscar');
         Route::patch('/{filial}/matriz',       [FornecedorVinculoController::class, 'vincular'])->name('vincular');
@@ -207,11 +211,17 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::delete('/planilha', [CampanhaController::class, 'removerPlanilha'])->name('planilha.remover');
     });
 
-    // ── Configurações (só admin) ───────────────────────────────────────────────
+    // ── Configurações ──────────────────────────────────────────────────────────
     //
-    // O painel do admin, com seletor à esquerda. Usuários mora aqui dentro
-    // desde que saiu da navbar — o menu não comportava mais uma aba, e o lugar
-    // de "quem pode o quê" é junto das outras chaves do sistema.
+    // A tela com seletor à esquerda. Abre para TODO MUNDO; o que muda por papel
+    // é a lista de seções:
+    //
+    //   • Usuários, Campanha, Fornecedores — só admin (gerenciar-configuracoes)
+    //   • Matriz/Filial                    — todos menos o visitante (acima)
+    //   • Consignados                      — todos veem; marcar é de quem opera
+    //
+    // Usuários mora aqui dentro desde que saiu da navbar — o menu não comportava
+    // mais uma aba, e o lugar de "quem pode o quê" é junto das outras chaves.
     Route::middleware('can:gerenciar-usuarios')->prefix('configuracoes/usuarios')->name('usuarios.')->group(function () {
         Route::get('/',              [UserController::class, 'index'])->name('index');
         Route::post('/',             [UserController::class, 'store'])->name('store');
@@ -219,10 +229,18 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::delete('/{user}',     [UserController::class, 'destroy'])->name('destroy');
     });
 
-    Route::middleware('can:gerenciar-configuracoes')->prefix('configuracoes')->name('configuracoes.')->group(function () {
-        // A porta da tela: entra pela primeira seção.
-        Route::get('/', fn() => redirect()->route('usuarios.index'))->name('index');
+    Route::prefix('configuracoes')->name('configuracoes.')->group(function () {
+        // A porta da tela: entra pela primeira seção que a conta enxerga.
+        Route::get('/', [ConfiguracaoController::class, 'index'])->name('index');
 
+        // Consignados: a lista abre para qualquer conta; marcar tem Gate próprio.
+        Route::get('/consignados',                [ConsignadoController::class, 'index'])->name('consignados');
+        Route::patch('/consignados/{fornecedor}', [ConsignadoController::class, 'alternar'])
+             ->middleware('can:marcar-consignados')
+             ->name('consignados.alternar');
+    });
+
+    Route::middleware('can:gerenciar-configuracoes')->prefix('configuracoes')->name('configuracoes.')->group(function () {
         Route::get('/campanha',   [ConfiguracaoController::class, 'campanha'])->name('campanha');
         Route::patch('/campanha', [ConfiguracaoController::class, 'atualizarCampanha'])->name('campanha.atualizar');
 

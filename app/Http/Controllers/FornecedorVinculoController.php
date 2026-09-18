@@ -14,7 +14,7 @@ use Inertia\Inertia;
 use Inertia\Response;
 
 /**
- * A aba Fornecedores: juntar as duas metades de um mesmo fornecedor.
+ * Configurações › Matriz/Filial: juntar as duas metades de um mesmo fornecedor.
  *
  * O mesmo fornecedor entra duas vezes na base — a matriz e a filial, com
  * CNPJs diferentes, ou "S.A." e "S/A" — e cada uma leva parte do histórico.
@@ -31,7 +31,7 @@ class FornecedorVinculoController extends Controller
 
     public function index(): Response
     {
-        return Inertia::render('Fornecedores/Vinculos', [
+        return Inertia::render('Configuracoes/MatrizFilial', [
             'vinculos' => $this->vinculos(),
             'total'    => Fornecedor::count(),
         ]);

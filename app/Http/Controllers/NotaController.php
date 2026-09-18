@@ -67,7 +67,7 @@ class NotaController extends Controller
         ));
 
         $base = Nota::with([
-                'fornecedor:id,nome,prioridade',
+                'fornecedor:id,nome,prioridade,consignado',
                 'user:id,name,avatar_tipo,avatar_valor',
                 'liberadaPor:id,name,avatar_tipo,avatar_valor',
                 'visualizadaPor:id,name,avatar_tipo,avatar_valor',

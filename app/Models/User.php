@@ -420,9 +420,30 @@ class User extends Authenticatable
         return $this->ehUmDe(self::ROLE_COMPRAS) && Configuracao::campanhaAtiva();
     }
 
-    /** Abrir Configurações (Usuários e Campanha) — só admin */
+    /**
+     * As seções ADMINISTRATIVAS de Configurações — Usuários, Campanha de
+     * aniversário e Fornecedores (renomear/apagar) — só admin.
+     *
+     * A tela de Configurações em si abre para todo mundo: o que muda por papel
+     * é a lista de seções à esquerda. Matriz/Filial segue a régua de
+     * podeVincularFornecedores(), e Consignados a de podeMarcarConsignados().
+     */
     public function podeGerenciarConfiguracoes(): bool
     {
         return $this->isAdmin();
+    }
+
+    /**
+     * Marcar e desmarcar fornecedor consignado (Configurações › Consignados) —
+     * todo papel operacional.
+     *
+     * Mesma régua de Matriz/Filial: quem descobre que o fornecedor é consignado
+     * é quem lança e quem confere a nota, e a marca não apaga nada — só põe um
+     * selo nas notas dele. Ver a lista é de qualquer conta, inclusive o
+     * visitante, que é só-leitura e continua sendo.
+     */
+    public function podeMarcarConsignados(): bool
+    {
+        return ! $this->ehVisitante();
     }
 }

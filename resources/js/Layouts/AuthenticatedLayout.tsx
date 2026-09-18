@@ -28,6 +28,15 @@ function IconeSol() {
     );
 }
 
+/**
+ * Está em alguma seção de Configurações?
+ *
+ * Três famílias de rota, porque duas seções guardaram o nome antigo quando
+ * mudaram de casa: Usuários (usuarios.*) e Matriz/Filial (fornecedores.*).
+ */
+const emConfiguracoes = () =>
+    route().current('configuracoes.*') || route().current('usuarios.*') || route().current('fornecedores.*');
+
 // ── Ícone Lua ──────────────────────────────────────────────────────────────────
 function IconeLua() {
     return (
@@ -178,25 +187,24 @@ export default function AuthenticatedLayout({
                                         Prioridades
                                     </NavLink>
                                 )}
-                                {can.vincularFornecedores && (
-                                    <NavLink href={route('fornecedores.index')} active={route().current('fornecedores.*')}>
-                                        Matriz/Filial
-                                    </NavLink>
-                                )}
                                 {can.usarCampanha && (
                                     <NavLink href={route('campanha.index')} active={route().current('campanha.*')}>
                                         Campanha
                                     </NavLink>
                                 )}
-                                {/* Usuários deixou de ser aba e virou a primeira
-                                    seção de Configurações — eram cinco links
-                                    disputando espaço com o sino em 1024px. */}
-                                {can.gerenciarConfiguracoes && (
-                                    <NavLink href={route('usuarios.index')}
-                                        active={route().current('usuarios.*') || route().current('configuracoes.*')}>
-                                        Configurações
-                                    </NavLink>
-                                )}
+                                {/* Configurações é de todo mundo: o que muda por
+                                    papel é a lista de seções lá dentro (Usuários,
+                                    Campanha e Fornecedores só para o admin;
+                                    Matriz/Filial e Consignados para os demais).
+                                    Usuários e Matriz/Filial deixaram de ser abas
+                                    e viraram seções — eram links demais
+                                    disputando espaço com o sino em 1024px.
+
+                                    O link aponta para a porta (configuracoes.index),
+                                    que manda cada papel para a primeira seção dele. */}
+                                <NavLink href={route('configuracoes.index')} active={emConfiguracoes()}>
+                                    Configurações
+                                </NavLink>
                             </div>
                         </div>
 
@@ -302,22 +310,14 @@ export default function AuthenticatedLayout({
                                 Prioridades
                             </ResponsiveNavLink>
                         )}
-                        {can.vincularFornecedores && (
-                            <ResponsiveNavLink href={route('fornecedores.index')} active={route().current('fornecedores.*')}>
-                                Matriz/Filial
-                            </ResponsiveNavLink>
-                        )}
                         {can.usarCampanha && (
                             <ResponsiveNavLink href={route('campanha.index')} active={route().current('campanha.*')}>
                                 Campanha
                             </ResponsiveNavLink>
                         )}
-                        {can.gerenciarConfiguracoes && (
-                            <ResponsiveNavLink href={route('usuarios.index')}
-                                active={route().current('usuarios.*') || route().current('configuracoes.*')}>
-                                Configurações
-                            </ResponsiveNavLink>
-                        )}
+                        <ResponsiveNavLink href={route('configuracoes.index')} active={emConfiguracoes()}>
+                            Configurações
+                        </ResponsiveNavLink>
                     </div>
                     <div className={`border-t ${navBorder} pb-3 pt-4 px-4`}>
                         <div className={`text-base font-medium ${isDark ? 'text-[#e6edf3]' : 'text-gray-800'}`}>{user.name}</div>

@@ -1,20 +1,28 @@
 import { ReactNode } from 'react';
-import { Link } from '@inertiajs/react';
+import { Link, usePage } from '@inertiajs/react';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 import { useTheme } from '@/Contexts/ThemeContext';
 import { DARK, LIGHT, Palette } from '@/lib/tema';
 import Icone from '@/Components/painel/Icone';
+import { Permissoes } from '@/types';
 
 /**
  * A moldura de Configurações: seletor à esquerda, seção à direita.
  *
- * Cada seção é uma página Inertia própria (Usuários, Campanha) e reusa esta
- * moldura — o que dá a sensação de aba sem manter estado nenhum no cliente.
- * Usuários mora aqui desde que saiu da navbar: eram cinco abas disputando
- * espaço com o sino, e "quem pode o quê" é configuração como as outras.
+ * Cada seção é uma página Inertia própria e reusa esta moldura — o que dá a
+ * sensação de aba sem manter estado nenhum no cliente.
+ *
+ * A tela abre para TODO MUNDO; o que muda por papel é a lista à esquerda:
+ *
+ *   • Usuários, Campanha, Fornecedores — só admin
+ *   • Matriz/Filial                    — todos menos o visitante
+ *   • Consignados                      — todos (o visitante só olha)
+ *
+ * O filtro aqui é só de exibição. Quem manda é o servidor: cada rota tem seu
+ * Gate, e digitar o endereço de uma seção proibida dá 403.
  */
 
-type Secao = 'usuarios' | 'campanha' | 'fornecedores';
+type Secao = 'usuarios' | 'campanha' | 'fornecedores' | 'matriz-filial' | 'consignados';
 
 interface ItemSecao {
     id: Secao;
@@ -22,39 +30,68 @@ interface ItemSecao {
     descricao: string;
     href: string;
     icone: string;
+    /** Quem vê o item no seletor. */
+    visivel: (can: Permissoes) => boolean;
 }
 
 const ICONE_USUARIOS = 'M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z';
 const ICONE_FORNECEDORES = 'M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4';
 const ICONE_CAMPANHA = 'M11 5.882V19.24a1.76 1.76 0 01-3.417.592l-2.147-6.15M18 13a3 3 0 100-6M5.436 13.683A4.001 4.001 0 017 6h1.832c4.1 0 7.625-1.234 9.168-3v14c-1.543-1.766-5.067-3-9.168-3H7a3.988 3.988 0 01-1.564-.317z';
+// Dois nós ligados: a filial pendurada na matriz.
+const ICONE_MATRIZ_FILIAL = 'M13 10V3L4 14h7v7l9-11h-7z';
+// Etiqueta: o selo que a nota do consignado carrega.
+const ICONE_CONSIGNADOS = 'M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z';
+
+// Função, e não constante: `route()` (Ziggy) só existe depois de a página carregar.
+const secoesDoSistema = (): ItemSecao[] => [
+    {
+        id: 'usuarios',
+        titulo: 'Usuários',
+        descricao: 'Contas e papéis',
+        href: route('usuarios.index'),
+        icone: ICONE_USUARIOS,
+        visivel: can => can.gerenciarConfiguracoes,
+    },
+    {
+        id: 'campanha',
+        titulo: 'Campanha de aniversário',
+        descricao: 'Liga a aba e define o texto padrão',
+        href: route('configuracoes.campanha'),
+        icone: ICONE_CAMPANHA,
+        visivel: can => can.gerenciarConfiguracoes,
+    },
+    {
+        id: 'fornecedores',
+        titulo: 'Fornecedores',
+        descricao: 'Corrige nomes das duas listas',
+        href: route('configuracoes.fornecedores'),
+        icone: ICONE_FORNECEDORES,
+        visivel: can => can.gerenciarConfiguracoes,
+    },
+    {
+        id: 'matriz-filial',
+        titulo: 'Matriz/Filial',
+        descricao: 'Junta o mesmo fornecedor cadastrado duas vezes',
+        href: route('fornecedores.index'),
+        icone: ICONE_MATRIZ_FILIAL,
+        visivel: can => can.vincularFornecedores,
+    },
+    {
+        id: 'consignados',
+        titulo: 'Consignados',
+        descricao: 'Fornecedores cujas notas levam o selo',
+        href: route('configuracoes.consignados'),
+        icone: ICONE_CONSIGNADOS,
+        visivel: () => true,
+    },
+];
 
 export default function Secoes({ atual, children }: { atual: Secao; children: ReactNode }) {
     const { isDark } = useTheme();
     const p = isDark ? DARK : LIGHT;
+    const { can } = (usePage().props as { auth: { can: Permissoes } }).auth;
 
-    const secoes: ItemSecao[] = [
-        {
-            id: 'usuarios',
-            titulo: 'Usuários',
-            descricao: 'Contas e papéis',
-            href: route('usuarios.index'),
-            icone: ICONE_USUARIOS,
-        },
-        {
-            id: 'campanha',
-            titulo: 'Campanha de aniversário',
-            descricao: 'Liga a aba e define o texto padrão',
-            href: route('configuracoes.campanha'),
-            icone: ICONE_CAMPANHA,
-        },
-        {
-            id: 'fornecedores',
-            titulo: 'Fornecedores',
-            descricao: 'Corrige nomes das duas listas',
-            href: route('configuracoes.fornecedores'),
-            icone: ICONE_FORNECEDORES,
-        },
-    ];
+    const secoes = secoesDoSistema().filter(s => s.visivel(can));
 
     return (
         <AuthenticatedLayout header={null}>

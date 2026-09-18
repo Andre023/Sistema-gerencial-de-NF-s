@@ -96,5 +96,8 @@ class AppServiceProvider extends ServiceProvider
         // ligado. Desligada, a aba não abre nem para quem sabe o endereço.
         Gate::define('usar-campanha',      fn(User $u) => $u->podeUsarCampanha());
         Gate::define('gerenciar-configuracoes', fn(User $u) => $u->podeGerenciarConfiguracoes());
+
+        // Consignados: a lista é de todos, marcar é de quem opera a fila.
+        Gate::define('marcar-consignados', fn(User $u) => $u->podeMarcarConsignados());
     }
 }

@@ -13,15 +13,40 @@ use Inertia\Inertia;
 use Inertia\Response;
 
 /**
- * Configurações — o painel do admin.
+ * Configurações.
  *
- * A tela tem um seletor à esquerda e as seções à direita: Usuários (que saiu da
- * navbar para abrir espaço) e Campanha de aniversário. Cada seção é uma página
- * Inertia própria; o que dá a aparência de aba é o layout compartilhado
- * (resources/js/Pages/Configuracoes/Secoes.tsx).
+ * A tela tem um seletor à esquerda e as seções à direita. Abre para todo
+ * mundo; o que muda por papel é a lista de seções:
+ *
+ *   • Usuários, Campanha de aniversário, Fornecedores — só admin (este controller)
+ *   • Matriz/Filial — todos menos o visitante (FornecedorVinculoController)
+ *   • Consignados   — todos veem, quem opera marca (ConsignadoController)
+ *
+ * Cada seção é uma página Inertia própria; o que dá a aparência de aba é o
+ * layout compartilhado (resources/js/Components/configuracoes/Secoes.tsx).
  */
 class ConfiguracaoController extends Controller
 {
+    /**
+     * A porta da tela: manda para a primeira seção que a conta enxerga, na
+     * mesma ordem do seletor. Assim o link "Configurações" da navbar é um só
+     * para todo papel, e ninguém cai numa seção proibida.
+     */
+    public function index(Request $request): RedirectResponse
+    {
+        $user = $request->user();
+
+        if ($user->podeGerenciarConfiguracoes()) {
+            return redirect()->route('usuarios.index');
+        }
+
+        if ($user->podeVincularFornecedores()) {
+            return redirect()->route('fornecedores.index');
+        }
+
+        return redirect()->route('configuracoes.consignados');
+    }
+
     public function campanha(): Response
     {
         return Inertia::render('Configuracoes/Campanha', [

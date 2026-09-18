@@ -11,10 +11,13 @@ class Fornecedor extends Model
 {
     protected $table = 'fornecedores';
 
-    protected $fillable = ['nome', 'cnpj', 'prioridade', 'matriz_id'];
+    protected $fillable = ['nome', 'cnpj', 'prioridade', 'consignado', 'matriz_id'];
 
     protected $casts = [
         'prioridade' => 'boolean',
+        // Consignado: marcado em Configurações › Consignados. É do fornecedor,
+        // não da nota — toda nota dele leva o selo sem ninguém marcar ao lançar.
+        'consignado' => 'boolean',
     ];
 
     public function notas(): HasMany

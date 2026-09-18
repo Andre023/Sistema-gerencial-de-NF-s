@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
-import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
+import Secoes from '@/Components/configuracoes/Secoes';
 import { Head, router } from '@inertiajs/react';
 import { useTheme } from '@/Contexts/ThemeContext';
 import { DARK, LIGHT, Palette } from '@/lib/tema';
@@ -87,7 +87,7 @@ function Caixa({ children, p, titulo }: { children: ReactNode; p: Palette; titul
     );
 }
 
-export default function Vinculos({ vinculos, total }: Props) {
+export default function MatrizFilial({ vinculos, total }: Props) {
     const { isDark } = useTheme();
     const p = isDark ? DARK : LIGHT;
 
@@ -184,15 +184,15 @@ export default function Vinculos({ vinculos, total }: Props) {
     const vazio = (texto: string) => <p className="text-sm px-4 py-6 text-center" style={{ color: p.MUTED }}>{texto}</p>;
 
     return (
-        <AuthenticatedLayout header={null}>
+        <Secoes atual="matriz-filial">
             <Head title="Matriz e filial" />
 
-            <div className="flex-1 w-full py-6 px-4 sm:px-6 lg:px-8 max-w-3xl mx-auto space-y-5 transition-colors duration-200"
-                style={{ background: p.BG }}>
+            {/* A moldura (Secoes) já dá fundo e margens; aqui só o miolo. */}
+            <div className="space-y-5">
 
                 <div>
-                    <h1 className="text-lg font-semibold" style={{ color: p.TEXT }}>Matriz e filial</h1>
-                    <p className="text-sm mt-1" style={{ color: p.MUTED }}>
+                    <h2 className="text-sm font-semibold" style={{ color: p.TEXT }}>Matriz e filial</h2>
+                    <p className="text-xs mt-1" style={{ color: p.MUTED }}>
                         O mesmo fornecedor cadastrado duas vezes — matriz e filial, ou "S.A." e "S/A". Ao vincular,
                         as notas da filial passam para a matriz e só a matriz aparece na hora de lançar nota;
                         buscar pelo nome da filial encontra a matriz. Nada é apagado.
@@ -296,6 +296,6 @@ export default function Vinculos({ vinculos, total }: Props) {
                 </Caixa>
 
             </div>
-        </AuthenticatedLayout>
+        </Secoes>
     );
 }

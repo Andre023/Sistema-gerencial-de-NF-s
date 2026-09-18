@@ -63,6 +63,7 @@ class HandleInertiaRequests extends Middleware
                     'usarCampanha'            => $user->podeUsarCampanha(),
                     'gerenciarConfiguracoes'  => $user->podeGerenciarConfiguracoes(),
                     'vincularFornecedores'    => $user->podeVincularFornecedores(),
+                    'marcarConsignados'       => $user->podeMarcarConsignados(),
                 ] : null,
             ],
             /*
