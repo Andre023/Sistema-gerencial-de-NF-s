@@ -779,7 +779,7 @@ function AcoesNota({ nota, onCards, onComentar, onAnexos, onDevolucao, onEditar,
     );
 }
 
-/** Selos que andam junto com o número da nota (CEASA, idade, fila anterior). */
+/** Selos que andam junto com o número da nota (CEASA, consignado, idade, fila anterior). */
 function SelosNota({ nota, p }: { nota: Nota; p: Palette }) {
     const cor = nivelCor(nota.nivel, p);
     return (
@@ -791,6 +791,8 @@ function SelosNota({ nota, p }: { nota: Nota; p: Palette }) {
                     {nota.ceasa === 3 ? 'CEASA' : `CEASA ${nota.ceasa}`}
                 </span>
             )}
+            {/* Consignado vem do fornecedor, não da nota: aparece sozinho */}
+            {nota.fornecedor.consignado && <SeloConsignado p={p} />}
             {nota.nivel !== 'normal' && (
                 <span className="inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-xs font-semibold whitespace-nowrap"
                     style={{ background: cor + '22', color: cor, border: `1px solid ${cor}44` }}
@@ -840,8 +842,6 @@ function CartaoFila(props: AcoesProps & { isDark: boolean }) {
                 {nota.fornecedor.prioridade && (
                     <span title="Fornecedor prioritário" style={{ color: p.AMBER }}>★</span>
                 )}
-                {/* Consignado vem do fornecedor, não da nota: aparece sozinho */}
-                {nota.fornecedor.consignado && <SeloConsignado p={p} />}
                 <span className="truncate">{nota.fornecedor.nome}</span>
             </div>
 
@@ -926,6 +926,7 @@ function CartaoLiberada({ nota, can, isDark, p, onCards, onComentar, onEditarObs
                         {nota.ceasa === 3 ? 'CEASA' : `CEASA ${nota.ceasa}`}
                     </span>
                 )}
+                {nota.fornecedor.consignado && <SeloConsignado p={p} />}
                 {/* Liberada em outro dia, mas o caminhão trouxe hoje */}
                 {nota.recebida_em?.slice(0, 10) === hoje() && nota.liberada_em?.slice(0, 10) !== hoje() && (
                     <span className="text-[11px] font-medium px-1.5 py-0.5 rounded"
@@ -937,7 +938,6 @@ function CartaoLiberada({ nota, can, isDark, p, onCards, onComentar, onEditarObs
             </div>
 
             <p className="text-sm truncate" style={{ color: p.TEXT }}>
-                {nota.fornecedor.consignado && <SeloConsignado p={p} className="mr-1.5" />}
                 {nota.fornecedor.nome}
             </p>
 
@@ -999,11 +999,11 @@ function CartaoCancelada({ nota, can, p, onComentar, onDescancelar }: {
                         {nota.ceasa === 3 ? 'CEASA' : `CEASA ${nota.ceasa}`}
                     </span>
                 )}
+                {nota.fornecedor.consignado && <SeloConsignado p={p} />}
                 <span className="text-xs" style={{ color: p.MUTED }}>{ORIGEM_LABEL[nota.origem]}</span>
             </div>
 
             <p className="text-sm truncate" style={{ color: p.TEXT }}>
-                {nota.fornecedor.consignado && <SeloConsignado p={p} className="mr-1.5" />}
                 {nota.fornecedor.nome}
             </p>
 
@@ -1054,7 +1054,6 @@ function LinhaFila({ nota, onCards, onComentar, onAnexos, onDevolucao, onEditar,
                 {nota.fornecedor.prioridade && (
                     <span title="Fornecedor prioritário" className="mr-1" style={{ color: p.AMBER }}>★</span>
                 )}
-                {nota.fornecedor.consignado && <SeloConsignado p={p} className="mr-1.5" />}
                 {nota.fornecedor.nome}
             </td>
             <td className="px-4 py-3">
@@ -2006,6 +2005,7 @@ export default function Index({ recebimento, preLote, liberadas, canceladas, dev
                                                     {n.ceasa === 3 ? 'CEASA' : `CEASA ${n.ceasa}`}
                                                 </span>
                                             )}
+                                            {n.fornecedor.consignado && <SeloConsignado p={p} className="ml-2" />}
                                             {/* Liberada em outro dia, mas o caminhão trouxe hoje */}
                                             {n.recebida_em?.slice(0, 10) === hoje() && n.liberada_em?.slice(0, 10) !== hoje() && (
                                                 <span className="ml-2 text-[11px] font-medium px-1.5 py-0.5 rounded no-underline"
@@ -2016,7 +2016,6 @@ export default function Index({ recebimento, preLote, liberadas, canceladas, dev
                                             )}
                                         </td>
                                         <td className="px-4 py-3 text-sm max-w-[180px] truncate" style={{ color: p.TEXT }}>
-                                            {n.fornecedor.consignado && <SeloConsignado p={p} className="mr-1.5" />}
                                             {n.fornecedor.nome}
                                         </td>
                                         <td className="px-4 py-3">
@@ -2151,9 +2150,9 @@ export default function Index({ recebimento, preLote, liberadas, canceladas, dev
                                                     {n.ceasa === 3 ? 'CEASA' : `CEASA ${n.ceasa}`}
                                                 </span>
                                             )}
+                                            {n.fornecedor.consignado && <SeloConsignado p={p} className="ml-2" />}
                                         </td>
                                         <td className="px-4 py-3 text-sm max-w-[180px] truncate" style={{ color: p.TEXT }}>
-                                            {n.fornecedor.consignado && <SeloConsignado p={p} className="mr-1.5" />}
                                             {n.fornecedor.nome}
                                         </td>
                                         <td className="px-4 py-3 text-sm whitespace-nowrap" style={{ color: p.TEXT }}>{lojaNome(n.loja)}</td>

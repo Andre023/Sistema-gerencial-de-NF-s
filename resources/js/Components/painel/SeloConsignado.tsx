@@ -1,11 +1,11 @@
 import { Palette } from '@/lib/tema';
 
 /**
- * O selo de fornecedor consignado — vai ANTES do nome do fornecedor, em toda
- * nota dele, em todas as planilhas da fila.
+ * O selo de fornecedor consignado — anda junto do NÚMERO da nota, ao lado do
+ * selo CEASA e do de idade, em todas as planilhas da fila.
  *
- * Mesmo desenho do selo CEASA (que anda com o número da nota), em outra cor
- * para não se confundirem. A diferença está na origem: o CEASA é marcado a
+ * Mesmo desenho do selo CEASA, em outra cor para não se confundirem. A
+ * diferença está na origem: o CEASA é marcado a
  * cada nota lançada; este vem do fornecedor (Configurações › Consignados) e
  * aparece sozinho, sem ninguém marcar nada.
  *
