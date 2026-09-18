@@ -70,8 +70,8 @@ export interface Permissoes {
     gerenciarConfiguracoes: boolean;
     /** Vincular filial à matriz (Configurações › Matriz/Filial) — todos menos o visitante */
     vincularFornecedores: boolean;
-    /** Marcar fornecedor consignado (Configurações › Consignados) — todos menos o visitante */
-    marcarConsignados: boolean;
+    /** Marcar as marcas de fornecedor — consignado, feira, uso e consumo (Configurações) — todos menos o visitante */
+    marcarFornecedores: boolean;
 }
 
 /**
@@ -96,8 +96,10 @@ export interface Fornecedor {
     cnpj?: string | null;
     /** Fornecedor prioritário: sobe ao topo do pré-lote */
     prioridade?: boolean;
-    /** Consignado: toda nota dele leva o selo antes do nome (marca do fornecedor, não da nota) */
+    /** Marcas do fornecedor (lib/marcas.ts): toda nota dele leva o selo junto do número */
     consignado?: boolean;
+    feira?: boolean;
+    uso_consumo?: boolean;
     /** Nomes das filiais vinculadas — a busca acha a matriz por qualquer um deles */
     filiais?: string[];
 }

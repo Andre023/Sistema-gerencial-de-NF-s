@@ -426,7 +426,8 @@ class User extends Authenticatable
      *
      * A tela de Configurações em si abre para todo mundo: o que muda por papel
      * é a lista de seções à esquerda. Matriz/Filial segue a régua de
-     * podeVincularFornecedores(), e Consignados a de podeMarcarConsignados().
+     * podeVincularFornecedores(), e as marcas (Consignados, Feira, Uso e
+     * consumo) a de podeMarcarFornecedores().
      */
     public function podeGerenciarConfiguracoes(): bool
     {
@@ -434,15 +435,15 @@ class User extends Authenticatable
     }
 
     /**
-     * Marcar e desmarcar fornecedor consignado (Configurações › Consignados) —
-     * todo papel operacional.
+     * Marcar e desmarcar as marcas de fornecedor — consignado, feira, uso e
+     * consumo (Fornecedor::MARCAS) — todo papel operacional.
      *
      * Mesma régua de Matriz/Filial: quem descobre que o fornecedor é consignado
      * é quem lança e quem confere a nota, e a marca não apaga nada — só põe um
      * selo nas notas dele. Ver a lista é de qualquer conta, inclusive o
      * visitante, que é só-leitura e continua sendo.
      */
-    public function podeMarcarConsignados(): bool
+    public function podeMarcarFornecedores(): bool
     {
         return ! $this->ehVisitante();
     }

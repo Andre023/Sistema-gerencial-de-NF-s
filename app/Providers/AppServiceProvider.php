@@ -97,7 +97,8 @@ class AppServiceProvider extends ServiceProvider
         Gate::define('usar-campanha',      fn(User $u) => $u->podeUsarCampanha());
         Gate::define('gerenciar-configuracoes', fn(User $u) => $u->podeGerenciarConfiguracoes());
 
-        // Consignados: a lista é de todos, marcar é de quem opera a fila.
-        Gate::define('marcar-consignados', fn(User $u) => $u->podeMarcarConsignados());
+        // Marcas de fornecedor (consignado, feira, uso e consumo): a lista é de
+        // todos, marcar é de quem opera a fila.
+        Gate::define('marcar-fornecedores', fn(User $u) => $u->podeMarcarFornecedores());
     }
 }

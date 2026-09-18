@@ -5,6 +5,7 @@ import { useTheme } from '@/Contexts/ThemeContext';
 import { DARK, LIGHT, Palette } from '@/lib/tema';
 import Icone from '@/Components/painel/Icone';
 import { Permissoes } from '@/types';
+import { MARCAS, MarcaSlug } from '@/lib/marcas';
 
 /**
  * A moldura de Configurações: seletor à esquerda, seção à direita.
@@ -16,13 +17,13 @@ import { Permissoes } from '@/types';
  *
  *   • Usuários, Campanha, Fornecedores — só admin
  *   • Matriz/Filial                    — todos menos o visitante
- *   • Consignados                      — todos (o visitante só olha)
+ *   • Consignados, Feira, Uso e consumo — todos (o visitante só olha)
  *
  * O filtro aqui é só de exibição. Quem manda é o servidor: cada rota tem seu
  * Gate, e digitar o endereço de uma seção proibida dá 403.
  */
 
-type Secao = 'usuarios' | 'campanha' | 'fornecedores' | 'matriz-filial' | 'consignados';
+type Secao = 'usuarios' | 'campanha' | 'fornecedores' | 'matriz-filial' | MarcaSlug;
 
 interface ItemSecao {
     id: Secao;
@@ -39,8 +40,8 @@ const ICONE_FORNECEDORES = 'M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h
 const ICONE_CAMPANHA = 'M11 5.882V19.24a1.76 1.76 0 01-3.417.592l-2.147-6.15M18 13a3 3 0 100-6M5.436 13.683A4.001 4.001 0 017 6h1.832c4.1 0 7.625-1.234 9.168-3v14c-1.543-1.766-5.067-3-9.168-3H7a3.988 3.988 0 01-1.564-.317z';
 // Dois nós ligados: a filial pendurada na matriz.
 const ICONE_MATRIZ_FILIAL = 'M13 10V3L4 14h7v7l9-11h-7z';
-// Etiqueta: o selo que a nota do consignado carrega.
-const ICONE_CONSIGNADOS = 'M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z';
+// Etiqueta: o selo que a nota do fornecedor marcado carrega.
+const ICONE_MARCA = 'M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z';
 
 // Função, e não constante: `route()` (Ziggy) só existe depois de a página carregar.
 const secoesDoSistema = (): ItemSecao[] => [
@@ -76,14 +77,16 @@ const secoesDoSistema = (): ItemSecao[] => [
         icone: ICONE_MATRIZ_FILIAL,
         visivel: can => can.vincularFornecedores,
     },
-    {
-        id: 'consignados',
-        titulo: 'Consignados',
-        descricao: 'Fornecedores cujas notas levam o selo',
-        href: route('configuracoes.consignados'),
-        icone: ICONE_CONSIGNADOS,
+    // As marcas de fornecedor (consignados, feira, uso e consumo): uma seção
+    // cada, todas com a mesma página e o mesmo ícone de etiqueta.
+    ...MARCAS.map((m): ItemSecao => ({
+        id: m.slug,
+        titulo: m.titulo,
+        descricao: `Fornecedores cujas notas levam o selo ${m.selo}`,
+        href: route('configuracoes.marca', m.slug),
+        icone: ICONE_MARCA,
         visivel: () => true,
-    },
+    })),
 ];
 
 export default function Secoes({ atual, children }: { atual: Secao; children: ReactNode }) {

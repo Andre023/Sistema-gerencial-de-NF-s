@@ -195,7 +195,8 @@ export default function AuthenticatedLayout({
                                 {/* Configurações é de todo mundo: o que muda por
                                     papel é a lista de seções lá dentro (Usuários,
                                     Campanha e Fornecedores só para o admin;
-                                    Matriz/Filial e Consignados para os demais).
+                                    Matriz/Filial e as marcas de fornecedor para
+                                    os demais).
                                     Usuários e Matriz/Filial deixaram de ser abas
                                     e viraram seções — eram links demais
                                     disputando espaço com o sino em 1024px.

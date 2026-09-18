@@ -6,19 +6,19 @@ import { useTheme } from '@/Contexts/ThemeContext';
 
 export interface Palette {
     BG: string; SURFACE: string; BORDER: string; TEXT: string; MUTED: string;
-    ACCENT: string; GREEN: string; RED: string; AMBER: string; PURPLE: string; ORANGE: string;
+    ACCENT: string; GREEN: string; RED: string; AMBER: string; PURPLE: string; ORANGE: string; TEAL: string; PINK: string;
     INPUT_BG: string; INPUT_BORDER: string; HOVER_ROW: string; TOOLTIP_BG: string;
 }
 
 export const DARK: Palette = {
     BG: '#0d1117', SURFACE: '#161b22', BORDER: '#21262d', TEXT: '#e6edf3', MUTED: '#7d8590',
-    ACCENT: '#2f81f7', GREEN: '#3fb950', RED: '#f85149', AMBER: '#d29922', PURPLE: '#a371f7', ORANGE: '#e3954a',
+    ACCENT: '#2f81f7', GREEN: '#3fb950', RED: '#f85149', AMBER: '#d29922', PURPLE: '#a371f7', ORANGE: '#e3954a', TEAL: '#39c5bb', PINK: '#f778ba',
     INPUT_BG: '#0d1117', INPUT_BORDER: '#30363d', HOVER_ROW: '#21262d', TOOLTIP_BG: '#30363d',
 };
 
 export const LIGHT: Palette = {
     BG: '#f6f8fa', SURFACE: '#ffffff', BORDER: '#d0d7de', TEXT: '#1f2328', MUTED: '#656d76',
-    ACCENT: '#0969da', GREEN: '#1a7f37', RED: '#d1242f', AMBER: '#9a6700', PURPLE: '#8250df', ORANGE: '#c2410c',
+    ACCENT: '#0969da', GREEN: '#1a7f37', RED: '#d1242f', AMBER: '#9a6700', PURPLE: '#8250df', ORANGE: '#c2410c', TEAL: '#0f766e', PINK: '#bf3989',
     INPUT_BG: '#ffffff', INPUT_BORDER: '#d0d7de', HOVER_ROW: '#f6f8fa', TOOLTIP_BG: '#1f2328',
 };
 

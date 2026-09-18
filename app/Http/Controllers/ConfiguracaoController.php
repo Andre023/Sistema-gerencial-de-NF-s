@@ -20,7 +20,8 @@ use Inertia\Response;
  *
  *   • Usuários, Campanha de aniversário, Fornecedores — só admin (este controller)
  *   • Matriz/Filial — todos menos o visitante (FornecedorVinculoController)
- *   • Consignados   — todos veem, quem opera marca (ConsignadoController)
+ *   • Consignados, Feira, Uso e consumo — todos veem, quem opera marca
+ *     (MarcaFornecedorController)
  *
  * Cada seção é uma página Inertia própria; o que dá a aparência de aba é o
  * layout compartilhado (resources/js/Components/configuracoes/Secoes.tsx).
@@ -44,7 +45,7 @@ class ConfiguracaoController extends Controller
             return redirect()->route('fornecedores.index');
         }
 
-        return redirect()->route('configuracoes.consignados');
+        return redirect()->route('configuracoes.marca', 'consignados');
     }
 
     public function campanha(): Response

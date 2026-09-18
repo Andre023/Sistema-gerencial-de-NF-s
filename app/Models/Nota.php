@@ -218,7 +218,7 @@ class Nota extends Model
     public function paraTelaAgora(): ?array
     {
         $nota = $this->fresh([
-            'fornecedor:id,nome,prioridade,consignado',
+            'fornecedor:id,nome,prioridade,' . Fornecedor::colunasDasMarcas(),
             'user:id,name,avatar_tipo,avatar_valor',
             'liberadaPor:id,name,avatar_tipo,avatar_valor',
             'visualizadaPor:id,name,avatar_tipo,avatar_valor',

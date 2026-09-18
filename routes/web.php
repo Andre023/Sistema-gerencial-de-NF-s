@@ -5,7 +5,7 @@ use App\Http\Controllers\CampanhaController;
 use App\Http\Controllers\CardController;
 use App\Http\Controllers\ComentarioController;
 use App\Http\Controllers\ConfiguracaoController;
-use App\Http\Controllers\ConsignadoController;
+use App\Http\Controllers\MarcaFornecedorController;
 use App\Http\Controllers\ConversaController;
 use App\Http\Controllers\DevolucaoController;
 use App\Http\Controllers\DossieController;
@@ -18,6 +18,7 @@ use App\Http\Controllers\NotificacaoController;
 use App\Http\Controllers\PrioridadeController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\UserController;
+use App\Models\Fornecedor;
 use Illuminate\Support\Facades\Route;
 
 // ─── PORTA DE ENTRADA ─────────────────────────────────────────────────────────
@@ -218,7 +219,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
     //
     //   • Usuários, Campanha, Fornecedores — só admin (gerenciar-configuracoes)
     //   • Matriz/Filial                    — todos menos o visitante (acima)
-    //   • Consignados                      — todos veem; marcar é de quem opera
+    //   • Consignados, Feira, Uso e consumo — todos veem; marcar é de quem opera
     //
     // Usuários mora aqui dentro desde que saiu da navbar — o menu não comportava
     // mais uma aba, e o lugar de "quem pode o quê" é junto das outras chaves.
@@ -233,11 +234,17 @@ Route::middleware(['auth', 'verified'])->group(function () {
         // A porta da tela: entra pela primeira seção que a conta enxerga.
         Route::get('/', [ConfiguracaoController::class, 'index'])->name('index');
 
-        // Consignados: a lista abre para qualquer conta; marcar tem Gate próprio.
-        Route::get('/consignados',                [ConsignadoController::class, 'index'])->name('consignados');
-        Route::patch('/consignados/{fornecedor}', [ConsignadoController::class, 'alternar'])
-             ->middleware('can:marcar-consignados')
-             ->name('consignados.alternar');
+        // Marcas de fornecedor (consignados, feira, uso-consumo): a lista abre
+        // para qualquer conta; marcar tem Gate próprio. O `where` fecha a URL
+        // nos slugs conhecidos — sem ele, /configuracoes/qualquer-coisa cairia
+        // aqui em vez de dar 404.
+        Route::get('/{marca}', [MarcaFornecedorController::class, 'index'])
+             ->where('marca', Fornecedor::padraoDeRotaDasMarcas())
+             ->name('marca');
+        Route::patch('/{marca}/{fornecedor}', [MarcaFornecedorController::class, 'alternar'])
+             ->where('marca', Fornecedor::padraoDeRotaDasMarcas())
+             ->middleware('can:marcar-fornecedores')
+             ->name('marca.alternar');
     });
 
     Route::middleware('can:gerenciar-configuracoes')->prefix('configuracoes')->name('configuracoes.')->group(function () {
