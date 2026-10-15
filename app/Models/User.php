@@ -32,6 +32,20 @@ class User extends Authenticatable
     ];
 
     /**
+     * O Hipermon — o perfil que conta as novidades do sistema no chat.
+     *
+     * Não é gente: ninguém entra com ele (o login recusa), ninguém escreve para
+     * ele (o chat recusa) e ele não aparece em Usuários. Fica FORA de ROLES de
+     * propósito — ROLES é a lista que o admin escolhe ao criar uma conta, e
+     * ninguém deve conseguir criar um segundo Hipermon por ali.
+     *
+     * A conta nasce na migration `create_hipermon`; quem fala por ele é o admin,
+     * em Configurações › Novidades (App\Services\Novidades).
+     */
+    public const ROLE_SISTEMA   = 'sistema';
+    public const HIPERMON_EMAIL = 'hipermon@sistema.local';
+
+    /**
      * The attributes that are mass assignable.
      *
      * @var list<string>
@@ -186,6 +200,18 @@ class User extends Authenticatable
     public function lancamentoAvisaPreLote(): bool
     {
         return $this->role !== self::ROLE_PRE_LOTE || $this->acumula_recebimento;
+    }
+
+    /** O perfil de novidades (ver ROLE_SISTEMA). */
+    public function ehHipermon(): bool
+    {
+        return $this->role === self::ROLE_SISTEMA;
+    }
+
+    /** A conta do Hipermon, ou null se a migration ainda não a criou. */
+    public static function hipermon(): ?self
+    {
+        return static::where('role', self::ROLE_SISTEMA)->first();
     }
 
     /** Visitante: acesso só-leitura — vê as notas, mas não executa nenhuma ação. */

@@ -37,6 +37,7 @@ const PAPEL: Record<string, string> = {
     compras: 'Compras',
     visitante: 'Visitante',
     admin: 'Administrador',
+    sistema: 'Novidades do sistema',
 };
 
 /**
@@ -132,6 +133,9 @@ export default function PainelConversa({ pessoa, online, meuId, p }: {
         outroDigitando,
         fecharConversa, enviar, carregarAntigas, limparErro, reagir, avisarQueDigito,
     } = useChat();
+
+    // O perfil de novidades (User::ROLE_SISTEMA): só fala, não recebe
+    const ehHipermon = pessoa.papel === 'sistema';
 
     const [texto, setTexto]     = useState('');
     const [arquivo, setArquivo] = useState<File | null>(null);
@@ -580,7 +584,9 @@ export default function PainelConversa({ pessoa, online, meuId, p }: {
                         <p className="text-xs" style={{ color: p.MUTED }}>
                             Nenhuma mensagem ainda.
                             <br />
-                            Escreva abaixo para começar a conversa com {pessoa.nome.split(' ')[0]}.
+                            {ehHipermon
+                                ? 'As novidades do sistema vão aparecer aqui.'
+                                : `Escreva abaixo para começar a conversa com ${pessoa.nome.split(' ')[0]}.`}
                         </p>
                     </div>
                 )}
@@ -652,10 +658,20 @@ export default function PainelConversa({ pessoa, online, meuId, p }: {
                 </div>
             )}
 
-            {/* ── Escrever ──
+            {/* ── O Hipermon só fala ──
+                No lugar do campo de escrever, o aviso: o servidor recusaria a
+                mensagem de qualquer jeito (ConversaController::enviar), e um
+                campo que não funciona é convite a escrever e se frustrar. */}
+            {ehHipermon ? (
+                <div className="px-3 py-3 text-xs text-center shrink-0"
+                    style={{ borderTop: `1px solid ${p.BORDER}`, color: p.MUTED }}>
+                    🤖 O Hipermon só conta as novidades do sistema — não dá para responder.
+                </div>
+            ) : (
+            /* ── Escrever ──
                 O onPaste vive no <form> e não no textarea: assim o Ctrl+V pega
                 com o foco em qualquer canto da área de escrever, e continua
-                sem alcançar o resto do sistema. */}
+                sem alcançar o resto do sistema. */
             <form onSubmit={submeter} onPaste={colar} className="p-2 shrink-0"
                 style={{ borderTop: `1px solid ${p.BORDER}` }}>
 
@@ -771,6 +787,7 @@ export default function PainelConversa({ pessoa, online, meuId, p }: {
                     </button>
                 </div>
             </form>
+            )}
         </div>
     );
 }

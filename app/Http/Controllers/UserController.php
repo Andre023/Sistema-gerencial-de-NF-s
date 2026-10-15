@@ -17,7 +17,9 @@ class UserController extends Controller
 
     public function index(): Response
     {
+        // O Hipermon (perfil de novidades) não é conta de gente: fica fora
         $usuarios = User::select('id', 'name', 'email', 'role', 'acumula_recebimento', 'created_at')
+            ->where('role', '!=', User::ROLE_SISTEMA)
             ->orderBy('name')
             ->get()
             ->map(fn($u) => [
@@ -63,6 +65,10 @@ class UserController extends Controller
 
     public function update(Request $request, User $user): RedirectResponse
     {
+        // Ele não aparece na lista, mas a URL é previsível: editar o Hipermon
+        // (papel, e-mail, senha) o transformaria numa conta de verdade.
+        abort_if($user->ehHipermon(), 404);
+
         $dados = $request->validate([
             'name'     => 'sometimes|string|max:255',
             'email'    => ['sometimes', 'string', 'lowercase', 'email', 'max:255', Rule::unique('users', 'email')->ignore($user->id)],
@@ -103,6 +109,8 @@ class UserController extends Controller
 
     public function destroy(Request $request, User $user): RedirectResponse
     {
+        abort_if($user->ehHipermon(), 404);
+
         if ($user->id === $request->user()->id) {
             return back()->withErrors(['usuario' => 'Você não pode excluir a própria conta.']);
         }

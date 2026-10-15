@@ -116,6 +116,14 @@ class ConversaController extends Controller
 
         abort_if($pessoa->id === $user->id, 422);
 
+        // O Hipermon só fala: ninguém lê o que se manda para ele, e a resposta
+        // ficaria esquecida numa conversa sem ninguém do outro lado.
+        if ($pessoa->ehHipermon()) {
+            throw ValidationException::withMessages([
+                'texto' => 'O Hipermon só conta as novidades do sistema — ele não recebe mensagens.',
+            ]);
+        }
+
         $request->validate([
             'texto'   => ['nullable', 'string', 'max:' . Mensagem::TEXTO_MAX],
             // `mimes` olha o CONTEÚDO do arquivo (via finfo), não o Content-Type

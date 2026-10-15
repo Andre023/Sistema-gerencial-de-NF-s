@@ -504,7 +504,9 @@ class ChatTest extends TestCase
 
         $pessoas = $resposta->json('pessoas');
 
-        $this->assertCount(2, $pessoas);
+        // As duas pessoas e o Hipermon (perfil de novidades, criado pela migration)
+        $this->assertCount(3, $pessoas);
+        $this->assertSame(1, count(array_keys(array_column($pessoas, 'papel'), User::ROLE_SISTEMA)));
         $this->assertNotContains($andre->id, array_column($pessoas, 'id'));
     }
 

@@ -318,7 +318,8 @@ export interface Mensagem {
 export interface PessoaChat {
     id: number;
     nome: string;
-    papel: Papel;
+    /** 'sistema' é o Hipermon, o perfil de novidades (não é papel de gente) */
+    papel: Papel | 'sistema';
     avatar: Avatar | null;
     conversa_id: number | null;
     nao_lidas: number;

@@ -13,6 +13,7 @@ use App\Http\Controllers\EstatisticaController;
 use App\Http\Controllers\FornecedorController;
 use App\Http\Controllers\FornecedorVinculoController;
 use App\Http\Controllers\NotaController;
+use App\Http\Controllers\NovidadeController;
 use App\Http\Controllers\OcorrenciaController;
 use App\Http\Controllers\NotificacaoController;
 use App\Http\Controllers\PrioridadeController;
@@ -260,6 +261,10 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::patch('/fornecedores-campanha/{campanhaFornecedor}', [ConfiguracaoController::class, 'renomearFornecedorCampanha'])->name('fornecedores.campanha.renomear');
         Route::delete('/fornecedores/{fornecedor}', [ConfiguracaoController::class, 'excluirFornecedor'])->name('fornecedores.excluir');
         Route::delete('/fornecedores-campanha/{campanhaFornecedor}', [ConfiguracaoController::class, 'excluirFornecedorCampanha'])->name('fornecedores.campanha.excluir');
+
+        // Novidades: o admin escreve, o Hipermon conta no chat para todo mundo
+        Route::get('/novidades',  [NovidadeController::class, 'index'])->name('novidades');
+        Route::post('/novidades', [NovidadeController::class, 'publicar'])->name('novidades.publicar');
     });
 });
 
