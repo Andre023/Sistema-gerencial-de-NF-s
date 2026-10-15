@@ -570,21 +570,20 @@ function ModalEditarLiberada({ nota, can, onFechar, executar, p }: {
 }
 
 /**
- * A chave que ordena a coluna Divergências: os TIPOS dos cards, na ordem dos
- * chips (TIPO_CARD_LABEL — Cadastro, Regra, Bluesoft, Custo…).
+ * A chave que ordena a coluna Divergências: o NOME dos cards, em ordem
+ * alfabética (Bluesoft, Cadastro, Custo, Devolução…).
  *
- * Pelo tipo, e não pela quantidade: quase toda nota tem um card só, e ordenar
- * por "1, 1, 1, 2" não mexia em nada na tela. Assim as notas do mesmo tipo
- * ficam juntas — todas as de Cadastro, depois as de Regra… — e a nota com
- * Cadastro + Custo vem logo depois das que só têm Cadastro.
+ * Pelo nome, e não pela quantidade: quase toda nota tem um card só, e ordenar
+ * por "1, 1, 1, 2" não mexia em nada na tela. Assim as notas do mesmo card
+ * ficam juntas, e a nota com Cadastro + Custo vem logo depois das que só têm
+ * Cadastro (os nomes de uma mesma nota também entram em ordem alfabética).
  */
-const ORDEM_TIPOS = Object.keys(TIPO_CARD_LABEL);
+const nomeDoCard = (tipo: string) => TIPO_CARD_LABEL[tipo] ?? tipo;
 function chaveDosTipos(cards: Card[]): string {
     return cards
-        .map(c => { const i = ORDEM_TIPOS.indexOf(c.tipo); return i < 0 ? 97 : i; })
-        .sort((a, b) => a - b)
-        .map(i => String(i).padStart(2, '0'))
-        .join(' ');
+        .map(c => nomeDoCard(c.tipo))
+        .sort((a, b) => a.localeCompare(b, 'pt-BR', { sensitivity: 'base' }))
+        .join(' + ');
 }
 
 /**
@@ -600,9 +599,9 @@ const VALORES_NOTA: Valores<Nota> = {
     divergencias:  n => {
         const ativos = n.cards.filter(c => c.status !== 'resolvido');
         if (ativos.length) return chaveDosTipos(ativos);
-        // Sem card aberto: "Reconferir" logo depois dos tipos; "aguardando
-        // análise" (nada ainda) vai para o fim, como todo vazio.
-        return n.status === 'reconferir' ? '98' : null;
+        // Sem card aberto: "Reconferir" entra na ordem alfabética pelo próprio
+        // nome; "aguardando análise" (nada ainda) vai para o fim, como todo vazio.
+        return n.status === 'reconferir' ? 'Reconferir' : null;
     },
     cards:         n => n.cards.length ? chaveDosTipos(n.cards) : null,
     loja:          n => n.loja,
