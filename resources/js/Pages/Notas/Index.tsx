@@ -570,17 +570,41 @@ function ModalEditarLiberada({ nota, can, onFechar, executar, p }: {
 }
 
 /**
+ * A chave que ordena a coluna Divergências: os TIPOS dos cards, na ordem dos
+ * chips (TIPO_CARD_LABEL — Cadastro, Regra, Bluesoft, Custo…).
+ *
+ * Pelo tipo, e não pela quantidade: quase toda nota tem um card só, e ordenar
+ * por "1, 1, 1, 2" não mexia em nada na tela. Assim as notas do mesmo tipo
+ * ficam juntas — todas as de Cadastro, depois as de Regra… — e a nota com
+ * Cadastro + Custo vem logo depois das que só têm Cadastro.
+ */
+const ORDEM_TIPOS = Object.keys(TIPO_CARD_LABEL);
+function chaveDosTipos(cards: Card[]): string {
+    return cards
+        .map(c => { const i = ORDEM_TIPOS.indexOf(c.tipo); return i < 0 ? 97 : i; })
+        .sort((a, b) => a - b)
+        .map(i => String(i).padStart(2, '0'))
+        .join(' ');
+}
+
+/**
  * O que cada coluna das tabelas da fila ordena (lib/ordenacao.ts).
  *
  * "Lançado", "Liberada por" e "Cancelada por" mostram quem fez — ordenam pelo
- * nome da pessoa. "Divergências" ordena pela quantidade: na fila, as que ainda
- * travam a nota; nas liberadas, todas as que ela teve.
+ * nome da pessoa. "Divergências" ordena pelo tipo do card (chaveDosTipos): na
+ * fila, os que ainda travam a nota; nas liberadas, todos os que ela teve.
  */
 const VALORES_NOTA: Valores<Nota> = {
     nota:          n => n.numero_nota,
     fornecedor:    n => n.fornecedor.nome,
-    divergencias:  n => n.cards.filter(c => c.status !== 'resolvido').length,
-    cards:         n => n.cards.length,
+    divergencias:  n => {
+        const ativos = n.cards.filter(c => c.status !== 'resolvido');
+        if (ativos.length) return chaveDosTipos(ativos);
+        // Sem card aberto: "Reconferir" logo depois dos tipos; "aguardando
+        // análise" (nada ainda) vai para o fim, como todo vazio.
+        return n.status === 'reconferir' ? '98' : null;
+    },
+    cards:         n => n.cards.length ? chaveDosTipos(n.cards) : null,
     loja:          n => n.loja,
     observacao:    n => n.observacao,
     lancado:       n => n.user.name,
