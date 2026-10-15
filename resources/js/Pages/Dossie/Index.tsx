@@ -4,6 +4,8 @@ import { Head, router } from '@inertiajs/react';
 import { useTheme } from '@/Contexts/ThemeContext';
 import { Fornecedor, StatusNota, TipoCard, OrigemNota } from '@/types';
 import { TIPO_CARD_LABEL, STATUS_NOTA_LABEL, ORIGEM_LABEL } from '@/lib/tema';
+import { useOrdenacao, dataBR } from '@/lib/ordenacao';
+import ThOrdenavel from '@/Components/painel/ThOrdenavel';
 import {
     DARK, LIGHT, Palette, Card, KpiCard, Linha, BarrasH, BarrasV, Donut, ComparaRede,
     LOJA_CORES_DARK, LOJA_CORES_LIGHT, lojaNome, fmtHoras,
@@ -71,6 +73,17 @@ export default function Index({ busca, periodo, resultados, fornecedor, dossie }
         { fornecedor_id: fornecedor?.id, busca: termo, periodo: d }, { preserveState: true, preserveScroll: true });
 
     const k = dossie?.kpis;
+
+    // Últimas notas: ordenar clicando no nome da coluna (lib/ordenacao.ts)
+    const ordUltimas = useOrdenacao(dossie?.ultimas ?? [], {
+        nota:         n => n.numero_nota,
+        loja:         n => n.loja,
+        fila:         n => ORIGEM_LABEL[n.origem],
+        status:       n => STATUS_NOTA_LABEL[n.status],
+        divergencias: n => n.cards.length,
+        lancada:      n => dataBR(n.created_at),
+        liberada:     n => dataBR(n.liberada_em),
+    });
 
     return (
         <AuthenticatedLayout header={null}>
@@ -286,9 +299,10 @@ export default function Index({ busca, periodo, resultados, fornecedor, dossie }
                                 <table className="min-w-full">
                                     <thead>
                                         <tr style={{ borderBottom: `1px solid ${p.BORDER}` }}>
-                                            {['Nota', 'Loja', 'Fila', 'Status', 'Divergências', 'Lançada', 'Liberada'].map(c => (
-                                                <th key={c} className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide whitespace-nowrap"
-                                                    style={{ color: p.MUTED }}>{c}</th>
+                                            {([['Nota', 'nota'], ['Loja', 'loja'], ['Fila', 'fila'], ['Status', 'status'],
+                                               ['Divergências', 'divergencias'], ['Lançada', 'lancada'], ['Liberada', 'liberada']] as const).map(([c, chave]) => (
+                                                <ThOrdenavel key={c} rotulo={c} chave={chave} ordenacao={ordUltimas} p={p}
+                                                    className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide whitespace-nowrap" />
                                             ))}
                                         </tr>
                                     </thead>
@@ -297,7 +311,7 @@ export default function Index({ busca, periodo, resultados, fornecedor, dossie }
                                             <tr><td colSpan={7} className="px-3 py-8 text-center text-sm" style={{ color: p.MUTED }}>
                                                 Nenhuma nota deste fornecedor.
                                             </td></tr>
-                                        ) : dossie.ultimas.map(n => (
+                                        ) : ordUltimas.ordenados.map(n => (
                                             <tr key={n.id} style={{ borderBottom: `1px solid ${p.BORDER}` }}>
                                                 <td className="px-3 py-2.5 text-sm font-medium whitespace-nowrap" style={{ color: p.TEXT }}>
                                                     {n.numero_nota}

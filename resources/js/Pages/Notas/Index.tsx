@@ -16,6 +16,7 @@ import ModalOcorrencias from '@/Components/painel/ModalOcorrencias';
 import QuadroDevolucoes from '@/Components/painel/QuadroDevolucoes';
 import Avatar from '@/Components/painel/Avatar';
 import SelosFornecedor from '@/Components/painel/SelosFornecedor';
+import { useOrdenacao, Valores } from '@/lib/ordenacao';
 
 interface Props {
     recebimento: Nota[];
@@ -569,6 +570,27 @@ function ModalEditarLiberada({ nota, can, onFechar, executar, p }: {
 }
 
 /**
+ * O que cada coluna das tabelas da fila ordena (lib/ordenacao.ts).
+ *
+ * "Lançado", "Liberada por" e "Cancelada por" mostram quem fez — ordenam pelo
+ * nome da pessoa. "Divergências" ordena pela quantidade: na fila, as que ainda
+ * travam a nota; nas liberadas, todas as que ela teve.
+ */
+const VALORES_NOTA: Valores<Nota> = {
+    nota:          n => n.numero_nota,
+    fornecedor:    n => n.fornecedor.nome,
+    divergencias:  n => n.cards.filter(c => c.status !== 'resolvido').length,
+    cards:         n => n.cards.length,
+    loja:          n => n.loja,
+    observacao:    n => n.observacao,
+    lancado:       n => n.user.name,
+    liberadaPor:   n => n.liberada_por?.name,
+    fila:          n => ORIGEM_LABEL[n.origem],
+    motivo:        n => n.motivo_cancelamento,
+    canceladaPor:  n => n.cancelada_por?.name,
+};
+
+/**
  * Preferência de tela guardada no navegador, como o tema.
  *
  * Fica fora do banco de propósito: é gosto de quem está olhando, não dado da
@@ -618,7 +640,7 @@ function BotaoGrupo({ aberto, onAlternar, rotulo, total, travado, p }: {
 
 function opcoesTipos(nota: Nota): TipoCard[] {
     const ativos = nota.cards.filter(c => c.status !== 'resolvido').map(c => c.tipo);
-    const base: TipoCard[] = ['cadastro', 'regra', 'custo', 'quantidade', 'sem_pedido', 'item_n_pedido', 'importar_nf', 'recusa', 'devolucao'];
+    const base: TipoCard[] = ['cadastro', 'regra', 'bluesoft', 'custo', 'quantidade', 'sem_pedido', 'item_n_pedido', 'importar_nf', 'recusa', 'devolucao'];
     // "Reconferir" só existe em nota de CEASA (pedido de nova conferência)
     if (nota.ceasa > 0) base.push('reconferir');
     return base.filter(t => !ativos.includes(t));
@@ -1266,6 +1288,13 @@ export default function Index({ recebimento, preLote, liberadas, canceladas, dev
         ? liberadasL.filter(n => n.origem === origemLiberadas)
         : liberadasL;
 
+    // Ordenação por coluna, uma por tabela: ordenar o recebimento não mexe no
+    // pré-lote. Vale para a tabela do desktop e para os cartões do celular.
+    const ordRecebimento = useOrdenacao(recebimentoL, VALORES_NOTA);
+    const ordPreLote     = useOrdenacao(preLoteL, VALORES_NOTA);
+    const ordLiberadas   = useOrdenacao(liberadasFiltradas, VALORES_NOTA);
+    const ordCanceladas  = useOrdenacao(canceladasL, VALORES_NOTA);
+
     const isHoje = dataFiltro === hoje();
     // Visão "simples" (hoje, sem filtros): dá pra atualizar a linha no cliente com segurança
     const visaoSimples = isHoje && !filtros.busca && !filtros.loja?.length && !filtros.nivel && !filtros.status && !filtros.tipo;
@@ -1632,6 +1661,61 @@ export default function Index({ recebimento, preLote, liberadas, canceladas, dev
     const prazosAbertos = verPrazos || prazosTravados;
     const divergenciasAbertas = verDivergencias || divergenciasTravadas;
 
+    // ── Cabeçalho fixo (o alfinete) ───────────────────────────────────────────
+    //
+    // Fixado, o cabeçalho (dia, busca, lojas e os chips) desce junto com a
+    // página, colado embaixo da navbar. É gosto de quem olha, como os grupos
+    // acima, e começa solto: na fila longa ele ocupa espaço que nem todo mundo
+    // quer dar. No celular não fixa — ali ele toma meia tela.
+    //
+    // Os atalhos da navbar levam às seções com scrollIntoView, que respeita o
+    // scroll-padding da página: dar a ele a altura do cabeçalho é o que impede
+    // o título da seção de parar escondido atrás dele.
+    const [cabecalhoFixo, setCabecalhoFixo] = usePreferencia('nfs:cabecalho:fixo', false);
+    const cabecalhoRef = useRef<HTMLDivElement>(null);
+
+    useEffect(() => {
+        const el = cabecalhoRef.current;
+        if (!cabecalhoFixo || !el) return;
+        const raiz = document.documentElement;
+        const medir = () => {
+            raiz.style.scrollPaddingTop = getComputedStyle(el).position === 'sticky' ? `${el.offsetHeight}px` : '';
+        };
+        const obs = new ResizeObserver(medir);
+        obs.observe(el);
+        medir();
+        return () => { obs.disconnect(); raiz.style.scrollPaddingTop = ''; };
+    }, [cabecalhoFixo]);
+
+    // A animação (app.css › cabecalho-entra / cabecalho-sai) só toca quando o
+    // cabeçalho está de fato grudado embaixo da navbar. Com a página no topo,
+    // fixar e soltar não mudam nada visível — animar ali seria movimento à toa.
+    const [animacaoCabecalho, setAnimacaoCabecalho] = useState<'entra' | 'sai' | null>(null);
+    const grudado = () => {
+        const el = cabecalhoRef.current;
+        return !!el && getComputedStyle(el).position === 'sticky'
+            && el.getBoundingClientRect().top <= 66 && window.scrollY > 0;
+    };
+    const semAnimacao = () => window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+    const alternarCabecalhoFixo = () => {
+        if (animacaoCabecalho === 'sai') return; // já está soltando
+
+        if (cabecalhoFixo) {
+            // Soltar: sobe para trás da navbar e SÓ ENTÃO larga o lugar. Soltar
+            // de uma vez faria ele sumir num estalo (ele mora lá em cima).
+            if (!grudado() || semAnimacao()) { setCabecalhoFixo(false); return; }
+            setAnimacaoCabecalho('sai');
+            window.setTimeout(() => { setCabecalhoFixo(false); setAnimacaoCabecalho(null); }, 220);
+            return;
+        }
+
+        // Fixar: depois de virar sticky ele já está no lugar; a animação o traz
+        // descendo de trás da navbar em vez de surgir do nada.
+        setCabecalhoFixo(true);
+        requestAnimationFrame(() => { if (grudado() && !semAnimacao()) setAnimacaoCabecalho('entra'); });
+    };
+
     const totalPrazos = resumoEfetivo.critico + resumoEfetivo.alerta + resumoEfetivo.atencao;
     const totalDivergencias = totalReconferirEfetivo
         + tiposComPendencia.reduce((soma, t) => soma + (resumoTiposEfetivo[t] ?? 0), 0);
@@ -1639,10 +1723,15 @@ export default function Index({ recebimento, preLote, liberadas, canceladas, dev
     const COLS_FILA = ['Nota', 'Fornecedor', 'Divergências', 'Loja', 'Observação', 'Lançado', ''];
     const COLS_LIBERADAS = ['Nota', 'Fornecedor', 'Divergências', 'Loja', 'Observação', 'Liberada por', ''];
     const COLS_CANCELADAS = ['Nota', 'Fornecedor', 'Loja', 'Fila', 'Motivo', 'Cancelada por', ''];
+    // As chaves de VALORES_NOTA, coluna a coluna (null = não ordena)
+    const CHAVES_FILA       = ['nota', 'fornecedor', 'divergencias', 'loja', 'observacao', 'lancado', null];
+    const CHAVES_LIBERADAS  = ['nota', 'fornecedor', 'cards', 'loja', 'observacao', 'liberadaPor', null];
+    const CHAVES_CANCELADAS = ['nota', 'fornecedor', 'loja', 'fila', 'motivo', 'canceladaPor', null];
 
     const inputCtrl = { background: p.INPUT_BG, color: p.TEXT, border: `1px solid ${p.INPUT_BORDER}` };
 
-    const secaoFila = (id: string, titulo: string, subtitulo: string, notas: Nota[], corBadge: string) => (
+    const secaoFila = (id: string, titulo: string, subtitulo: string, notas: Nota[], corBadge: string,
+        ord: ReturnType<typeof useOrdenacao<Nota>>) => (
         /* `scroll-mt-20`: a navbar é fixa, e sem a margem o atalho deixaria o
            título da seção escondido atrás dela. */
         <div id={id} className="rounded-xl overflow-hidden scroll-mt-20" style={{ background: p.SURFACE, border: `1px solid ${p.BORDER}` }}>
@@ -1660,13 +1749,13 @@ export default function Index({ recebimento, preLote, liberadas, canceladas, dev
                 mesmas ações, sem rolagem lateral. */}
             <div className="hidden lg:block rolagem-x">
                 <table className="min-w-full">
-                    <THead colunas={COLS_FILA} p={p} />
+                    <THead colunas={COLS_FILA} chaves={CHAVES_FILA} ordenacao={ord} p={p} />
                     <tbody>
                         {notas.length === 0 ? (
                             <tr><td colSpan={7} className="px-4 py-8 text-center text-sm" style={{ color: p.MUTED }}>
                                 Nenhuma nota nesta fila.
                             </td></tr>
-                        ) : notas.map(n => (
+                        ) : ord.ordenados.map(n => (
                             <LinhaFila key={n.id} nota={n} can={can} isDark={isDark} p={p}
                                 onCards={x => setCardsId(x.id)} onComentar={setComentariosNota}
                                 onAnexos={setAnexosNota} onDevolucao={encaminharParaDevolucao}
@@ -1683,7 +1772,7 @@ export default function Index({ recebimento, preLote, liberadas, canceladas, dev
                     <p className="px-4 py-8 text-center text-sm" style={{ color: p.MUTED }}>
                         Nenhuma nota nesta fila.
                     </p>
-                ) : notas.map(n => (
+                ) : ord.ordenados.map(n => (
                     <CartaoFila key={n.id} nota={n} can={can} isDark={isDark} p={p}
                         onCards={x => setCardsId(x.id)} onComentar={setComentariosNota}
                         onAnexos={setAnexosNota} onDevolucao={encaminharParaDevolucao}
@@ -1763,7 +1852,25 @@ export default function Index({ recebimento, preLote, liberadas, canceladas, dev
                 {/* ── Barra de controles ───────────────────────────────────────
                     No desktop é uma faixa só. No celular vira três: dia +
                     lançar nota, busca, e as lojas (que rolam para o lado — são
-                    nove botões e não cabem numa tela de 375px). */}
+                    nove botões e não cabem numa tela de 375px).
+
+                    Com o alfinete, ela e os chips grudam embaixo da navbar
+                    (64px + 1px de borda). O -mx/px estica o fundo até a borda
+                    do conteúdo, para as linhas da fila não aparecerem pelos
+                    lados ao passar por baixo.
+
+                    O respiro (padding) existe SEMPRE, fixado ou não, e a
+                    margem negativa o anula: assim apertar o alfinete não move
+                    nada na tela. Embaixo, o -mb-3 se soma ao mt-4 do
+                    space-y da página e o vão até a fila fica nos mesmos 16px.
+                    A linha de baixo é box-shadow, não border, pelo mesmo
+                    motivo — sombra não ocupa espaço. */}
+                <div ref={cabecalhoRef}
+                    className={`space-y-4 -mx-4 px-4 sm:-mx-6 sm:px-6 lg:-mx-8 lg:px-8 -mt-3 pt-3 pb-3 -mb-3 ${cabecalhoFixo
+                        ? 'sm:sticky sm:top-[65px] sm:z-30 sm:shadow-[0_1px_0_var(--linha)]'
+                        : ''} ${animacaoCabecalho ? `cabecalho-${animacaoCabecalho}` : ''}`}
+                    onAnimationEnd={e => e.target === e.currentTarget && animacaoCabecalho === 'entra' && setAnimacaoCabecalho(null)}
+                    style={{ background: p.BG, '--linha': p.BORDER } as React.CSSProperties}>
                 <div className="space-y-2.5">
                     <div className="flex flex-wrap items-center gap-2.5">
                         <div className="flex items-center gap-1 rounded-lg px-2 py-1.5"
@@ -1787,9 +1894,25 @@ export default function Index({ recebimento, preLote, liberadas, canceladas, dev
                             </span>
                         )}
 
+                        {/* O alfinete: fixa o cabeçalho no topo ao rolar. Só a
+                            partir do tablet, que é onde o fixar vale. */}
+                        <button type="button" onClick={alternarCabecalhoFixo}
+                            title={cabecalhoFixo ? 'Soltar o cabeçalho (deixar rolar com a página)' : 'Fixar o cabeçalho no topo ao descer a página'}
+                            aria-label={cabecalhoFixo ? 'Soltar o cabeçalho' : 'Fixar o cabeçalho'}
+                            aria-pressed={cabecalhoFixo}
+                            className="hidden sm:flex sm:ml-auto items-center justify-center w-9 h-9 rounded-lg transition"
+                            style={{
+                                background: cabecalhoFixo ? p.ACCENT + '22' : 'transparent',
+                                border: `1px solid ${cabecalhoFixo ? p.ACCENT : p.BORDER}`,
+                                color: cabecalhoFixo ? p.ACCENT : p.MUTED,
+                            }}>
+                            <Icone path="M15 4.5l-4 4-4 1.5-1.5 1.5 7 7 1.5-1.5 1.5-4 4-4M9 15l-4.5 4.5M14.5 4l5.5 5.5"
+                                className={`w-4 h-4 transition-transform duration-200 ${cabecalhoFixo ? '' : 'rotate-45'}`} />
+                        </button>
+
                         {can.lancarNota && (
                             <button onClick={() => setModalNova(true)}
-                                className="w-full sm:w-auto sm:ml-auto flex items-center justify-center gap-1.5 px-4 py-2.5 text-sm font-medium text-white rounded-lg transition"
+                                className="w-full sm:w-auto flex items-center justify-center gap-1.5 px-4 py-2.5 text-sm font-medium text-white rounded-lg transition"
                                 style={{ background: p.ACCENT }}
                                 onMouseEnter={e => (e.currentTarget.style.filter = 'brightness(1.1)')}
                                 onMouseLeave={e => (e.currentTarget.style.filter = 'none')}>
@@ -1926,9 +2049,10 @@ export default function Index({ recebimento, preLote, liberadas, canceladas, dev
                         )}
                     </div>
                 )}
+                </div>
 
                 {/* ── Filas ───────────────────────────────────────────────────── */}
-                {secaoFila('secao-recebimento', 'Recebimento', 'caminhão na porta — prioridade', recebimentoL, p.RED)}
+                {secaoFila('secao-recebimento', 'Recebimento', 'caminhão na porta — prioridade', recebimentoL, p.RED, ordRecebimento)}
 
                 {/* ── Devoluções ────────────────────────────────────────
                     Logo abaixo do recebimento, e não depois das duas filas: a
@@ -1951,7 +2075,7 @@ export default function Index({ recebimento, preLote, liberadas, canceladas, dev
                     </div>
                 )}
 
-                {secaoFila('secao-pre-lote', 'Pré-lote', 'notas antecipadas', preLoteL, p.ACCENT)}
+                {secaoFila('secao-pre-lote', 'Pré-lote', 'notas antecipadas', preLoteL, p.ACCENT, ordPreLote)}
 
                 {/* ── Liberadas ───────────────────────────────────────────────── */}
                 <div id="secao-liberadas" className="rounded-xl overflow-hidden scroll-mt-20" style={{ background: p.SURFACE, border: `1px solid ${p.BORDER}` }}>
@@ -1985,7 +2109,7 @@ export default function Index({ recebimento, preLote, liberadas, canceladas, dev
                     </div>
                     <div className="hidden lg:block rolagem-x">
                         <table className="min-w-full">
-                            <THead colunas={COLS_LIBERADAS} p={p} />
+                            <THead colunas={COLS_LIBERADAS} chaves={CHAVES_LIBERADAS} ordenacao={ordLiberadas} p={p} />
                             <tbody>
                                 {liberadasFiltradas.length === 0 ? (
                                     <tr><td colSpan={7} className="px-4 py-8 text-center text-sm" style={{ color: p.MUTED }}>
@@ -1993,7 +2117,7 @@ export default function Index({ recebimento, preLote, liberadas, canceladas, dev
                                             ? 'Nenhuma nota liberada neste dia.'
                                             : `Nenhuma nota liberada em ${ORIGEM_LABEL[origemLiberadas!]} neste dia.`}
                                     </td></tr>
-                                ) : liberadasFiltradas.map(n => (
+                                ) : ordLiberadas.ordenados.map(n => (
                                     <tr key={n.id} className="opacity-80 group" style={{ borderBottom: `1px solid ${p.BORDER}` }}>
                                         <td className="px-4 py-3 text-sm whitespace-nowrap" style={{ color: p.TEXT }}>
                                             <span className="line-through">{n.numero_nota}</span>
@@ -2109,7 +2233,7 @@ export default function Index({ recebimento, preLote, liberadas, canceladas, dev
                                     ? 'Nenhuma nota liberada neste dia.'
                                     : `Nenhuma nota liberada em ${ORIGEM_LABEL[origemLiberadas!]} neste dia.`}
                             </p>
-                        ) : liberadasFiltradas.map(n => (
+                        ) : ordLiberadas.ordenados.map(n => (
                             <CartaoLiberada key={n.id} nota={n} can={can} isDark={isDark} p={p}
                                 onCards={x => setCardsId(x.id)} onComentar={setComentariosNota}
                                 onEditarObs={setEditarLiberadaNota} onOcorrencias={setOcorrenciasNota}
@@ -2133,13 +2257,13 @@ export default function Index({ recebimento, preLote, liberadas, canceladas, dev
                     </div>
                     <div className="hidden lg:block rolagem-x">
                         <table className="min-w-full">
-                            <THead colunas={COLS_CANCELADAS} p={p} />
+                            <THead colunas={COLS_CANCELADAS} chaves={CHAVES_CANCELADAS} ordenacao={ordCanceladas} p={p} />
                             <tbody>
                                 {canceladasL.length === 0 ? (
                                     <tr><td colSpan={7} className="px-4 py-8 text-center text-sm" style={{ color: p.MUTED }}>
                                         Nenhuma nota cancelada neste dia.
                                     </td></tr>
-                                ) : canceladasL.map(n => (
+                                ) : ordCanceladas.ordenados.map(n => (
                                     <tr key={n.id} className="opacity-80 group" style={{ borderBottom: `1px solid ${p.BORDER}` }}>
                                         <td className="px-4 py-3 text-sm whitespace-nowrap" style={{ color: p.TEXT }}>
                                             <span className="line-through">{n.numero_nota}</span>
@@ -2193,7 +2317,7 @@ export default function Index({ recebimento, preLote, liberadas, canceladas, dev
                             <p className="px-4 py-8 text-center text-sm" style={{ color: p.MUTED }}>
                                 Nenhuma nota cancelada neste dia.
                             </p>
-                        ) : canceladasL.map(n => (
+                        ) : ordCanceladas.ordenados.map(n => (
                             <CartaoCancelada key={n.id} nota={n} can={can} p={p}
                                 onComentar={setComentariosNota} onDescancelar={descancelar} />
                         ))}

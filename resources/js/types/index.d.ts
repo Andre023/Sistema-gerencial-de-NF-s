@@ -104,7 +104,7 @@ export interface Fornecedor {
     filiais?: string[];
 }
 
-export type TipoCard = 'cadastro' | 'regra' | 'custo' | 'quantidade' | 'sem_pedido' | 'item_n_pedido' | 'importar_nf' | 'reconferir' | 'recusa' | 'devolucao';
+export type TipoCard = 'cadastro' | 'regra' | 'bluesoft' | 'custo' | 'quantidade' | 'sem_pedido' | 'item_n_pedido' | 'importar_nf' | 'reconferir' | 'recusa' | 'devolucao';
 export type StatusCard = 'aberto' | 'resolvido';
 
 export interface Card {

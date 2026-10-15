@@ -107,19 +107,34 @@ class ConfiguracaoController extends Controller
         ]);
     }
 
-    /** Busca por nome, nas duas listas. */
+    /**
+     * Busca por nome, nas duas listas.
+     *
+     * A ordem (clique no nome da coluna) é feita AQUI, e não na tela: a lista
+     * volta cortada em LIMITE_BUSCA, e ordenar só o pedaço que veio mostraria
+     * como "o que tem mais notas" apenas o maior dos primeiros 60 em ordem
+     * alfabética. `ordenar=peso` é o número de notas (lista das notas) ou o
+     * faturamento (lista da campanha). Empate desempata pelo nome.
+     */
     public function buscarFornecedores(Request $request): JsonResponse
     {
         $dados = $request->validate([
-            'q'    => ['nullable', 'string', 'max:120'],
-            'tipo' => ['required', 'in:notas,campanha'],
+            'q'       => ['nullable', 'string', 'max:120'],
+            'tipo'    => ['required', 'in:notas,campanha'],
+            'ordenar' => ['nullable', 'in:nome,peso'],
+            'dir'     => ['nullable', 'in:asc,desc'],
         ]);
 
-        $termo = trim($dados['q'] ?? '');
+        $termo   = trim($dados['q'] ?? '');
+        $porPeso = ($dados['ordenar'] ?? 'nome') === 'peso';
+        $dir     = $dados['dir'] ?? 'asc';
 
         if ($dados['tipo'] === 'campanha') {
             $lista = CampanhaFornecedor::query()
                 ->when($termo !== '', fn($q) => $q->where('nome', 'like', "%{$termo}%"))
+                ->when($porPeso,
+                    fn($q) => $q->orderBy('faturamento', $dir),
+                    fn($q) => $q->orderBy('nome', $dir))
                 ->orderBy('nome')
                 ->limit(self::LIMITE_BUSCA)
                 ->get(['id', 'nome', 'faturamento'])
@@ -136,6 +151,9 @@ class ConfiguracaoController extends Controller
                 // de um nome errado, e o que separa o duplicado real do parecido.
                 ->withCount('notas')
                 ->with('matriz:id,nome')
+                ->when($porPeso,
+                    fn($q) => $q->orderBy('notas_count', $dir),
+                    fn($q) => $q->orderBy('nome', $dir))
                 ->orderBy('nome')
                 ->limit(self::LIMITE_BUSCA)
                 ->get(['id', 'nome', 'matriz_id'])

@@ -178,3 +178,24 @@ html {
         animation: none;
     }
 }
+
+/* ── Cabeçalho fixo da fila (o alfinete) ────────────────────────────────────
+   Fixar com a página já rolada: o cabeçalho desce de trás da navbar.
+   Soltar: ele sobe de volta para trás dela antes de largar o lugar — sem
+   isto ele simplesmente sumia da tela num estalo.
+   Só toca quando ele está de fato grudado; com a página no topo fixar não
+   muda nada visível, e animar ali seria movimento à toa. */
+@keyframes cabecalho-entra {
+    from { transform: translateY(-100%); opacity: 0; }
+    to   { transform: none; opacity: 1; }
+}
+@keyframes cabecalho-sai {
+    from { transform: none; opacity: 1; }
+    to   { transform: translateY(-100%); opacity: 0; }
+}
+.cabecalho-entra { animation: cabecalho-entra 0.28s ease-out; }
+.cabecalho-sai   { animation: cabecalho-sai 0.22s ease-in forwards; }
+
+@media (prefers-reduced-motion: reduce) {
+    .cabecalho-entra, .cabecalho-sai { animation: none; }
+}

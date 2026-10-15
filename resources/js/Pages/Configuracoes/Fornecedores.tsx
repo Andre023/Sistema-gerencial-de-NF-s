@@ -4,6 +4,8 @@ import Secoes, { Cartao } from '@/Components/configuracoes/Secoes';
 import Icone from '@/Components/painel/Icone';
 import { useTheme } from '@/Contexts/ThemeContext';
 import { DARK, LIGHT, Palette } from '@/lib/tema';
+import { Ordem, Ordenacao } from '@/lib/ordenacao';
+import { BotaoOrdenar } from '@/Components/painel/ThOrdenavel';
 
 interface Item {
     id: number;
@@ -188,6 +190,19 @@ export default function Fornecedores({ totalNotas, totalCampanha }: Props) {
     const [carregando, setCarregando] = useState(false);
 
     /*
+     * Ordenar clicando no nome da coluna — no SERVIDOR, ao contrário das outras
+     * tabelas: a lista volta cortada nos primeiros resultados, e ordenar só o
+     * pedaço que veio mentiria sobre "quem tem mais notas". Mesmo ciclo das
+     * outras (crescente → decrescente → normal), pela mesma Ordenacao.
+     */
+    const [ordem, setOrdem] = useState<Ordem | null>(null);
+    const ordenacao: Ordenacao = {
+        ordem,
+        alternar: chave => setOrdem(o =>
+            !o || o.chave !== chave ? { chave, dir: 'asc' } : o.dir === 'asc' ? { chave, dir: 'desc' } : null),
+    };
+
+    /*
      * A busca é do servidor, e sai com atraso.
      *
      * São ~2.800 nomes: mandar todos para a tela repetiria o erro que custava
@@ -196,11 +211,11 @@ export default function Fornecedores({ totalNotas, totalCampanha }: Props) {
      */
     const relogio = useRef<number | null>(null);
 
-    const buscar = useCallback(async (q: string, tipo: Lista) => {
+    const buscar = useCallback(async (q: string, tipo: Lista, o: Ordem | null) => {
         setCarregando(true);
         try {
             const { data } = await window.axios.get(route('configuracoes.fornecedores.buscar'), {
-                params: { q, tipo },
+                params: { q, tipo, ...(o ? { ordenar: o.chave, dir: o.dir } : {}) },
             });
             setItens(data.fornecedores);
             setTruncada(data.truncada);
@@ -213,10 +228,10 @@ export default function Fornecedores({ totalNotas, totalCampanha }: Props) {
 
     useEffect(() => {
         if (relogio.current !== null) clearTimeout(relogio.current);
-        relogio.current = window.setTimeout(() => buscar(busca, lista), 300);
+        relogio.current = window.setTimeout(() => buscar(busca, lista, ordem), 300);
 
         return () => { if (relogio.current !== null) clearTimeout(relogio.current); };
-    }, [busca, lista, buscar]);
+    }, [busca, lista, ordem, buscar]);
 
     const total = lista === 'notas' ? totalNotas : totalCampanha;
 
@@ -280,11 +295,24 @@ export default function Fornecedores({ totalNotas, totalCampanha }: Props) {
                                     : 'Nenhum fornecedor com esse nome.'}
                             </p>
                         ) : (
-                            itens.map(item => (
+                            <>
+                            {/* O nome das colunas, para ordenar. O vão no fim é
+                                o lugar dos dois botões da linha (editar, apagar). */}
+                            <div className="flex items-center gap-2 px-3 py-2 text-xs font-semibold uppercase tracking-wide"
+                                style={{ color: p.MUTED, borderBottom: `1px solid ${p.BORDER}` }}>
+                                <span className="flex-1 min-w-0">
+                                    <BotaoOrdenar rotulo="Nome" chave="nome" ordenacao={ordenacao} p={p} />
+                                </span>
+                                <BotaoOrdenar rotulo={lista === 'notas' ? 'Notas' : 'Faturamento'} chave="peso"
+                                    ordenacao={ordenacao} p={p} alinhar="right" />
+                                <span className="w-16 shrink-0" aria-hidden="true" />
+                            </div>
+                            {itens.map(item => (
                                 <Linha key={item.id} item={item} lista={lista} p={p}
                                     onSalvo={novo => setItens(l => l.map(x => x.id === novo.id ? novo : x))}
                                     onExcluido={id => setItens(l => l.filter(x => x.id !== id))} />
-                            ))
+                            ))}
+                            </>
                         )}
                     </div>
 

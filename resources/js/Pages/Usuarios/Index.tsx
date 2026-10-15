@@ -6,6 +6,8 @@ import { useTheme } from '@/Contexts/ThemeContext';
 import { DARK, LIGHT, Palette } from '@/lib/tema';
 import Icone from '@/Components/painel/Icone';
 import Modal from '@/Components/painel/Modal';
+import ThOrdenavel from '@/Components/painel/ThOrdenavel';
+import { useOrdenacao } from '@/lib/ordenacao';
 
 interface Usuario {
     id: number;
@@ -153,6 +155,23 @@ export default function Index({ usuarios, papeis }: Props) {
     const [erros, setErros] = useState<Record<string, string>>({});
     const [submetendo, setSubmetendo] = useState(false);
 
+    // Busca por nome (ou e-mail), aqui na tela: são poucas contas e todas já
+    // vieram na página — ir ao servidor a cada tecla não traria nada.
+    // Sem acento e sem caixa: "joao" acha "João".
+    const [busca, setBusca] = useState('');
+    const normalizar = (t: string) => t.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
+    const termo = normalizar(busca.trim());
+    const visiveis = termo === ''
+        ? usuarios
+        : usuarios.filter(u => normalizar(u.name).includes(termo) || normalizar(u.email).includes(termo));
+
+    // Ordenar clicando no nome da coluna — sobre o que a busca deixou
+    const ord = useOrdenacao(visiveis, {
+        nome:  u => u.name,
+        email: u => u.email,
+        papel: u => PAPEL_LABEL[u.role],
+    });
+
     const criar = (dados: DadosForm) => {
         setSubmetendo(true);
         const payload = {
@@ -190,10 +209,10 @@ export default function Index({ usuarios, papeis }: Props) {
 
     // No celular a coluna de e-mail sai (ela sozinha fazia a tabela passar de
     // 550px) e o endereço aparece embaixo do nome.
-    const COLS: { rotulo: string; cls?: string }[] = [
-        { rotulo: 'Nome' },
-        { rotulo: 'E-mail', cls: 'hidden sm:table-cell' },
-        { rotulo: 'Papel' },
+    const COLS: { rotulo: string; chave?: string; cls?: string }[] = [
+        { rotulo: 'Nome', chave: 'nome' },
+        { rotulo: 'E-mail', chave: 'email', cls: 'hidden sm:table-cell' },
+        { rotulo: 'Papel', chave: 'papel' },
         { rotulo: '' },
     ];
 
@@ -228,19 +247,37 @@ export default function Index({ usuarios, papeis }: Props) {
                     </button>
                 </div>
 
+                <div className="relative w-full sm:w-72">
+                    <input type="search" value={busca} onChange={e => setBusca(e.target.value)}
+                        placeholder="Buscar pelo nome..."
+                        aria-label="Buscar usuário pelo nome"
+                        className="w-full rounded-lg text-sm pl-8 pr-3 py-2 outline-none"
+                        style={{ background: p.INPUT_BG, color: p.TEXT, border: `1px solid ${p.INPUT_BORDER}` }} />
+                    <span className="absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none" style={{ color: p.MUTED }}>
+                        <Icone path="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                    </span>
+                </div>
+
                 <div className="rounded-xl overflow-hidden" style={{ background: p.SURFACE, border: `1px solid ${p.BORDER}` }}>
                     <div className="rolagem-x">
                         <table className="min-w-full">
                             <thead>
                                 <tr style={{ borderBottom: `1px solid ${p.BORDER}` }}>
                                     {COLS.map(c => (
-                                        <th key={c.rotulo} className={`px-4 py-2.5 text-left text-xs font-semibold uppercase tracking-wide whitespace-nowrap ${c.cls ?? ''}`}
-                                            style={{ color: p.MUTED }}>{c.rotulo}</th>
+                                        <ThOrdenavel key={c.rotulo} rotulo={c.rotulo} chave={c.chave} ordenacao={ord} p={p}
+                                            className={`px-4 py-2.5 text-left text-xs font-semibold uppercase tracking-wide whitespace-nowrap ${c.cls ?? ''}`} />
                                     ))}
                                 </tr>
                             </thead>
                             <tbody>
-                                {usuarios.map(u => (
+                                {visiveis.length === 0 && (
+                                    <tr>
+                                        <td colSpan={COLS.length} className="px-4 py-8 text-center text-sm" style={{ color: p.MUTED }}>
+                                            Nenhum usuário com esse nome.
+                                        </td>
+                                    </tr>
+                                )}
+                                {ord.ordenados.map(u => (
                                     <tr key={u.id} className="group" style={{ borderBottom: `1px solid ${p.BORDER}` }}>
                                         <td className="px-3 sm:px-4 py-3 text-sm font-medium max-w-[40vw] sm:max-w-none" style={{ color: p.TEXT }}>
                                             <span className="block truncate">

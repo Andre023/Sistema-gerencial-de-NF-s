@@ -361,8 +361,15 @@ export default function AuthenticatedLayout({
                         fundo preenche a tela sem precisar de `min-h-screen` na
                         página. Com `min-h-screen` a página media 100vh DENTRO de
                         uma área que já era 100vh−navbar, e sobrava sempre uma
-                        rolagem de 64px que não levava a lugar nenhum. */}
-                    <main className="flex-1 min-w-0 overflow-auto flex flex-col">
+                        rolagem de 64px que não levava a lugar nenhum.
+
+                        `overflow-x-clip`, e não `overflow-auto`: quem rola é a
+                        janela, e um `overflow-auto` aqui fazia do <main> o
+                        "rolador" de referência do `sticky` — o cabeçalho fixo
+                        da fila (o alfinete) ficava preso a uma caixa que nunca
+                        rola e não grudava. O `clip` corta o que vazar para o
+                        lado sem virar rolador. */}
+                    <main className="flex-1 min-w-0 overflow-x-clip flex flex-col">
                         {children}
                     </main>
                 </div>

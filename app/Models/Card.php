@@ -34,7 +34,7 @@ class Card extends Model
         'reaberturas'  => 'integer',
     ];
 
-    public const TIPOS = ['cadastro', 'regra', 'custo', 'quantidade', 'sem_pedido', 'item_n_pedido', 'importar_nf', 'reconferir', 'recusa', 'devolucao'];
+    public const TIPOS = ['cadastro', 'regra', 'bluesoft', 'custo', 'quantidade', 'sem_pedido', 'item_n_pedido', 'importar_nf', 'reconferir', 'recusa', 'devolucao'];
 
     /**
      * Rótulo legível. Só entra aqui o tipo que o padrão não resolve bem —
@@ -144,8 +144,12 @@ class Card extends Model
      * Fica FORA de abertosPorQualquerPapel() porque a permissão é a de
      * User::podeAbrirCardDeRegra(), e o controller e a tela consultam essa
      * função. Quem RESOLVE segue sendo o pré-lote (não está em TIPOS_COMPRAS).
+     *
+     * "Bluesoft" tem exatamente o comportamento da Regra — compras e pré-lote
+     * abrem, o pré-lote resolve, e o sino avisa só o pré-lote — por isso mora
+     * na mesma lista em vez de ganhar uma permissão própria.
      */
-    public const TIPOS_COMPRAS_ABRE = ['regra'];
+    public const TIPOS_COMPRAS_ABRE = ['regra', 'bluesoft'];
 
     /**
      * Tudo que compras pode abrir fora de CEASA — os do recebimento (que já

@@ -2,6 +2,8 @@ import { Fragment, useCallback, useEffect, useState } from 'react';
 import { Palette } from '@/lib/tema';
 import { dinheiro } from '@/lib/campanha';
 import Icone from '@/Components/painel/Icone';
+import ThOrdenavel from '@/Components/painel/ThOrdenavel';
+import { useOrdenacao } from '@/lib/ordenacao';
 
 export interface Parcela {
     id: number;
@@ -249,6 +251,21 @@ export default function Atendidos({ candidato, percentualSugerido, meuId, souAdm
 
     const listaFiltrada = filtro === null ? lista : lista.filter(a => a.user_id === filtro);
 
+    // Ordenar clicando no nome da coluna — sobre o que o filtro de comprador deixou
+    const ord = useOrdenacao(listaFiltrada, {
+        comprador:   a => a.comprador,
+        fornecedor:  a => a.fornecedor,
+        faturamento: a => a.faturamento,
+        meta:        a => a.investimento,
+        pago:        a => a.pago,
+        percentual:  a => a.percentualPago,
+        falta:       a => a.falta,
+    });
+    const COLUNAS: [string, string | null][] = [
+        ['Comprador', 'comprador'], ['Fornecedor', 'fornecedor'], ['Faturamento', 'faturamento'],
+        [`Meta (${percentualSugerido}%)`, 'meta'], ['Pago', 'pago'], ['% pago', 'percentual'], ['Falta', 'falta'], ['', null],
+    ];
+
     /**
      * O fornecedor escolhido la em cima ja esta com alguem?
      *
@@ -329,14 +346,15 @@ export default function Atendidos({ candidato, percentualSugerido, meuId, souAdm
                         <table className="min-w-full">
                             <thead>
                                 <tr style={{ borderBottom: `1px solid ${p.BORDER}` }}>
-                                    {['Comprador', 'Fornecedor', 'Faturamento', `Meta (${percentualSugerido}%)`, 'Pago', '% pago', 'Falta', ''].map((t, i) => (
-                                        <th key={i} className={`px-3 py-2 text-xs font-medium whitespace-nowrap ${i === 0 ? 'text-left' : 'text-right'}`}
-                                            style={{ color: p.MUTED }}>{t}</th>
+                                    {COLUNAS.map(([t, chave], i) => (
+                                        <ThOrdenavel key={i} rotulo={t} chave={chave} ordenacao={ord} p={p}
+                                            alinhar={i <= 1 ? 'left' : 'right'}
+                                            className={`px-3 py-2 text-xs font-medium whitespace-nowrap ${i <= 1 ? 'text-left' : 'text-right'}`} />
                                     ))}
                                 </tr>
                             </thead>
                             <tbody>
-                                {listaFiltrada.map(a => {
+                                {ord.ordenados.map(a => {
                                     /* A cor conta a história de longe: quitado, andando, parado.
                                        Verde só em 100% — 99% ainda é uma conversa em aberto. */
                                     const cor = a.percentualPago === null ? p.MUTED

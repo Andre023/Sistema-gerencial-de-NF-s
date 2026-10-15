@@ -3,6 +3,8 @@ import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 import { Head, router } from '@inertiajs/react';
 import { useTheme } from '@/Contexts/ThemeContext';
 import { nivelCor, idadeTexto } from '@/lib/tema';
+import { useOrdenacao } from '@/lib/ordenacao';
+import ThOrdenavel from '@/Components/painel/ThOrdenavel';
 import { Nivel } from '@/types';
 import {
     DARK, LIGHT, Palette, Card, KpiCard, Linha, BarrasH, BarrasV, Donut, ComparaRede,
@@ -100,10 +102,23 @@ export default function Index({
     const p = isDark ? DARK : LIGHT;
     const LOJA_CORES = isDark ? LOJA_CORES_DARK : LOJA_CORES_LIGHT;
 
+    // Pendentes mais antigas: ordenar clicando no nome da coluna. "Aberta em"
+    // vem formatada (dd/mm/aaaa hh:mm) — ordena pelos dias em aberto, que é a
+    // mesma informação ao contrário (mais dias = aberta antes).
+    const ordPendentes = useOrdenacao(pendentesMaisAntigas, {
+        nota:       x => x.numero_nota,
+        fornecedor: x => x.fornecedor,
+        motivo:     x => x.motivo,
+        loja:       x => x.loja,
+        abertaEm:   x => -x.dias_aberta,
+        dias:       x => x.dias_aberta,
+    });
+
     // Tipos de card + a categoria "Sem divergência" (notas limpas)
     const MOTIVO_COR: Record<string, string> = {
         Cadastro: p.ACCENT,
         Regra: p.RED,
+        Bluesoft: '#89cff0',
         Custo: p.AMBER,
         Quantidade: p.PURPLE,
         'Sem pedido': '#2dd4bf',
@@ -715,17 +730,15 @@ export default function Index({
                             <table className="min-w-full text-sm">
                                 <thead>
                                     <tr style={{ borderBottom: `1px solid ${p.BORDER}` }}>
-                                        {['Nota', 'Fornecedor', 'Motivo', 'Loja', 'Aberta em', 'Dias aberta'].map(c => (
-                                            <th key={c}
-                                                className="px-3 py-2.5 text-left text-xs font-semibold uppercase tracking-wider whitespace-nowrap"
-                                                style={{ color: p.MUTED }}>
-                                                {c}
-                                            </th>
+                                        {([['Nota', 'nota'], ['Fornecedor', 'fornecedor'], ['Motivo', 'motivo'], ['Loja', 'loja'],
+                                           ['Aberta em', 'abertaEm'], ['Dias aberta', 'dias']] as const).map(([c, chave]) => (
+                                            <ThOrdenavel key={c} rotulo={c} chave={chave} ordenacao={ordPendentes} p={p}
+                                                className="px-3 py-2.5 text-left text-xs font-semibold uppercase tracking-wider whitespace-nowrap" />
                                         ))}
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    {pendentesMaisAntigas.map(pen => (
+                                    {ordPendentes.ordenados.map(pen => (
                                         <tr key={pen.id}
                                             className="transition-colors"
                                             style={{ borderBottom: `1px solid ${p.BORDER}` }}

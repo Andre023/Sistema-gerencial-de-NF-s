@@ -51,6 +51,7 @@ export const MOTIVO_COR_LIGHT: Record<string, CorMotivo> = {
 export const TIPO_CARD_LABEL: Record<string, string> = {
     cadastro: 'Cadastro',
     regra: 'Regra',
+    bluesoft: 'Bluesoft',
     custo: 'Custo',
     quantidade: 'Quantidade',
     sem_pedido: 'Sem pedido',
@@ -62,8 +63,11 @@ export const TIPO_CARD_LABEL: Record<string, string> = {
 };
 
 export const CARD_COR_DARK: Record<string, { bg: string; text: string; border: string }> = {
-    cadastro: { bg: 'rgba(47,129,247,0.15)', text: '#79c0ff', border: 'rgba(47,129,247,0.35)' },
+    // Azul mais fechado que o de antes: o azul-bebê do "bluesoft" fica ao lado
+    cadastro: { bg: 'rgba(31,111,235,0.22)', text: '#4c8dff', border: 'rgba(31,111,235,0.5)' },
     regra: { bg: 'rgba(248,81,73,0.15)', text: '#ff7b72', border: 'rgba(248,81,73,0.35)' },
+    // Azul-bebê: mais claro e puxado para o céu que o azul do "cadastro"
+    bluesoft: { bg: 'rgba(137,207,240,0.15)', text: '#89cff0', border: 'rgba(137,207,240,0.4)' },
     custo: { bg: 'rgba(210,153,34,0.15)', text: '#e3b341', border: 'rgba(210,153,34,0.35)' },
     quantidade: { bg: 'rgba(163,113,247,0.15)', text: '#d2a8ff', border: 'rgba(163,113,247,0.35)' },
     sem_pedido: { bg: 'rgba(20,184,166,0.15)', text: '#2dd4bf', border: 'rgba(20,184,166,0.35)' },
@@ -78,8 +82,9 @@ export const CARD_COR_DARK: Record<string, { bg: string; text: string; border: s
 };
 
 export const CARD_COR_LIGHT: Record<string, { bg: string; text: string; border: string }> = {
-    cadastro: { bg: '#dbeafe', text: '#1d4ed8', border: '#93c5fd' },
+    cadastro: { bg: '#bfdbfe', text: '#1e3a8a', border: '#3b82f6' },
     regra: { bg: '#fee2e2', text: '#b91c1c', border: '#fca5a5' },
+    bluesoft: { bg: '#e0f4fc', text: '#0e6f99', border: '#89cff0' },
     custo: { bg: '#fef9c3', text: '#854d0e', border: '#fde047' },
     quantidade: { bg: '#f3e8ff', text: '#7e22ce', border: '#d8b4fe' },
     sem_pedido: { bg: '#ccfbf1', text: '#0f766e', border: '#5eead4' },
@@ -108,7 +113,7 @@ export const NOTIFICACAO_LABEL: Record<string, string> = {
     liberada: 'Nota liberada',
     lancada: 'Nota recém lançada — analisar',
     doca: 'Resolver na doca',
-    regra: 'Regra fora do combinado — acertar',
+    regra: 'Aberto por compras — pré-lote acerta e resolve',
 };
 
 /** Cor da barra lateral do aviso: vermelho pede ação, verde é conclusão. */
