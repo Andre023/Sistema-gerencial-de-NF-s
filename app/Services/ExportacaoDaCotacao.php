@@ -20,6 +20,9 @@ final class ExportacaoDaCotacao
 {
     private const CABECALHO = ['b' => true, 'bg' => '#dde3ea'];
 
+    /** Linha da planilha de compra com a coluna Fornecedor preenchida: já foi comprada. Mesmo verde da tela clara. */
+    private const COMPRADA = ['bg' => '#d3f5dc'];
+
     /**
      * @param  string|null  $setor  'merc' ou 'beb' para só aquele setor; null para os dois.
      *                              Há fornecedor que só vende bebida — mandar a lista
@@ -102,7 +105,9 @@ final class ExportacaoDaCotacao
         $linhas = [array_map(fn($c) => ['v' => $c['nome']] + self::estiloDe($c['estilo'] ?? null) + self::CABECALHO, $colunas)];
 
         foreach ($folha->linhas ?? [] as $linha) {
-            $linhas[] = array_map(fn($c) => self::celula($linha, $c, $c['id']), $colunas);
+            // Por baixo das cores pintadas à mão: quem pintou vence o verde.
+            $comprada = $folha->tipo === 'compra' ? self::comprada($linha) : [];
+            $linhas[] = array_map(fn($c) => self::celula($linha, $c, $c['id']) + $comprada, $colunas);
         }
 
         // "GB Mercearia" em vez de "Gentil Bicalho · Mercearia": o nome da aba
@@ -139,7 +144,7 @@ final class ExportacaoDaCotacao
                     continue;
                 }
 
-                $estilo = self::estiloDe($linha['s'] ?? null);
+                $estilo = self::estiloDe($linha['s'] ?? null) + self::comprada($linha);
                 $grupos[P::norm($v['forn1'] ?? '')]['nome'] = $v['forn1'] ?? '';
                 $grupos[P::norm($v['forn1'] ?? '')]['linhas'][] = array_map(fn($c) => is_array($c) ? $c + $estilo : ['v' => $c] + $estilo, [
                     $v['forn1'] ?? '', $loja, $setor, $v['desc'] ?? '', self::gtin($v['gtin'] ?? ''),
@@ -229,6 +234,11 @@ final class ExportacaoDaCotacao
         $g = (string) $valor;
 
         return preg_match('/^[1-9]\d{0,14}$/', $g) ? ['v' => (int) $g, 'fmt' => 'inteiro'] : ['v' => $g];
+    }
+
+    private static function comprada(array $linha): array
+    {
+        return trim((string) ($linha['v']['fornecedor'] ?? '')) !== '' ? self::COMPRADA : [];
     }
 
     private static function num(mixed $v): ?float

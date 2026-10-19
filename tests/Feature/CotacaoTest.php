@@ -289,6 +289,8 @@ class CotacaoTest extends TestCase
 
         $folha = CotacaoFolha::where('tipo', 'compra')->orderBy('ordem')->firstOrFail();
         $this->alterar($folha, [['t' => 'est', 'alvo' => 'lin', 'itens' => [['l' => $folha->linhas[0]['id'], 'e' => ['bg' => '#c8e6c9']]]]]);
+        // Fornecedor preenchido: a linha sai verde de comprada.
+        $this->alterar($folha, [['t' => 'cels', 'itens' => [[$folha->linhas[count($folha->linhas) - 1]['id'], 'fornecedor', 'CEASA BOX 12']]]]);
 
         $resposta = $this->actingAs($this->compras)->get(route('cotacao.exportar.compra', $this->cotacao))->assertOk();
         $caminho = tempnam(sys_get_temp_dir(), 'cot');
@@ -303,6 +305,7 @@ class CotacaoTest extends TestCase
 
         $this->assertSame(['GB Mercearia', 'GB Bebidas', 'WA Mercearia', 'Por fornecedor', 'Comparativo'], $abas);
         $this->assertStringContainsString('FFC8E6C9', $estilos);
+        $this->assertStringContainsString('FFD3F5DC', $estilos);
     }
 
     // ── Colunas: ocultar, nomes e o modelo para as próximas ──────────────────

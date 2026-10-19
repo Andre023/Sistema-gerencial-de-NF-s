@@ -146,14 +146,19 @@ export default function Mostrar({ cotacao, folhas: iniciais, lojas, setores }: P
     );
 
     // Cores só da tela na planilha de compra: o 1º preço em verde, o "vs custo"
-    // vermelho quando o preço passa do custo. Não vão para o Excel.
+    // vermelho quando o preço passa do custo, e a linha inteira esverdeada
+    // quando a coluna Fornecedor foi preenchida (o item já foi comprado).
+    // Não vão para o Excel.
     const realceDaCompra = useCallback((linha: Linha, coluna: Coluna) => {
         const v = linha.v[coluna.id];
-        if (coluna.id === 'preco1' && v !== undefined) return { cor: p.GREEN, b: true };
-        if (coluna.id === 'vs' && typeof v === 'string') return { cor: v.startsWith('-') ? p.GREEN : p.RED };
-        if (coluna.id === 'forn1' && v === 'sem cotação') return { cor: p.MUTED, i: true };
-        return undefined;
-    }, [p]);
+        const comprada = String(linha.v.fornecedor ?? '').trim() !== '';
+        // Com fundo, a grade escreve em preto — no escuro o texto precisa ir junto.
+        const fundo = comprada ? { bg: isDark ? '#1b3a26' : '#d3f5dc', cor: p.TEXT } : undefined;
+        if (coluna.id === 'preco1' && v !== undefined) return { ...fundo, cor: p.GREEN, b: true };
+        if (coluna.id === 'vs' && typeof v === 'string') return { ...fundo, cor: v.startsWith('-') ? p.GREEN : p.RED };
+        if (coluna.id === 'forn1' && v === 'sem cotação') return { ...fundo, cor: p.MUTED, i: true };
+        return fundo;
+    }, [p, isDark]);
 
     const dicaDaCompra = useCallback((linha: Linha) =>
         linha.of?.length ? linha.of.map(o => `${o.f}: R$ ${mostrar(o.p, 'moeda')}`).join('\n') : undefined, []);
