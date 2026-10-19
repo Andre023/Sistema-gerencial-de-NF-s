@@ -256,6 +256,31 @@ class CotacaoTest extends TestCase
         $this->assertContains('Bebidas', array_map(fn($l) => $l[0] ?? null, $linhas));
     }
 
+    public function test_lista_para_fornecedores_sai_so_do_setor_pedido(): void
+    {
+        $this->listasDasDuasLojas();
+        $this->actingAs($this->compras)->postJson(route('cotacao.previa.gerar', $this->cotacao));
+
+        $ler = function (?string $setor) {
+            $resposta = $this->actingAs($this->compras)
+                ->get(route('cotacao.exportar.lista', array_filter(['cotacao' => $this->cotacao->id, 'setor' => $setor])))
+                ->assertOk();
+            $caminho = tempnam(sys_get_temp_dir(), 'cot');
+            file_put_contents($caminho, $resposta->getContent());
+            $linhas = LeitorDePlanilha::ler($caminho)[0]['linhas'];
+            unlink($caminho);
+
+            return [$linhas[0][0], array_values(array_filter(array_map(fn($l) => $l[1] ?? null, array_slice($linhas, 3))))];
+        };
+
+        $this->assertSame(['Cotação de preços — Bebidas', ['SUCO 1L']], $ler('beb'));
+        $this->assertSame(['Cotação de preços — Mercearia', ['ARROZ 5KG', 'FEIJAO 1KG']], $ler('merc'));
+        $this->assertSame(['Cotação de preços', ['ARROZ 5KG', 'FEIJAO 1KG', 'SUCO 1L']], $ler(null));
+
+        $this->actingAs($this->compras)->get(route('cotacao.exportar.lista', ['cotacao' => $this->cotacao->id, 'setor' => 'xyz']))
+            ->assertSessionHasErrors('setor');
+    }
+
     public function test_planilha_de_compra_sai_com_as_abas_e_as_cores(): void
     {
         $this->listasDasDuasLojas();

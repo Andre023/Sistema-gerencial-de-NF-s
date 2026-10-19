@@ -264,10 +264,24 @@ export default function Mostrar({ cotacao, folhas: iniciais, lojas, setores }: P
                             className="text-sm font-medium px-3.5 py-2 rounded-lg disabled:opacity-40" style={{ background: p.ACCENT, color: '#fff' }}>
                             {ocupado === 'cotacao.previa.gerar' ? 'Gerando…' : previa ? 'Atualizar prévia com as listas' : 'Gerar prévia'}
                         </button>
-                        <button onClick={() => baixar(route('cotacao.exportar.lista', cotacao.id))} disabled={!previa || travado}
-                            className="text-sm font-medium px-3.5 py-2 rounded-lg disabled:opacity-40" style={{ background: p.GREEN, color: '#fff' }}>
-                            Baixar lista de cotação (.xlsx)
-                        </button>
+                        {/* Um botão por setor: há fornecedor que só vende bebida. */}
+                        <div className="inline-flex items-stretch rounded-lg overflow-hidden" style={{ border: `1px solid ${p.GREEN}` }}>
+                            <span className="text-sm font-medium px-3 py-2" style={{ background: p.GREEN, color: '#fff' }}>Baixar lista (.xlsx):</span>
+                            {[
+                                { rotulo: 'Mercearia + Bebidas', setor: undefined, n: previa?.linhas.length ?? 0 },
+                                ...setores.map(s => ({ rotulo: `Só ${s.nome}`, setor: s.id, n: previa?.linhas.filter(l => l.v.setor === s.nome).length ?? 0 })),
+                            ].map((o, i) => (
+                                <button key={o.rotulo} disabled={!previa || travado || !o.n}
+                                    onClick={() => baixar(route('cotacao.exportar.lista', { cotacao: cotacao.id, ...(o.setor ? { setor: o.setor } : {}) }))}
+                                    title={!o.n && previa ? 'Nenhum produto deste setor na prévia' : undefined}
+                                    className="text-sm px-3 py-2 disabled:opacity-40 transition"
+                                    style={{ color: p.GREEN, background: p.SURFACE, borderLeft: i ? `1px solid ${p.GREEN}55` : undefined }}
+                                    onMouseEnter={e => (e.currentTarget.style.background = p.GREEN + '18')}
+                                    onMouseLeave={e => (e.currentTarget.style.background = p.SURFACE)}>
+                                    {o.rotulo}
+                                </button>
+                            ))}
+                        </div>
                         {previa && setores.map(s => (
                             <span key={s.id} className="text-xs px-2 py-1 rounded-md tabular-nums" style={{ color: p.MUTED, border: `1px solid ${p.BORDER}` }}>
                                 {s.nome}: <b style={{ color: p.TEXT }}>{previa.linhas.filter(l => l.v.setor === s.nome).length}</b>

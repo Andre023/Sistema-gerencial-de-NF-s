@@ -20,31 +20,45 @@ final class ExportacaoDaCotacao
 {
     private const CABECALHO = ['b' => true, 'bg' => '#dde3ea'];
 
-    public static function listaParaFornecedores(Cotacao $cotacao): string
+    /**
+     * @param  string|null  $setor  'merc' ou 'beb' para só aquele setor; null para os dois.
+     *                              Há fornecedor que só vende bebida — mandar a lista
+     *                              inteira a ele é pedir que ele ache o pedaço dele.
+     */
+    public static function listaParaFornecedores(Cotacao $cotacao, ?string $setor = null): string
     {
         $previa = $cotacao->folhas()->where('tipo', 'previa')->first();
         $colunas = collect($previa?->colunas ?? P::COLUNAS_PREVIA)->keyBy('id');
 
+        $produtos = $previa?->linhas ?? [];
+
+        if ($setor !== null) {
+            $nomeDoSetor = P::norm(Cotacao::SETORES[$setor] ?? '');
+            $produtos = array_filter($produtos, fn($l) => P::norm($l['v']['setor'] ?? '') === $nomeDoSetor);
+        }
+
+        $titulo = 'Cotação de preços' . ($setor !== null ? ' — ' . Cotacao::SETORES[$setor] : '');
+
         $linhas = [
-            [['v' => 'Cotação de preços', 'b' => true], '', ''],
+            [['v' => $titulo, 'b' => true], '', ''],
             ['Fornecedor: ', '(O fornecedor vai inserir o nome aqui)', ''],
             [['v' => 'GTIN Principal'] + self::CABECALHO, ['v' => 'Descrição'] + self::CABECALHO, ['v' => 'Valor'] + self::CABECALHO],
         ];
         $mesclas = ['A1:C1', 'B2:C2'];
         $setorAtual = null;
 
-        foreach ($previa?->linhas ?? [] as $linha) {
-            $setor = (string) ($linha['v']['setor'] ?? '');
+        foreach ($produtos as $linha) {
+            $doSetor = (string) ($linha['v']['setor'] ?? '');
 
             // A linha "Bebidas" que separa os setores — o fornecedor costuma
             // ter vendedores diferentes para cada um.
-            if ($setorAtual !== null && P::norm($setor) !== P::norm($setorAtual) && $setor !== '') {
+            if ($setorAtual !== null && P::norm($doSetor) !== P::norm($setorAtual) && $doSetor !== '') {
                 $linhas[] = ['', '', ''];
-                $linhas[] = [['v' => $setor, 'b' => true], '', ''];
+                $linhas[] = [['v' => $doSetor, 'b' => true], '', ''];
                 $mesclas[] = 'A' . count($linhas) . ':C' . count($linhas);
             }
 
-            $setorAtual = $setor !== '' ? $setor : $setorAtual;
+            $setorAtual = $doSetor !== '' ? $doSetor : $setorAtual;
 
             $linhas[] = [
                 self::celula($linha, $colunas->get('gtin'), 'gtin'),

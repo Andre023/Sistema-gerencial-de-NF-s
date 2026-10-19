@@ -286,9 +286,16 @@ class CotacaoController extends Controller
 
     // ─── Saída ─────────────────────────────────────────────────────────────────
 
-    public function exportarLista(Cotacao $cotacao): RespostaHttp
+    /** ?setor=merc|beb baixa só aquele setor; sem ele, os dois. */
+    public function exportarLista(Request $request, Cotacao $cotacao): RespostaHttp
     {
-        return $this->baixar(ExportacaoDaCotacao::listaParaFornecedores($cotacao), 'Cotação CEASA ' . now()->format('d-m') . '.xlsx');
+        $setor = $request->validate(['setor' => ['nullable', Rule::in(array_keys(Cotacao::SETORES))]])['setor'] ?? null;
+        $sufixo = $setor !== null ? ' ' . Cotacao::SETORES[$setor] : '';
+
+        return $this->baixar(
+            ExportacaoDaCotacao::listaParaFornecedores($cotacao, $setor),
+            'Cotação CEASA' . $sufixo . ' ' . now()->format('d-m') . '.xlsx',
+        );
     }
 
     public function exportarCompra(Cotacao $cotacao): RespostaHttp

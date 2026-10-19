@@ -42,6 +42,13 @@ interface Props {
     altura?: string;
 }
 
+/**
+ * A célula aberta para digitar. `porCima`: começou digitando sobre a célula —
+ * aí as setas gravam e vão para a vizinha, como no Excel. Aberta por duplo
+ * clique ou F2 (para corrigir um texto), as setas andam dentro do texto.
+ */
+interface Edicao { r: number; c: number; texto: string; porCima: boolean }
+
 interface Selecao { r0: number; c0: number; r1: number; c1: number; modo: 'cel' | 'lin' | 'col' }
 interface Cursor { r: number; c: number }
 
@@ -107,7 +114,7 @@ export default function Planilha({
     const [busca, setBusca] = useState('');
     const [sel, setSel] = useState<Selecao>({ r0: 0, c0: 0, r1: 0, c1: 0, modo: 'cel' });
     const [cursor, setCursor] = useState<Cursor>({ r: 0, c: 0 });
-    const [edicao, setEdicaoState] = useState<{ r: number; c: number; texto: string } | null>(null);
+    const [edicao, setEdicaoState] = useState<Edicao | null>(null);
     // A edição também num ref: o Enter fecha e o blur que vem logo atrás não
     // pode gravar de novo.
     const edicaoRef = useRef(edicao);
@@ -198,7 +205,7 @@ export default function Planilha({
         const l = linhas[cursor.r];
         const col = colunas[cursor.c];
         if (!l || !col) return;
-        setEdicao({ r: cursor.r, c: cursor.c, texto: texto ?? paraEditar(l.v[col.id]) });
+        setEdicao({ r: cursor.r, c: cursor.c, texto: texto ?? paraEditar(l.v[col.id]), porCima: texto !== undefined });
     };
 
     const fecharEdicao = useEstavel((gravarAntes: boolean, depois?: [number, number]) => {
@@ -416,6 +423,7 @@ export default function Planilha({
     const descerNaCelula = useCallback((r: number, c: number, e: React.MouseEvent) => {
         if (e.button !== 0) return;
         e.preventDefault();
+        fecharEdicao(true);
         grade.current?.focus({ preventScroll: true });
         setMenu(null);
         if (e.shiftKey) {
@@ -436,6 +444,7 @@ export default function Planilha({
 
     const descerNoNumero = useEstavel((r: number, e: React.MouseEvent) => {
         e.preventDefault();
+        fecharEdicao(true);
         grade.current?.focus({ preventScroll: true });
         setCursor(cur => ({ r, c: cur.c }));
         setSel(s => (e.shiftKey && s.modo === 'lin' ? { ...s, r1: r } : { r0: r, r1: r, c0: 0, c1: nColunas - 1, modo: 'lin' }));
@@ -444,11 +453,21 @@ export default function Planilha({
 
     const descerNoCabecalho = (c: number, e: React.MouseEvent) => {
         e.preventDefault();
+        fecharEdicao(true);
         grade.current?.focus({ preventScroll: true });
         setCursor(cur => ({ r: cur.r, c }));
         setSel(s => (e.shiftKey && s.modo === 'col' ? { ...s, c1: c } : { r0: 0, r1: nLinhas - 1, c0: c, c1: c, modo: 'col' }));
         arrastando.current = 'col';
     };
+
+    useEffect(() => {
+        const foraDaCelula = (e: MouseEvent) => {
+            const alvo = e.target as HTMLElement | null;
+            if (edicaoRef.current && !alvo?.closest('td input')) fecharEdicao(true);
+        };
+        document.addEventListener('mousedown', foraDaCelula, true);
+        return () => document.removeEventListener('mousedown', foraDaCelula, true);
+    }, []);
 
     useEffect(() => {
         const soltar = () => { arrastando.current = false; };
@@ -459,7 +478,7 @@ export default function Planilha({
     const duploClique = useEstavel((r: number, c: number) => {
         const l = linhas[r];
         const col = colunas[c];
-        if (l && col) setEdicao({ r, c, texto: paraEditar(l.v[col.id]) });
+        if (l && col) setEdicao({ r, c, texto: paraEditar(l.v[col.id]), porCima: false });
     });
 
     // Arrastar a borda do cabeçalho muda a largura. Só grava ao soltar.
@@ -801,7 +820,7 @@ interface PropsDaLinha {
     c1: number;
     linhaInteira: boolean;
     cursorC: number;
-    edicao: { r: number; c: number; texto: string } | null;
+    edicao: Edicao | null;
     focos?: FocoNaFolha[];
     realce?: (linha: Linha, coluna: Coluna) => Estilo | undefined;
     dica?: (linha: Linha) => string | undefined;
@@ -878,6 +897,8 @@ const LinhaDaGrade = memo(function LinhaDaGrade({
                                 onBlur={() => onFechar(true)}
                                 onKeyDown={ev => {
                                     if (ev.key === 'Enter') { ev.preventDefault(); onFechar(true, [ev.shiftKey ? -1 : 1, 0]); }
+                                    else if (ev.key === 'ArrowDown' || ev.key === 'ArrowUp') { ev.preventDefault(); onFechar(true, [ev.key === 'ArrowDown' ? 1 : -1, 0]); }
+                                    else if ((ev.key === 'ArrowRight' || ev.key === 'ArrowLeft') && edicao.porCima) { ev.preventDefault(); onFechar(true, [0, ev.key === 'ArrowRight' ? 1 : -1]); }
                                     else if (ev.key === 'Tab') { ev.preventDefault(); onFechar(true, [0, ev.shiftKey ? -1 : 1]); }
                                     else if (ev.key === 'Escape') { ev.preventDefault(); onFechar(false); }
                                 }}
