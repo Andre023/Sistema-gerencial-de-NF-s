@@ -1,6 +1,7 @@
 <?php
 
 use App\Models\Conversa;
+use App\Models\Cotacao;
 use App\Models\User;
 use Illuminate\Support\Facades\Broadcast;
 
@@ -21,6 +22,16 @@ Broadcast::channel('notas', function ($user) {
 // Quadro de devoluções: quem enxerga o quadro acompanha o que muda nele.
 Broadcast::channel('devolucoes', function (User $user) {
     return $user->podeUsarDevolucoes();
+});
+
+// A cotação aberta: quem está nela (os avatares no topo, e a célula onde cada
+// um está — por whisper, sem passar pelo PHP) e as alterações das folhas.
+Broadcast::channel('cotacao.{cotacao}', function (User $user, int $cotacao) {
+    if (! $user->podeUsarCotacao() || ! Cotacao::whereKey($cotacao)->exists()) {
+        return false;
+    }
+
+    return ['id' => $user->id, 'name' => $user->name, 'avatar' => $user->avatar];
 });
 
 // Sino: cada um só escuta o próprio canal

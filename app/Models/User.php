@@ -447,6 +447,17 @@ class User extends Authenticatable
     }
 
     /**
+     * Usar a aba Cotação — a cotação CEASA de Mercearia e Bebidas.
+     *
+     * De compras, como a Campanha: é quem manda a lista aos fornecedores e faz
+     * o pedido com os preços que voltam. O admin entra junto.
+     */
+    public function podeUsarCotacao(): bool
+    {
+        return $this->ehUmDe(self::ROLE_COMPRAS);
+    }
+
+    /**
      * As seções ADMINISTRATIVAS de Configurações — Usuários, Campanha de
      * aniversário e Fornecedores (renomear/apagar) — só admin.
      *

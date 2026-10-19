@@ -22,6 +22,8 @@ export interface User {
 }
 
 export interface Permissoes {
+    /** Aba Cotação (cotação CEASA) — compras e admin */
+    usarCotacao: boolean;
     lancarNota: boolean;
     gerirCards: boolean;
     corrigirCard: boolean;

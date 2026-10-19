@@ -95,6 +95,7 @@ class AppServiceProvider extends ServiceProvider
         // Campanha de aniversário: papel de compras E o interruptor do admin
         // ligado. Desligada, a aba não abre nem para quem sabe o endereço.
         Gate::define('usar-campanha',      fn(User $u) => $u->podeUsarCampanha());
+        Gate::define('usar-cotacao',       fn(User $u) => $u->podeUsarCotacao());
         Gate::define('gerenciar-configuracoes', fn(User $u) => $u->podeGerenciarConfiguracoes());
 
         // Marcas de fornecedor (consignado, feira, uso e consumo): a lista é de

@@ -7,6 +7,7 @@ use App\Http\Controllers\ComentarioController;
 use App\Http\Controllers\ConfiguracaoController;
 use App\Http\Controllers\MarcaFornecedorController;
 use App\Http\Controllers\ConversaController;
+use App\Http\Controllers\CotacaoController;
 use App\Http\Controllers\DevolucaoController;
 use App\Http\Controllers\DossieController;
 use App\Http\Controllers\EstatisticaController;
@@ -211,6 +212,37 @@ Route::middleware(['auth', 'verified'])->group(function () {
         // Cada envio troca a base inteira — é uma foto dos últimos 12 meses.
         Route::post('/planilha',   [CampanhaController::class, 'importarPlanilha'])->name('planilha.importar');
         Route::delete('/planilha', [CampanhaController::class, 'removerPlanilha'])->name('planilha.remover');
+    });
+
+    // ── Cotação CEASA (compras + admin) ────────────────────────────────────────
+    //
+    // Do estoque baixo das lojas ao pedido: listas de compra, a prévia que vai
+    // aos fornecedores, as respostas deles e a planilha de compra. As folhas
+    // são editadas por operações (PATCH .../folhas/{folha}) que valem na hora
+    // para todos os compradores com a cotação aberta.
+    //
+    // scopeBindings: a folha precisa ser DESTA cotação — sem isso, trocar o
+    // número na URL editaria a folha de outra.
+    Route::middleware('can:usar-cotacao')->prefix('cotacao')->name('cotacao.')->scopeBindings()->group(function () {
+        Route::get('/',             [CotacaoController::class, 'index'])->name('index');
+        Route::post('/',            [CotacaoController::class, 'store'])->name('store');
+        Route::get('/{cotacao}',    [CotacaoController::class, 'mostrar'])->name('mostrar');
+        Route::patch('/{cotacao}',  [CotacaoController::class, 'renomear'])->name('renomear');
+        Route::delete('/{cotacao}', [CotacaoController::class, 'excluir'])->name('excluir');
+
+        Route::post('/{cotacao}/listas',     [CotacaoController::class, 'importarListas'])->name('listas.importar');
+        Route::post('/{cotacao}/respostas',  [CotacaoController::class, 'importarRespostas'])->name('respostas.importar');
+        Route::post('/{cotacao}/em-branco',  [CotacaoController::class, 'folhaEmBranco'])->name('folhas.em-branco');
+        Route::post('/{cotacao}/previa',     [CotacaoController::class, 'gerarPrevia'])->name('previa.gerar');
+        Route::post('/{cotacao}/compra',     [CotacaoController::class, 'gerarCompra'])->name('compra.gerar');
+
+        Route::get('/{cotacao}/exportar/lista',  [CotacaoController::class, 'exportarLista'])->name('exportar.lista');
+        Route::get('/{cotacao}/exportar/compra', [CotacaoController::class, 'exportarCompra'])->name('exportar.compra');
+
+        Route::get('/{cotacao}/folhas/{folha}',          [CotacaoController::class, 'folha'])->name('folhas.mostrar');
+        Route::patch('/{cotacao}/folhas/{folha}',        [CotacaoController::class, 'alterar'])->name('folhas.alterar');
+        Route::delete('/{cotacao}/folhas/{folha}',       [CotacaoController::class, 'removerFolha'])->name('folhas.remover');
+        Route::get('/{cotacao}/folhas/{folha}/exportar', [CotacaoController::class, 'exportarFolha'])->name('folhas.exportar');
     });
 
     // ── Configurações ──────────────────────────────────────────────────────────

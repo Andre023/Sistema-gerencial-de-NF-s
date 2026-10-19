@@ -192,6 +192,11 @@ export default function AuthenticatedLayout({
                                         Campanha
                                     </NavLink>
                                 )}
+                                {can.usarCotacao && (
+                                    <NavLink href={route('cotacao.index')} active={route().current('cotacao.*')}>
+                                        Cotação
+                                    </NavLink>
+                                )}
                                 {/* Configurações é de todo mundo: o que muda por
                                     papel é a lista de seções lá dentro (Usuários,
                                     Campanha e Fornecedores só para o admin;
@@ -314,6 +319,11 @@ export default function AuthenticatedLayout({
                         {can.usarCampanha && (
                             <ResponsiveNavLink href={route('campanha.index')} active={route().current('campanha.*')}>
                                 Campanha
+                            </ResponsiveNavLink>
+                        )}
+                        {can.usarCotacao && (
+                            <ResponsiveNavLink href={route('cotacao.index')} active={route().current('cotacao.*')}>
+                                Cotação
                             </ResponsiveNavLink>
                         )}
                         <ResponsiveNavLink href={route('configuracoes.index')} active={emConfiguracoes()}>
