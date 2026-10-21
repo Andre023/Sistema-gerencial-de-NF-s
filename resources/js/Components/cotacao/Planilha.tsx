@@ -69,6 +69,30 @@ const juntar = (...estilos: (Estilo | undefined)[]): Estilo => {
 
 const semAcento = (t: string) => t.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
 
+/**
+ * O filtro de uma coluna, como o do Excel. Só desta tela — filtrar não
+ * esconde nada dos colegas.
+ *
+ *   valores: os textos (como aparecem na grade) que ficam; '' = célula vazia.
+ *   cor:     o fundo que fica; '' = sem cor.
+ */
+interface Filtro { valores?: string[]; cor?: string }
+
+type Realce = (linha: Linha, coluna: Coluna) => Estilo | undefined;
+
+const textoDaCelula = (l: Linha, c: Coluna) => mostrar(l.v[c.id], c.tipo).trim();
+
+/** O fundo que a célula mostra: o pintado à mão ou o realce da tela. */
+const fundoDaCelula = (l: Linha, c: Coluna, realce?: Realce) =>
+    (juntar(l.e?.[c.id], l.s, c.estilo, realce?.(l, c)).bg ?? '').toLowerCase();
+
+const passaNoFiltro = (l: Linha, c: Coluna, f: Filtro, realce?: Realce) =>
+    (!f.valores || f.valores.includes(textoDaCelula(l, c)))
+    && (f.cor === undefined || fundoDaCelula(l, c, realce) === f.cor);
+
+const nomeDaCor = (cor: string) =>
+    cor === '' ? 'Sem cor' : FUNDOS.find(f => f.cor.toLowerCase() === cor)?.nome ?? 'Outra cor';
+
 /** O texto do Excel: TAB entre colunas, quebra entre linhas, aspas em volta de célula com quebra. */
 function lerTsv(texto: string): string[][] {
     const linhas: string[][] = [];
@@ -138,12 +162,40 @@ export default function Planilha({
     const colunas = useMemo(() => folha.colunas.filter(c => !c.oculta), [folha.colunas]);
     const ocultas = useMemo(() => folha.colunas.filter(c => c.oculta), [folha.colunas]);
 
-    // A busca esconde linhas, mas a seleção continua contando pelo que aparece.
+    // ── Filtro das colunas ──
+    //
+    // Como no Excel, o filtro é tirado na hora em que se aplica: a linha que
+    // deixou de bater depois (alguém preencheu o Fornecedor que estava vazio)
+    // continua na tela até filtrar de novo. Senão ela sumiria debaixo do
+    // cursor e o Enter pularia a linha seguinte. Linha nova sempre aparece.
+    const [filtros, setFiltros] = useState<Record<string, Filtro>>({});
+    const [fotoDoFiltro, setFotoDoFiltro] = useState<Map<string, boolean> | null>(null);
+    const [painelDeFiltro, setPainelDeFiltro] = useState<{ id: string; x: number; y: number } | null>(null);
+
+    const filtrar = (novos: Record<string, Filtro>) => {
+        setFiltros(novos);
+        const ativos = Object.entries(novos)
+            .map(([id, f]) => [folha.colunas.find(c => c.id === id), f] as const)
+            .filter((x): x is readonly [Coluna, Filtro] => !!x[0]);
+        setFotoDoFiltro(ativos.length
+            ? new Map(folha.linhas.map(l => [l.id, ativos.every(([c, f]) => passaNoFiltro(l, c, f, realce))]))
+            : null);
+    };
+
+    const filtrarColuna = (id: string, f: Filtro | undefined) => {
+        const { [id]: _, ...resto } = filtros;
+        filtrar(f ? { ...resto, [id]: f } : resto);
+    };
+
+    const nFiltros = Object.keys(filtros).length;
+
+    // A busca e o filtro escondem linhas, mas a seleção continua contando pelo que aparece.
     const linhas = useMemo(() => {
         const q = semAcento(busca.trim());
-        if (!q) return folha.linhas;
-        return folha.linhas.filter(l => Object.values(l.v).some(v => semAcento(String(v)).includes(q)));
-    }, [folha.linhas, busca]);
+        const filtradas = fotoDoFiltro ? folha.linhas.filter(l => fotoDoFiltro.get(l.id) ?? true) : folha.linhas;
+        if (!q) return filtradas;
+        return filtradas.filter(l => Object.values(l.v).some(v => semAcento(String(v)).includes(q)));
+    }, [folha.linhas, busca, fotoDoFiltro]);
 
     const nLinhas = linhas.length;
     const nColunas = colunas.length;
@@ -628,10 +680,36 @@ export default function Planilha({
                 <span className="truncate" style={{ color: p.TEXT }}>
                     {celulaAtual && colunaAtual ? paraEditar(celulaAtual.v[colunaAtual.id]) : ''}
                 </span>
-                <span className="ml-auto shrink-0" style={{ color: p.MUTED }}>
-                    {busca ? `${nLinhas} de ${folha.linhas.length}` : nLinhas} linhas
+                {nFiltros > 0 && (
+                    <button type="button" onClick={() => filtrar({})}
+                        className="ml-auto shrink-0 px-2 py-0.5 rounded font-medium"
+                        style={{ color: p.ACCENT, border: `1px solid ${p.ACCENT}66` }}
+                        title="Mostrar todas as linhas de novo">
+                        ✕ Limpar {nFiltros > 1 ? `${nFiltros} filtros` : 'filtro'}
+                    </button>
+                )}
+                <span className={`shrink-0 ${nFiltros ? '' : 'ml-auto'}`} style={{ color: p.MUTED }}>
+                    {busca || nFiltros ? `${nLinhas} de ${folha.linhas.length}` : nLinhas} linhas
                 </span>
             </div>
+
+            {painelDeFiltro && (() => {
+                const c = folha.colunas.find(x => x.id === painelDeFiltro.id);
+                if (!c) return null;
+                return (
+                    <FiltroDaColuna
+                        coluna={c}
+                        linhas={folha.linhas}
+                        realce={realce}
+                        atual={filtros[c.id]}
+                        p={p}
+                        x={painelDeFiltro.x}
+                        y={painelDeFiltro.y}
+                        onAplicar={f => { filtrarColuna(c.id, f); setPainelDeFiltro(null); }}
+                        onFechar={() => setPainelDeFiltro(null)}
+                    />
+                );
+            })()}
 
             {menuDaColuna && (() => {
                 const c = folha.colunas.find(x => x.id === menuDaColuna.id);
@@ -653,6 +731,8 @@ export default function Planilha({
                             style={{ left: Math.min(menuDaColuna.x, window.innerWidth - 216), top: menuDaColuna.y, background: p.SURFACE, border: `1px solid ${p.BORDER}` }}
                             onMouseDown={e => e.preventDefault()}>
                             <p className="px-3 pt-1 pb-1.5 text-[11px] font-semibold truncate" style={{ color: p.MUTED }}>{c.nome}</p>
+                            {item('Filtrar…', () => setPainelDeFiltro({ id: c.id, x: menuDaColuna.x, y: menuDaColuna.y }))}
+                            {filtros[c.id] && item('Limpar filtro desta coluna', () => filtrarColuna(c.id, undefined), p.ACCENT)}
                             {item('Ocultar esta coluna', () => onOps([{ t: 'col', coluna: { id: c.id, oculta: true } }]), p.TEXT, colunas.length <= 1)}
                             {item('Renomear', () => setRenomeando(c.id))}
                             {item('Ordenar A→Z', () => ordenar(false, c.id))}
@@ -725,15 +805,22 @@ export default function Planilha({
                                             <span className="block truncate">{c.nome}</span>
                                         )}
                                         {renomeando !== c.id && (
-                                            <button type="button" aria-label={`Opções da coluna ${c.nome}`} title="Opções da coluna (ou botão direito)"
+                                            <button type="button" aria-label={`Opções da coluna ${c.nome}`}
+                                                title={filtros[c.id] ? 'Coluna filtrada — clique para mudar ou limpar o filtro' : 'Opções da coluna e filtro (ou botão direito)'}
                                                 onMouseDown={e => e.stopPropagation()}
                                                 onClick={e => {
                                                     const r = e.currentTarget.getBoundingClientRect();
                                                     setMenuDaColuna(m => (m?.id === c.id ? null : { id: c.id, x: r.left, y: r.bottom + 2 }));
                                                 }}
-                                                className={`absolute right-2 top-1/2 -translate-y-1/2 w-4 h-4 rounded text-[10px] leading-none transition-opacity ${menuDaColuna?.id === c.id ? 'opacity-100' : 'opacity-0 group-hover:opacity-100 focus:opacity-100'}`}
-                                                style={{ color: p.TEXT, background: p.SURFACE, border: `1px solid ${p.BORDER}` }}>
-                                                ▾
+                                                className={`absolute right-2 top-1/2 -translate-y-1/2 w-4 h-4 rounded text-[10px] leading-none inline-grid place-items-center transition-opacity ${menuDaColuna?.id === c.id || filtros[c.id] ? 'opacity-100' : 'opacity-0 group-hover:opacity-100 focus:opacity-100'}`}
+                                                style={filtros[c.id]
+                                                    ? { color: '#fff', background: p.ACCENT, border: `1px solid ${p.ACCENT}` }
+                                                    : { color: p.TEXT, background: p.SURFACE, border: `1px solid ${p.BORDER}` }}>
+                                                {filtros[c.id] ? (
+                                                    <svg viewBox="0 0 16 16" width="9" height="9" fill="currentColor" aria-hidden="true">
+                                                        <path d="M1 2h14l-5.5 6.5V14l-3-1.5v-4z" />
+                                                    </svg>
+                                                ) : '▾'}
                                             </button>
                                         )}
                                         <span onMouseDown={e => redimensionar(c, e)}
@@ -805,6 +892,158 @@ function Paleta({ p, cores, onCor }: { p: Palette; cores: { nome: string; cor: s
                 Sem cor
             </button>
         </div>
+    );
+}
+
+// ─── Filtro de uma coluna ──────────────────────────────────────────────────────
+
+interface PropsDoFiltro {
+    coluna: Coluna;
+    linhas: Linha[];
+    realce?: Realce;
+    atual?: Filtro;
+    p: Palette;
+    x: number;
+    y: number;
+    onAplicar: (f: Filtro | undefined) => void;
+    onFechar: () => void;
+}
+
+/**
+ * O painel do filtro, como o do Excel: a lista dos valores da coluna para
+ * marcar, as cores de fundo que aparecem nela e atalhos para vazias e
+ * preenchidas. Digitar na busca e dar Enter deixa só o que bateu.
+ */
+function FiltroDaColuna({ coluna, linhas, realce, atual, p, x, y, onAplicar, onFechar }: PropsDoFiltro) {
+    const valores = useMemo(() => {
+        const n = new Map<string, number>();
+        for (const l of linhas) {
+            const t = textoDaCelula(l, coluna);
+            n.set(t, (n.get(t) ?? 0) + 1);
+        }
+        return [...n.entries()].sort(([a], [b]) =>
+            a === '' ? -1 : b === '' ? 1 : a.localeCompare(b, 'pt-BR', { numeric: true }));
+    }, [linhas, coluna]);
+
+    const cores = useMemo(() => {
+        const n = new Map<string, number>();
+        for (const l of linhas) {
+            const cor = fundoDaCelula(l, coluna, realce);
+            n.set(cor, (n.get(cor) ?? 0) + 1);
+        }
+        return [...n.entries()].sort(([a], [b]) => (a === '' ? -1 : b === '' ? 1 : 0));
+    }, [linhas, coluna, realce]);
+
+    const [marcados, setMarcados] = useState<Set<string>>(() => new Set(atual?.valores ?? valores.map(([v]) => v)));
+    const [cor, setCor] = useState<string | undefined>(atual?.cor);
+    const [busca, setBusca] = useState('');
+
+    const q = semAcento(busca.trim());
+    const visiveis = q ? valores.filter(([v]) => v !== '' && semAcento(v).includes(q)) : valores;
+    const todosVisiveisMarcados = visiveis.every(([v]) => marcados.has(v));
+
+    const montar = (valoresQueFicam: Set<string>, corQueFica = cor): Filtro | undefined => {
+        const f: Filtro = {};
+        if (valoresQueFicam.size < valores.length) f.valores = [...valoresQueFicam];
+        if (corQueFica !== undefined) f.cor = corQueFica;
+        return Object.keys(f).length ? f : undefined;
+    };
+
+    const alternarValor = (v: string) => setMarcados(m => {
+        const n = new Set(m);
+        n.has(v) ? n.delete(v) : n.add(v);
+        return n;
+    });
+
+    const alternarVisiveis = () => setMarcados(m => {
+        const n = new Set(m);
+        for (const [v] of visiveis) todosVisiveisMarcados ? n.delete(v) : n.add(v);
+        return n;
+    });
+
+    const so = (vazias: boolean) =>
+        onAplicar(montar(new Set(valores.map(([v]) => v).filter(v => (v === '') === vazias))));
+
+    const largura = 272;
+    const botao = 'text-xs px-2 py-1 rounded-md disabled:opacity-40';
+
+    return (
+        <>
+            <div className="fixed inset-0 z-40" onMouseDown={onFechar} onContextMenu={e => { e.preventDefault(); onFechar(); }} />
+            <div className="fixed z-50 rounded-lg shadow-lg flex flex-col text-xs"
+                style={{
+                    left: Math.max(8, Math.min(x, window.innerWidth - largura - 8)), top: Math.max(8, Math.min(y, window.innerHeight - 420)),
+                    width: largura, maxHeight: 'min(80vh, 520px)', background: p.SURFACE, border: `1px solid ${p.BORDER}`, color: p.TEXT,
+                }}
+                onKeyDown={e => { if (e.key === 'Escape') onFechar(); }}>
+                <p className="px-3 pt-2.5 pb-1.5 font-semibold truncate">Filtrar: {coluna.nome}</p>
+
+                <div className="px-3 pb-2 flex gap-1.5">
+                    <button type="button" className={botao} style={{ border: `1px solid ${p.BORDER}` }}
+                        disabled={!valores.some(([v]) => v === '')} onClick={() => so(true)}>Só vazias</button>
+                    <button type="button" className={botao} style={{ border: `1px solid ${p.BORDER}` }}
+                        disabled={!valores.some(([v]) => v !== '')} onClick={() => so(false)}>Só preenchidas</button>
+                </div>
+
+                {cores.length > 1 && (
+                    <div className="px-3 pb-2">
+                        <p className="pb-1 text-[11px] uppercase tracking-wide" style={{ color: p.MUTED }}>Pela cor de fundo</p>
+                        <div className="flex flex-wrap gap-1.5">
+                            {cores.map(([c, n]) => {
+                                const escolhida = cor === c;
+                                return (
+                                    <button key={c || 'sem'} type="button" title={`${nomeDaCor(c)} (${n})`}
+                                        onClick={() => setCor(escolhida ? undefined : c)}
+                                        className="h-6 px-1.5 rounded-md inline-flex items-center gap-1"
+                                        style={{ border: `1px solid ${escolhida ? p.ACCENT : p.BORDER}`, boxShadow: escolhida ? `0 0 0 1px ${p.ACCENT}` : undefined }}>
+                                        <span className="w-3.5 h-3.5 rounded-sm"
+                                            style={{ background: c || 'transparent', border: `1px ${c ? 'solid' : 'dashed'} ${c ? '#00000026' : p.MUTED}` }} />
+                                        <span className="tabular-nums" style={{ color: p.MUTED }}>{n}</span>
+                                    </button>
+                                );
+                            })}
+                        </div>
+                    </div>
+                )}
+
+                <div className="px-3 pb-1.5">
+                    <input type="search" autoFocus value={busca} onChange={e => setBusca(e.target.value)}
+                        onKeyDown={e => {
+                            if (e.key === 'Enter' && q && visiveis.length) onAplicar(montar(new Set(visiveis.map(([v]) => v))));
+                        }}
+                        placeholder="Procurar (Enter filtra o que achar)"
+                        className="w-full h-7 rounded-md px-2 outline-none"
+                        style={{ background: p.INPUT_BG, color: p.TEXT, border: `1px solid ${p.INPUT_BORDER}` }} />
+                </div>
+
+                <div className="flex-1 min-h-0 overflow-y-auto px-1.5 pb-1" style={{ maxHeight: 260 }}>
+                    <label className="flex items-center gap-2 px-1.5 py-1 rounded cursor-pointer font-medium">
+                        <input type="checkbox" checked={visiveis.length > 0 && todosVisiveisMarcados} onChange={alternarVisiveis} />
+                        {q ? 'Marcar os encontrados' : 'Selecionar tudo'}
+                    </label>
+                    {visiveis.slice(0, 500).map(([v, n]) => (
+                        <label key={v || '(vazias)'} className="flex items-center gap-2 px-1.5 py-1 rounded cursor-pointer"
+                            onMouseEnter={e => (e.currentTarget.style.background = p.HOVER_ROW)}
+                            onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}>
+                            <input type="checkbox" checked={marcados.has(v)} onChange={() => alternarValor(v)} />
+                            <span className="truncate" style={v === '' ? { color: p.MUTED, fontStyle: 'italic' } : undefined}>{v === '' ? '(Vazias)' : v}</span>
+                            <span className="ml-auto tabular-nums" style={{ color: p.MUTED }}>{n}</span>
+                        </label>
+                    ))}
+                    {visiveis.length > 500 && (
+                        <p className="px-1.5 py-1" style={{ color: p.MUTED }}>…e mais {visiveis.length - 500}. Procure para achar.</p>
+                    )}
+                    {!visiveis.length && <p className="px-1.5 py-1" style={{ color: p.MUTED }}>Nada encontrado.</p>}
+                </div>
+
+                <div className="flex items-center gap-1.5 px-3 py-2" style={{ borderTop: `1px solid ${p.BORDER}` }}>
+                    <button type="button" className={botao} style={{ color: p.RED }} disabled={!atual} onClick={() => onAplicar(undefined)}>Limpar</button>
+                    <button type="button" className={botao + ' ml-auto'} style={{ border: `1px solid ${p.BORDER}` }} onClick={onFechar}>Cancelar</button>
+                    <button type="button" className={botao + ' font-medium'} style={{ background: p.ACCENT, color: '#fff' }}
+                        disabled={!marcados.size} onClick={() => onAplicar(montar(marcados))}>Filtrar</button>
+                </div>
+            </div>
+        </>
     );
 }
 
