@@ -24,7 +24,7 @@ final class ExportacaoDaCotacao
     private const COMPRADA = ['bg' => '#d3f5dc'];
 
     /**
-     * @param  string|null  $setor  'merc' ou 'beb' para só aquele setor; null para os dois.
+     * @param  string|null  $setor  'merc', 'beb' ou 'frios' para só aquele setor; null para todos.
      *                              Há fornecedor que só vende bebida — mandar a lista
      *                              inteira a ele é pedir que ele ache o pedaço dele.
      */

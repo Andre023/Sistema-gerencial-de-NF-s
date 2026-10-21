@@ -2,6 +2,7 @@
 
 namespace App\Support;
 
+use App\Models\Cotacao;
 use Illuminate\Support\Str;
 use RuntimeException;
 
@@ -16,6 +17,9 @@ use RuntimeException;
  *     loja é;
  *   • a RESPOSTA do fornecedor — a lista de cotação que mandamos, devolvida com
  *     a coluna "Valor" preenchida e o nome dele no campo "Fornecedor:".
+ *
+ * A lista de Frios é diferente: só Produto, Descrição, GTIN e a CONTAGEM do
+ * estoque — sem última entrada, custo nem venda.
  *
  * Nenhuma das duas tem posição fixa de coluna: o relatório do ERP muda de um
  * mês para o outro e o fornecedor às vezes apaga ou reordena coluna. Por isso
@@ -35,6 +39,7 @@ final class PlanilhaDaCotacao
         'qtd'     => ['qtd.', 'qtd', 'qtd. ult. ent.', 'qtd. lt. ent.', 'quantidade'],
         'data'    => ['data', 'ultima entrada', 'ltima entrada'],
         'forn'    => ['forn. ult. ent.', 'forn. lt. ent.', 'fornecedor'],
+        'contagem' => ['contagem'],
         'valor'   => ['valor', 'preco', 'valor unitario', 'preco unitario', 'valor (r$)', 'preco (r$)'],
     ];
 
@@ -42,11 +47,16 @@ final class PlanilhaDaCotacao
     //
     // `gerada`: a coluna é escrita pelo sistema ao gerar a folha, e gerar de
     // novo a sobrescreve. As outras são do comprador e sobrevivem.
+    //
+    // `opcional`: a coluna só aparece na folha que tem alguma coisa nela — a
+    // Contagem só vem na lista de Frios, e a última entrada só nas de
+    // Mercearia e Bebidas. Coluna vazia na folha inteira só ocuparia lugar.
 
     public const COLUNAS_LISTA = [
         ['id' => 'produto', 'nome' => 'Produto',         'tipo' => 'texto', 'largura' => 80],
         ['id' => 'desc',    'nome' => 'Descrição',       'tipo' => 'texto', 'largura' => 300],
         ['id' => 'gtin',    'nome' => 'GTIN',            'tipo' => 'texto', 'largura' => 125],
+        ['id' => 'contagem', 'nome' => 'Contagem',       'tipo' => 'numero', 'largura' => 85, 'opcional' => true],
         ['id' => 'data',    'nome' => 'Últ. entrada',    'tipo' => 'texto', 'largura' => 95],
         ['id' => 'qtd',     'nome' => 'Qtd.',            'tipo' => 'numero', 'largura' => 70],
         ['id' => 'forn',    'nome' => 'Forn. últ. ent.', 'tipo' => 'texto', 'largura' => 160],
@@ -71,6 +81,10 @@ final class PlanilhaDaCotacao
         ['id' => 'produto',    'nome' => 'Produto',          'tipo' => 'texto',  'largura' => 75,  'gerada' => true],
         ['id' => 'desc',       'nome' => 'Descrição',        'tipo' => 'texto',  'largura' => 280, 'gerada' => true],
         ['id' => 'gtin',       'nome' => 'GTIN',             'tipo' => 'texto',  'largura' => 120, 'gerada' => true],
+        ['id' => 'contagem',   'nome' => 'Contagem',         'tipo' => 'numero', 'largura' => 80,  'gerada' => true, 'opcional' => true],
+        ['id' => 'data',       'nome' => 'Últ. entrada',     'tipo' => 'texto',  'largura' => 95,  'gerada' => true, 'opcional' => true],
+        ['id' => 'qtd',        'nome' => 'Qtd. últ. ent.',   'tipo' => 'numero', 'largura' => 80,  'gerada' => true, 'opcional' => true],
+        ['id' => 'forn',       'nome' => 'Forn. últ. ent.',  'tipo' => 'texto',  'largura' => 150, 'gerada' => true, 'opcional' => true],
         ['id' => 'custo',      'nome' => 'Custo',            'tipo' => 'moeda',  'largura' => 80,  'gerada' => true],
         ['id' => 'venda',      'nome' => 'Venda',            'tipo' => 'moeda',  'largura' => 80,  'gerada' => true],
         ['id' => 'forn1',      'nome' => '1º Fornecedor',    'tipo' => 'texto',  'largura' => 150, 'gerada' => true],
@@ -102,15 +116,22 @@ final class PlanilhaDaCotacao
      *   • a do sistema que faltar volta no lugar dela — logo depois da coluna
      *     padrão que vem antes, e não no fim;
      *   • nome antigo que o sistema mesmo deu é trocado pelo novo ("Preço
-     *     fornecedor" virou "Preço for"); nome que o comprador escolheu fica.
+     *     fornecedor" virou "Preço for"); nome que o comprador escolheu fica;
+     *   • a `opcional` entra só se estiver em $comDados — e sai se não estiver.
      *
      * O resto (largura, cor, oculta, as colunas criadas pelo comprador) é dele
      * e passa intacto.
+     *
+     * @param  list<string>  $comDados  as colunas que têm valor em alguma linha da folha
      */
-    public static function completarColunas(array $atuais, string $tipo): array
+    public static function completarColunas(array $atuais, string $tipo, array $comDados = []): array
     {
         $padrao = self::colunasPadrao($tipo);
         $porId = array_column($padrao, null, 'id');
+
+        $semDados = fn(array $c) => ! empty($c['opcional']) && ! in_array($c['id'], $comDados, true);
+        $padrao = array_values(array_filter($padrao, fn($c) => ! $semDados($c)));
+        $atuais = array_values(array_filter($atuais, fn($c) => ! (isset($porId[$c['id'] ?? '']) && $semDados($porId[$c['id']]))));
 
         foreach ($atuais as $j => $coluna) {
             $nomeAntigo = self::NOMES_ANTIGOS[$coluna['id'] ?? ''] ?? null;
@@ -119,11 +140,14 @@ final class PlanilhaDaCotacao
                 $atuais[$j]['nome'] = $porId[$coluna['id']]['nome'];
             }
 
-            // `gerada` é do sistema: vale o que o padrão diz, nunca o que veio.
+            // `gerada` e `opcional` são do sistema: vale o que o padrão diz,
+            // nunca o que veio.
             if (isset($porId[$coluna['id'] ?? ''])) {
-                unset($atuais[$j]['gerada']);
-                if (! empty($porId[$coluna['id']]['gerada'])) {
-                    $atuais[$j]['gerada'] = true;
+                foreach (['gerada', 'opcional'] as $marca) {
+                    unset($atuais[$j][$marca]);
+                    if (! empty($porId[$coluna['id']][$marca])) {
+                        $atuais[$j][$marca] = true;
+                    }
                 }
             }
         }
@@ -137,12 +161,40 @@ final class PlanilhaDaCotacao
                 continue;
             }
 
-            $anterior = $i > 0 ? array_search($padrao[$i - 1]['id'], $ids, true) : -1;
-            $posicao = $anterior === false ? count($atuais) : $anterior + 1;
+            // Logo depois da coluna padrão mais próxima, das de antes, que já
+            // está na folha.
+            $posicao = 0;
+            for ($a = $i - 1; $a >= 0; $a--) {
+                $anterior = array_search($padrao[$a]['id'], $ids, true);
+                if ($anterior !== false) {
+                    $posicao = $anterior + 1;
+                    break;
+                }
+            }
+
             array_splice($atuais, $posicao, 0, [$coluna]);
         }
 
         return $atuais;
+    }
+
+    /**
+     * As colunas que têm valor em pelo menos uma das linhas.
+     *
+     * @return list<string>
+     */
+    public static function colunasComDados(array $linhas): array
+    {
+        $ids = [];
+        foreach ($linhas as $linha) {
+            foreach ($linha['v'] ?? [] as $id => $valor) {
+                if ($valor !== null && $valor !== '') {
+                    $ids[$id] = true;
+                }
+            }
+        }
+
+        return array_map('strval', array_keys($ids));
     }
 
     /** Nomes que o próprio sistema já deu a uma coluna e trocou depois. */
@@ -193,6 +245,7 @@ final class PlanilhaDaCotacao
                     'forn'    => $pega('forn'),
                     'custo'   => self::numero($pega('custo')),
                     'venda'   => self::numero($pega('venda')),
+                    'contagem' => self::numero($pega('contagem')),
                 ]);
             }
 
@@ -442,13 +495,18 @@ final class PlanilhaDaCotacao
 
         return [
             'loja'  => preg_match('/wilson|alvarenga/', $t) ? 'wa' : (preg_match('/gentil|bicalho/', $t) ? 'gb' : ''),
-            'setor' => preg_match('/bebida|\bbeb\b/', $t) ? 'beb' : (preg_match('/mercearia|\bmerc\b/', $t) ? 'merc' : ''),
+            'setor' => match (true) {
+                (bool) preg_match('/bebida|\bbeb\b/', $t)     => 'beb',
+                (bool) preg_match('/mercearia|\bmerc\b/', $t) => 'merc',
+                (bool) preg_match('/\bfrios?\b/', $t)          => 'frios',
+                default                                        => '',
+            },
         ];
     }
 
     public static function ehNomeDeSetor(string $texto): bool
     {
-        return in_array(self::norm($texto), ['mercearia', 'bebidas'], true);
+        return in_array(self::norm($texto), array_map(fn($s) => self::norm($s), Cotacao::SETORES), true);
     }
 
     public static function semExtensao(string $arquivo): string

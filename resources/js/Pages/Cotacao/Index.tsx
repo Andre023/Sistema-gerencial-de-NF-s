@@ -46,7 +46,7 @@ export default function Index({ cotacoes }: { cotacoes: Resumo[] }) {
                     <div>
                         <h1 className="text-lg font-semibold" style={{ color: p.TEXT }}>Cotação CEASA</h1>
                         <p className="text-sm mt-1" style={{ color: p.MUTED }}>
-                            Mercearia e Bebidas das duas lojas: as listas de compra, a cotação dos fornecedores e a planilha do pedido.
+                            Mercearia, Bebidas e Frios das duas lojas: as listas de compra, a cotação dos fornecedores e a planilha do pedido.
                         </p>
                     </div>
                     <button

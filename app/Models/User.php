@@ -447,7 +447,7 @@ class User extends Authenticatable
     }
 
     /**
-     * Usar a aba Cotação — a cotação CEASA de Mercearia e Bebidas.
+     * Usar a aba Cotação — a cotação CEASA de Mercearia, Bebidas e Frios.
      *
      * De compras, como a Campanha: é quem manda a lista aos fornecedores e faz
      * o pedido com os preços que voltam. O admin entra junto.

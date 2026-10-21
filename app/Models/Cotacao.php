@@ -26,8 +26,9 @@ class Cotacao extends Model
 
     /** Os setores, na ordem em que aparecem na lista que vai ao fornecedor. */
     public const SETORES = [
-        'merc' => 'Mercearia',
-        'beb'  => 'Bebidas',
+        'merc'  => 'Mercearia',
+        'beb'   => 'Bebidas',
+        'frios' => 'Frios',
     ];
 
     public function folhas(): HasMany

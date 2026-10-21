@@ -157,12 +157,15 @@ final class MontagemDaCotacao
                     }
                 }
 
+                $linhas = self::linhasDaCompra($itens, $indice, $atual?->linhas ?? [], $collator);
+                $colunas = $atual?->colunas ?? self::modeloDeColunas($cotacao, 'compra', ['loja' => $loja, 'setor' => $setor]);
+
                 $geradas->push(self::gravar($cotacao, $atual, [
                     'tipo'    => 'compra',
                     'nome'    => "{$dadosDaLoja['nome']} · {$nomeDoSetor}",
                     'meta'    => ['loja' => $loja, 'setor' => $setor],
-                    'colunas' => P::completarColunas($atual?->colunas ?? self::modeloDeColunas($cotacao, 'compra', ['loja' => $loja, 'setor' => $setor]), 'compra'),
-                    'linhas'  => self::linhasDaCompra($itens, $indice, $atual?->linhas ?? [], $collator),
+                    'colunas' => P::completarColunas($colunas, 'compra', P::colunasComDados($linhas)),
+                    'linhas'  => $linhas,
                     'ordem'   => 100 + $ordem,
                 ]));
             }
@@ -176,10 +179,12 @@ final class MontagemDaCotacao
      * última folha do mesmo tipo — colunas ocultas, nomes, larguras, cores e
      * as colunas que eles criaram. Assim a cotação da semana que vem já nasce
      * arrumada como a desta.
+     *
+     * @param  list<array>  $linhas  as linhas com que a folha nasce: dizem que colunas opcionais ela tem
      */
-    public static function colunas(Cotacao $cotacao, string $tipo, array $meta = []): array
+    public static function colunas(Cotacao $cotacao, string $tipo, array $meta = [], array $linhas = []): array
     {
-        return P::completarColunas(self::modeloDeColunas($cotacao, $tipo, $meta), $tipo);
+        return P::completarColunas(self::modeloDeColunas($cotacao, $tipo, $meta), $tipo, P::colunasComDados($linhas));
     }
 
     /**
@@ -255,6 +260,10 @@ final class MontagemDaCotacao
                 'produto'  => $v['produto'] ?? null,
                 'desc'     => $v['desc'] ?? null,
                 'gtin'     => $v['gtin'] ?? null,
+                'contagem' => $v['contagem'] ?? null,
+                'data'     => $v['data'] ?? null,
+                'qtd'      => $v['qtd'] ?? null,
+                'forn'     => $v['forn'] ?? null,
                 'custo'    => $custo,
                 'venda'    => $v['venda'] ?? null,
                 'forn1'    => $p1['f'] ?? 'sem cotação',

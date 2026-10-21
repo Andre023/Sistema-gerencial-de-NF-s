@@ -188,6 +188,49 @@ class CotacaoTest extends TestCase
         $this->assertSame(2, $folha->versao);
     }
 
+    public function test_lista_de_frios_traz_a_contagem_ate_a_planilha_de_compra(): void
+    {
+        $this->importarLista('frios.xlsx', [
+            ['Frios Hiper Wilson Alvarenga'],
+            ['Produto', 'Descrição', 'GTIN', 'CONTAGEM'],
+            [501, 'QUEIJO MUSSARELA KG', 789100000009, 12],
+        ])->assertOk();
+
+        $lista = CotacaoFolha::where('tipo', 'lista')->firstOrFail();
+        $this->assertSame(['loja' => 'wa', 'setor' => 'frios'], $lista->meta);
+        $this->assertEquals(12, $lista->linhas[0]['v']['contagem']);
+        $this->assertContains('contagem', array_column($lista->colunas, 'id'));
+
+        $previa = $this->actingAs($this->compras)->postJson(route('cotacao.previa.gerar', $this->cotacao))->json('folha');
+        $this->assertSame('Frios', $previa['linhas'][0]['v']['setor']);
+
+        $folha = $this->actingAs($this->compras)->postJson(route('cotacao.compra.gerar', $this->cotacao))->json('folhas')[0];
+        $this->assertSame('Wilson Alvarenga · Frios', $folha['nome']);
+        $this->assertEquals(12, $folha['linhas'][0]['v']['contagem']);
+
+        // Frios não tem última entrada: as colunas dela não aparecem.
+        $ids = array_column($folha['colunas'], 'id');
+        $this->assertSame(['produto', 'desc', 'gtin', 'contagem', 'custo'], array_slice($ids, 0, 5));
+    }
+
+    public function test_planilha_de_compra_traz_a_ultima_entrada_da_lista(): void
+    {
+        $this->importarLista('merc gb.xlsx', [
+            ['Mercearia Hiper Gentil Bicalho'],
+            ['Produto', 'Descrição', 'GTIN Principal', 'Última Entrada', 'Qtd. Últ. Ent.', 'Forn. Últ. Ent.', 'Custo', 'Venda'],
+            [1, 'ARROZ 5KG', 789100000001, 46281, 240, 'ESTHAMPA CEASA', 20.1, 29.9],
+            [2, 'FEIJAO 1KG', 789100000003, '', '', '', 7.5, 9.9],
+        ]);
+
+        $folha = $this->actingAs($this->compras)->postJson(route('cotacao.compra.gerar', $this->cotacao))->json('folhas')[0];
+
+        $this->assertSame(['produto', 'desc', 'gtin', 'data', 'qtd', 'forn', 'custo'], array_slice(array_column($folha['colunas'], 'id'), 0, 7));
+        $this->assertNotContains('contagem', array_column($folha['colunas'], 'id'));
+
+        $arroz = collect($folha['linhas'])->firstWhere('v.desc', 'ARROZ 5KG')['v'];
+        $this->assertEquals(['16/09/2026', 240, 'ESTHAMPA CEASA'], [$arroz['data'], $arroz['qtd'], $arroz['forn']]);
+    }
+
     public function test_compra_exige_a_loja_de_cada_lista(): void
     {
         $this->importarLista('sem loja.xlsx', [['Descrição', 'GTIN'], ['ARROZ 5KG', '789100000001']]);

@@ -23,8 +23,8 @@ use RuntimeException;
 use Symfony\Component\HttpFoundation\Response as RespostaHttp;
 
 /**
- * A aba Cotação — a cotação CEASA de Mercearia e Bebidas, do estoque baixo ao
- * pedido.
+ * A aba Cotação — a cotação CEASA de Mercearia, Bebidas e Frios, do estoque
+ * baixo ao pedido.
  *
  * Substitui o HTML avulso que guardava tudo no navegador. O caminho é o mesmo:
  *
@@ -129,7 +129,7 @@ class CotacaoController extends Controller
                 'nome'    => $lista['titulo'] ?: PlanilhaDaCotacao::semExtensao($nome),
                 'arquivo' => mb_substr($nome, 0, 255),
                 'meta'    => ['loja' => $lista['loja'], 'setor' => $lista['setor']],
-                'colunas' => MontagemDaCotacao::colunas($cotacao, 'lista'),
+                'colunas' => MontagemDaCotacao::colunas($cotacao, 'lista', linhas: $lista['linhas']),
                 'linhas'  => $lista['linhas'],
                 'ordem'   => MontagemDaCotacao::proximaOrdem($cotacao, 'lista'),
             ]);
@@ -286,7 +286,7 @@ class CotacaoController extends Controller
 
     // ─── Saída ─────────────────────────────────────────────────────────────────
 
-    /** ?setor=merc|beb baixa só aquele setor; sem ele, os dois. */
+    /** ?setor=merc|beb|frios baixa só aquele setor; sem ele, todos. */
     public function exportarLista(Request $request, Cotacao $cotacao): RespostaHttp
     {
         $setor = $request->validate(['setor' => ['nullable', Rule::in(array_keys(Cotacao::SETORES))]])['setor'] ?? null;

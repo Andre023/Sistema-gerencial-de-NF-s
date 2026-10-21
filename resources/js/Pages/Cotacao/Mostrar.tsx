@@ -19,10 +19,10 @@ interface Props {
 
 /** As colunas que o sistema cria em cada folha — essas não se apagam. */
 const FIXAS: Record<TipoFolha, string[]> = {
-    lista: ['produto', 'desc', 'gtin', 'data', 'qtd', 'forn', 'custo', 'venda'],
+    lista: ['produto', 'desc', 'gtin', 'contagem', 'data', 'qtd', 'forn', 'custo', 'venda'],
     previa: ['setor', 'gtin', 'desc', 'valor'],
     resposta: ['gtin', 'desc', 'valor'],
-    compra: ['produto', 'desc', 'gtin', 'custo', 'venda', 'forn1', 'preco1', 'vs', 'forn2', 'preco2', 'cotacoes', 'fator', 'quantidade', 'preco_forn', 'fornecedor'],
+    compra: ['produto', 'desc', 'gtin', 'contagem', 'data', 'qtd', 'forn', 'custo', 'venda', 'forn1', 'preco1', 'vs', 'forn2', 'preco2', 'cotacoes', 'fator', 'quantidade', 'preco_forn', 'fornecedor'],
 };
 
 const PASSOS = ['passo-1', 'passo-2', 'passo-3', 'passo-4'];
@@ -234,7 +234,7 @@ export default function Mostrar({ cotacao, folhas: iniciais, lojas, setores }: P
 
                 {/* ── 1. Listas de compra ── */}
                 <Passo id="passo-1" n={1} recolhido={!!recolhidos['passo-1']} onAlternar={() => alternar('passo-1')} titulo="Listas de compra das lojas" p={p}
-                    explicacao="As planilhas de estoque baixo (Mercearia e Bebidas de cada loja). Confira a loja e o setor de cada uma — eu adivinho pelo título. Dá para corrigir qualquer célula aqui mesmo.">
+                    explicacao="As planilhas de estoque baixo (Mercearia, Bebidas e Frios de cada loja). Confira a loja e o setor de cada uma — eu adivinho pelo título. Dá para corrigir qualquer célula aqui mesmo.">
                     <div className="flex flex-wrap items-stretch gap-2">
                         <EnvioDeArquivos p={p} texto="Clique ou arraste as listas de compra (.xlsx)" ocupado={ocupado === 'cotacao.listas.importar'}
                             onArquivos={a => importar('cotacao.listas.importar', a)} />
@@ -263,7 +263,7 @@ export default function Mostrar({ cotacao, folhas: iniciais, lojas, setores }: P
 
                 {/* ── 2. Prévia ── */}
                 <Passo id="passo-2" n={2} recolhido={!!recolhidos['passo-2']} onAlternar={() => alternar('passo-2')} titulo="Lista de cotação para os fornecedores" p={p}
-                    explicacao="Junta os produtos das listas sem repetir, com Mercearia e Bebidas separadas. Ajuste o que quiser e baixe o .xlsx para mandar aos fornecedores. Atualizar de novo traz os produtos novos das listas e mantém o que você mudou aqui.">
+                    explicacao="Junta os produtos das listas sem repetir, com os setores separados. Ajuste o que quiser e baixe o .xlsx para mandar aos fornecedores. Atualizar de novo traz os produtos novos das listas e mantém o que você mudou aqui.">
                     <div className="flex flex-wrap items-center gap-2">
                         <button onClick={() => gerar('cotacao.previa.gerar')} disabled={travado || !listas.length}
                             className="text-sm font-medium px-3.5 py-2 rounded-lg disabled:opacity-40" style={{ background: p.ACCENT, color: '#fff' }}>
@@ -273,7 +273,7 @@ export default function Mostrar({ cotacao, folhas: iniciais, lojas, setores }: P
                         <div className="inline-flex items-stretch rounded-lg overflow-hidden" style={{ border: `1px solid ${p.GREEN}` }}>
                             <span className="text-sm font-medium px-3 py-2" style={{ background: p.GREEN, color: '#fff' }}>Baixar lista (.xlsx):</span>
                             {[
-                                { rotulo: 'Mercearia + Bebidas', setor: undefined, n: previa?.linhas.length ?? 0 },
+                                { rotulo: 'Todos os setores', setor: undefined, n: previa?.linhas.length ?? 0 },
                                 ...setores.map(s => ({ rotulo: `Só ${s.nome}`, setor: s.id, n: previa?.linhas.filter(l => l.v.setor === s.nome).length ?? 0 })),
                             ].map((o, i) => (
                                 <button key={o.rotulo} disabled={!previa || travado || !o.n}
